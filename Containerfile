@@ -16,6 +16,7 @@ ADD https://raw.githubusercontent.com/osism/cfg-generics/master/inventory/51-kol
 ADD https://raw.githubusercontent.com/osism/cfg-generics/master/inventory/60-generic /inventory.generics/60-generic
 
 COPY files/crontab /etc/crontabs/dragon
+COPY files/entrypoint.sh /entrypoint.sh
 COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
@@ -25,6 +26,7 @@ RUN apk add --no-cache \
       git \
       rsync \
       tini \
+      sudo \
     && apk add --no-cache --virtual .build-deps \
       build-base \
       libffi-dev \
@@ -39,7 +41,7 @@ RUN apk add --no-cache \
     && chown -R dragon: /defaults /inventory /inventory.pre /inventory.generics /opt/configuration/inventory
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/usr/sbin/crond", "-f", "-d", "8"]
+CMD ["/entrypoint.sh"]
 
 VOLUME /inventory
 VOLUME /inventory.pre
