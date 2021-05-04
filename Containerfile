@@ -37,12 +37,23 @@ RUN apk add --no-cache \
     && git clone --depth 1 https://github.com/osism/ansible-defaults /defaults \
     && addgroup -g $GROUP_ID dragon \
     && adduser -D -u $USER_ID -G dragon dragon \
-    && mkdir -p /inventory /inventory.pre /opt/configuration/inventory \
-    && chown -R dragon: /defaults /inventory /inventory.pre /inventory.generics /opt/configuration/inventory
+    && mkdir -p \
+      /inventory \
+      /inventory.pre \
+      /opt/configuration/inventory \
+      /extra \
+    && chown -R dragon: \
+      /defaults \
+      /inventory \
+      /inventory.pre \
+      /inventory.generics \
+      /opt/configuration/inventory \
+      /extra
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/entrypoint.sh"]
 
+VOLUME /extra
 VOLUME /inventory
 VOLUME /inventory.pre
 VOLUME /opt/configuration/inventory

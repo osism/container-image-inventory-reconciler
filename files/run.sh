@@ -4,6 +4,7 @@ rm -rf /inventor.pre/*
 
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
+rsync -a /extra/ /extra/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
 python3 /handle-inventory-overwrite.py
