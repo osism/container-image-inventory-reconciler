@@ -4,6 +4,7 @@ FROM python:${PYTHON_VERSION}-alpine
 ARG USER_ID=45000
 ARG GROUP_ID=45000
 
+ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 ENV TZ=UTC
 
 ADD https://raw.githubusercontent.com/osism/cfg-generics/master/inventory/50-ceph /inventory.generics/50-ceph
@@ -20,6 +21,7 @@ COPY files/entrypoint.sh /entrypoint.sh
 COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
+COPY files/playbooks /playbooks
 
 RUN apk add --no-cache \
       bash \
@@ -30,6 +32,8 @@ RUN apk add --no-cache \
     && apk add --no-cache --virtual .build-deps \
       build-base \
       libffi-dev \
+      openssl-dev \
+      python3-dev \
     && pip3 install --no-cache-dir --upgrade pip \
     && pip3 install --no-cache-dir -r /requirements.txt \
     && adduser -D inventory-reconciler \
