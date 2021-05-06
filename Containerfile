@@ -52,7 +52,8 @@ RUN apk add --no-cache \
       /inventory.pre \
       /inventory.generics \
       /opt/configuration/inventory \
-      /extra
+      /extra \
+    && rm /etc/crontabs/root
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/entrypoint.sh"]

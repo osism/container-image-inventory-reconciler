@@ -1,0 +1,42 @@
+---
+- name: Import inventory in netbox
+  connection: local
+  hosts: localhost
+  gather_facts: false
+
+  collections:
+    - netbox.netbox
+
+  vars:
+    netbox_default_device_role: generic
+    netbox_default_device_type: default-device-type
+    netbox_default_site: default-site
+    netbox_default_status: Staged
+
+    netbox_token: "{{ lookup('file', '/run/secrets/NETBOX_TOKEN') }}"
+    netbox_url: "{{ lookup('env', 'NETBOX_API') }}"
+
+  tasks:
+    - name: Pause play until netbox is reachable from this host
+      uri:
+        url: "{{ netbox_url }}/api/"
+        follow_redirects: none
+        method: GET
+      register: result
+      until: result.status == 200
+      retries: 720
+      delay: 5
+
+    - name: Create device
+      netbox_device:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item }}"
+          device_role: "{{ hostvars[item]['netbox_inventory_device_role'] | default(netbox_default_device_role) }}"
+          device_type: "{{ hostvars[item]['netbox_inventory_device_type'] | default(netbox_default_device_type) }}"
+          site: "{{ hostvars[item]['netbox_inventory_site'] | default(netbox_default_site) }}"
+          status: "{{ hostvars[item]['netbox_inventory_status'] | default(netbox_default_status) }}"
+        state: present
+      loop: "{{ groups['generic'] }}"
+      when: "item != 'localhost'"

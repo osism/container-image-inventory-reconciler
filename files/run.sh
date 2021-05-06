@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
+source /etc/environment
+export NETBOX_API
+
 rm -rf /inventor.pre/*
 
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
-rsync -a /extra/ /extra/
+rsync -a /extra/ //inventory.pre/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
 python3 /handle-inventory-overwrite.py
@@ -20,9 +23,23 @@ if [[ ! -e .git ]]; then
     git init
     git config user.name "Inventory Reconciler"
     git config user.email "inventory@reconciler.local"
-fi
 
-git add -A
-git commit -m $(date +"%Y-%m-%d-%H-%M")
+    git add -A
+    git commit -m $(date +"%Y-%m-%d-%H-%M")
+
+    if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
+        ansible-playbook -i /inventory /playbooks/import-netbox.yml
+    fi
+else
+    CHANGED=$(git diff --exit-code)
+    if [[ $? -gt 0 ]]; then
+        git add -A
+        git commit -m $(date +"%Y-%m-%d-%H-%M")
+
+        if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
+            ansible-playbook -i /inventory /playbooks/import-netbox.yml
+        fi
+    fi
+fi
 
 popd
