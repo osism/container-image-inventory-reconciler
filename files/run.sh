@@ -17,7 +17,7 @@ rm /inventory.pre/[0-9]*
 
 rsync -a --delete --exclude .git /inventory.pre/ /inventory
 
-pushd /inventory
+pushd /inventory > /dev/null
 
 if [[ ! -e .git ]]; then
     git init
@@ -42,4 +42,4 @@ else
     fi
 fi
 
-popd
+popd > /dev/null
