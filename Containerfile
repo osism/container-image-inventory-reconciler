@@ -16,6 +16,7 @@ COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
 COPY files/playbooks /playbooks
 
+# hadolint ignore=DL3003
 RUN apk add --no-cache \
       bash \
       git \
