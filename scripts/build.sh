@@ -15,8 +15,8 @@ PYTHON_VERSION=${PYTHON_VERSION:-3.8}
 REVISION=$(git rev-parse HEAD)
 VERSION=${VERSION:-latest}
 
-docker buildx build \
-    --load \
+buildah build-using-dockerfile \
+    --format docker \
     --build-arg "PYTHON_VERSION=$PYTHON_VERSION" \
     --build-arg "VERSION=$VERSION" \
     --tag "$(git rev-parse --short HEAD)" \
