@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-rsync -a --exclude=".*" /defaults/ /inventory/group_vars/
-rsync -a /inventory.generics/ /inventory/
-rsync -a /configuration/inventory/ /inventory/
+rsync -a --delete --exclude=".*" /defaults/ /inventory/group_vars/
+rsync -a --delete /inventory.generics/ /inventory/
+rsync -a --delete /configuration/inventory/ /inventory/
 
 python3 /handle-inventory-overwrite.py
 
