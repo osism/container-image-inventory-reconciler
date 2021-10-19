@@ -3,7 +3,7 @@
 source /etc/environment
 export NETBOX_API
 
-rm -rf /inventor.pre/*
+rm -rf /inventory.pre/*
 
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
