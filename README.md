@@ -4,4 +4,4 @@
 
 ## How it works
 
-![Overview](https://raw.githubusercontent.com/osism/container-image-inventory-reconciler/main/overview.png)
+![Overview](https://raw.githubusercontent.com/osism/container-image-inventory-reconciler/main/images/overview.png)
