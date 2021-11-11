@@ -10,6 +10,7 @@
   vars:
     netbox_default_device_role: generic-node
     netbox_default_device_type: default-device-type
+    netbox_default_management_interface: Management1
     netbox_default_site: default-site
     netbox_default_status: Staged
     netbox_default_tags:
@@ -40,6 +41,44 @@
           site: "{{ hostvars[item]['netbox_inventory_site'] | default(netbox_default_site) }}"
           status: "{{ hostvars[item]['netbox_inventory_status'] | default(netbox_default_status) }}"
           tags: "{{ hostvars[item]['netbox_inventory_tags'] | default(netbox_default_tags) }}"
+        state: present
+      loop: "{{ groups['generic'] }}"
+      when: "item != 'localhost'"
+
+    - name: Create management interface
+      netbox_device_interface:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          device: "{{ item }}"
+          name: "{{ hostvars[item]['netbox_inventory_management_interface'] | default(netbox_default_management_interface) }}"
+          type: virtual
+          description: "Interface is managed by OSISM. Do not modify."
+        state: present
+      loop: "{{ groups['generic'] }}"
+      when: "item != 'localhost'"
+
+    - name: Create addresses
+      netbox_ip_address:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          address: "{{ hostvars[item]['ansible_host'] }}"
+          assigned_object:
+            device: "{{ item }}"
+            name: "{{ hostvars[item]['netbox_inventory_management_interface'] | default(netbox_default_management_interface) }}"
+          description: "IP address is managed by OSISM. Do not modify."
+        state: present
+      loop: "{{ groups['generic'] }}"
+      when: "item != 'localhost'"
+
+    - name: Set primary addresses
+      netbox_device:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item }}"
+          primary_ip4: "{{ hostvars[item]['ansible_host'] }}"
         state: present
       loop: "{{ groups['generic'] }}"
       when: "item != 'localhost'"
