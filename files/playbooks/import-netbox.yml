@@ -12,6 +12,8 @@
     netbox_default_device_type: default-device-type
     netbox_default_site: default-site
     netbox_default_status: Staged
+    netbox_default_tags:
+      - generic
 
     netbox_token: "{{ lookup('file', '/run/secrets/NETBOX_TOKEN') }}"
     netbox_url: "{{ lookup('env', 'NETBOX_API') }}"
@@ -37,6 +39,7 @@
           device_type: "{{ hostvars[item]['netbox_inventory_device_type'] | default(netbox_default_device_type) }}"
           site: "{{ hostvars[item]['netbox_inventory_site'] | default(netbox_default_site) }}"
           status: "{{ hostvars[item]['netbox_inventory_status'] | default(netbox_default_status) }}"
+          tags: "{{ hostvars[item]['netbox_inventory_tags'] | default(netbox_default_tags) }}"
         state: present
       loop: "{{ groups['generic'] }}"
       when: "item != 'localhost'"
