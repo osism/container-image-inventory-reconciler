@@ -1,4 +1,6 @@
+ansible-runner==2.0.3
 ansible>=3.0.0,<4.0.0
+celery[redis]==5.2.0
 netaddr==0.8.0
 pynetbox==6.1.2
 yq==2.12.2
