@@ -45,4 +45,6 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           VERSION: ${{ matrix.version }}
           REPOSITORY: osism/inventory-reconciler
-        if: github.ref == 'refs/heads/main'
+        if: |
+          github.repository == 'osism/container-image-inventory-reconciler' &&
+          github.ref == 'refs/heads/main'
