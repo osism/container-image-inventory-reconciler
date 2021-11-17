@@ -28,14 +28,14 @@ if [[ ! -e .git ]]; then
     git commit -m $(date +"%Y-%m-%d-%H-%M")
 
     if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
-        ansible-playbook -i /inventory /playbooks/import-netbox.yml
+        ansible-playbook -i /inventory /ansible/playbooks/import-netbox.yml
     fi
 else
     git add -A
     git commit -m $(date +"%Y-%m-%d-%H-%M")
 
     if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
-        ansible-playbook -i /inventory /playbooks/import-netbox.yml
+        ansible-playbook -i /inventory /ansible/playbooks/import-netbox.yml
     fi
 fi
 

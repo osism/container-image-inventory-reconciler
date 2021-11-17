@@ -14,7 +14,7 @@ COPY files/entrypoint.sh /entrypoint.sh
 COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
-COPY files/playbooks /playbooks
+COPY files/ansible /ansible
 
 # hadolint ignore=DL3003
 RUN apk add --no-cache \
