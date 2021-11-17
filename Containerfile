@@ -31,6 +31,8 @@ RUN apk add --no-cache \
       python3-dev \
     && pip3 install --no-cache-dir --upgrade pip \
     && pip3 install --no-cache-dir -r /requirements.txt \
+    && git clone https://github.com/osism/python-osism /python-osism \
+    && pip3 install --no-cache-dir /python-osism \
     && git clone https://github.com/osism/release /release \
     && git clone https://github.com/osism/ansible-defaults /defaults \
     && ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" ) \
