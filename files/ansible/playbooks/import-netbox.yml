@@ -8,7 +8,7 @@
     - netbox.netbox
 
   vars:
-    netbox_default_device_role: generic-node
+    netbox_default_device_role: new
     netbox_default_device_type: default-device-type
     netbox_default_management_interface: Management1
     netbox_default_site: default-site
