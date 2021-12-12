@@ -14,6 +14,7 @@ COPY files/entrypoint.sh /entrypoint.sh
 COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
+COPY files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY files/ansible /ansible
 
 # hadolint ignore=DL3003

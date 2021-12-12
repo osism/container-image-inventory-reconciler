@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 source /etc/environment
-export NETBOX_API
 
 rm -rf /inventory.pre/*
 
@@ -26,17 +25,9 @@ if [[ ! -e .git ]]; then
 
     git add -A
     git commit -m $(date +"%Y-%m-%d-%H-%M")
-
-    if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
-        ansible-playbook -i /inventory /ansible/playbooks/import-netbox.yml
-    fi
 else
     git add -A
     git commit -m $(date +"%Y-%m-%d-%H-%M")
-
-    if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
-        ansible-playbook -i /inventory /ansible/playbooks/import-netbox.yml
-    fi
 fi
 
 popd > /dev/null
