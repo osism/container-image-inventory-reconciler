@@ -22,6 +22,7 @@
         url: "{{ netbox_url }}/api/"
         follow_redirects: none
         method: GET
+        validate_certs: false
       register: result
       until: result.status == 200
       retries: 720
@@ -39,6 +40,7 @@
       netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
+        validate_certs: false
         data:
           name: "{{ item.item | basename | regex_replace(regex, regex_2) }}"
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
@@ -57,6 +59,7 @@
       netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
+        validate_certs: false
         data:
           name: "{{ item.item | basename | regex_replace(regex, regex_2) }}"
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
