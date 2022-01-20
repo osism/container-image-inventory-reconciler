@@ -33,6 +33,7 @@ RUN apk add --no-cache \
     && pip3 install --no-cache-dir --upgrade pip \
     && pip3 install --no-cache-dir -r /requirements.txt \
     && git clone https://github.com/osism/python-osism /python-osism \
+    && git clone https://github.com/osism/mappings /mappings \
     && pip3 install --no-cache-dir -r /python-osism/requirements.txt \
     && pip3 install --no-cache-dir /python-osism \
     && git clone https://github.com/osism/release /release \
