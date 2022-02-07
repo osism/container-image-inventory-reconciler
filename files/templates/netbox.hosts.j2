@@ -1,0 +1,6 @@
+{% for tag in devices_to_tags %}
+[{{ tag }}]
+{% for device in devices_to_tags[tag] %}
+{{ device }}
+{% endfor %}
+{% endfor %}
