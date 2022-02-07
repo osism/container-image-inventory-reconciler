@@ -9,6 +9,10 @@ rsync -a /inventory.generics/ /inventory.pre/
 rsync -a /extra/ //inventory.pre/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
+if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
+    python3 /generate-inventory-from-netbox.py
+fi
+
 python3 /handle-inventory-overwrite.py
 
 cat /inventory.pre/[0-9]* > /inventory.pre/hosts
