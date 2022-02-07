@@ -63,5 +63,5 @@ environment = jinja2.Environment(loader=loader)
 template = environment.get_template("netbox.hosts.j2")
 result = template.render(data)
 
-with open(f"/inventory.pre/netbox.hosts", "w+") as fp:
+with open(f"/inventory.pre/99-netbox", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))

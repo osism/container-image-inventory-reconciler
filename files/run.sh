@@ -15,10 +15,10 @@ fi
 
 python3 /handle-inventory-overwrite.py
 
-cat /inventory.pre/[0-9]* > /inventory.pre/hosts
-rm /inventory.pre/[0-9]*
-
-rsync -a --delete --exclude .git /inventory.pre/ /inventory
+# NOTE: The intermediate step via the inventory.merge directory
+#       is necessary to remove other files in /inventory via -delete.
+ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
+rsync -a --delete --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null
 

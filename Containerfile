@@ -58,12 +58,14 @@ RUN apk add --no-cache \
     && mkdir -p \
       /inventory \
       /inventory.pre \
+      /inventory.merge \
       /opt/configuration/inventory \
       /extra \
     && chown -R dragon: \
       /defaults \
       /inventory \
       /inventory.pre \
+      /inventory.merge \
       /inventory.generics \
       /opt/configuration/inventory \
       /extra \
