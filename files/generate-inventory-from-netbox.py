@@ -65,11 +65,3 @@ result = template.render(data)
 
 with open(f"/inventory.pre/netbox.hosts", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))
-
-for tag in devices_to_tags:
-    print(f"[{tag}]")
-
-    for device in devices_to_tags[tag]:
-        print(f"{device}")
-
-    print("\n")
