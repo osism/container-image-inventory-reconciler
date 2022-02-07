@@ -8,6 +8,7 @@
 
 import os
 
+import jinja2
 import pynetbox
 
 
