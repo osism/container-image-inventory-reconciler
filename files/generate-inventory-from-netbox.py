@@ -7,6 +7,8 @@
 # having to import them into Netbox.
 
 import os
+import sys
+import time
 
 import jinja2
 import pynetbox
@@ -27,10 +29,21 @@ NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
 IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", "True") == "True")
 
-nb = pynetbox.api(
-    NETBOX_URL,
-    NETBOX_TOKEN
-)
+# After a restart of the container, the Netbox is not directly
+# accessible. Therefore up to 10 attempts until the Netbox is
+# reachable.
+for i in range(10):
+    try:
+        nb = pynetbox.api(
+            NETBOX_URL,
+            NETBOX_TOKEN
+        )
+    except:
+        time.sleep(1)
+    else:
+        break
+else:
+    sys.exit(1)
 
 if IGNORE_SSL_ERRORS:
     import requests
