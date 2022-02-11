@@ -4,6 +4,8 @@ source /etc/environment
 
 rm -rf /inventory.pre/*
 
+ls -1 /opt/configuration/inventory/
+
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
 rsync -a /extra/ //inventory.pre/
