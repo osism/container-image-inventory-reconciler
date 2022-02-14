@@ -38,6 +38,16 @@ for i in range(10):
             NETBOX_URL,
             NETBOX_TOKEN
         )
+
+        if IGNORE_SSL_ERRORS:
+            import requests
+            requests.packages.urllib3.disable_warnings()
+            session = requests.Session()
+            session.verify = False
+            nb.http_session = session
+
+        # Do something to check the connection
+        nb.dcim.sites.count()
     except:
         time.sleep(1)
     else:
@@ -45,18 +55,11 @@ for i in range(10):
 else:
     sys.exit(1)
 
-if IGNORE_SSL_ERRORS:
-    import requests
-    requests.packages.urllib3.disable_warnings()
-    session = requests.Session()
-    session.verify = False
-    nb.http_session = session
-
 devices = nb.dcim.devices.filter(
     tag=["managed-by-bifrost", "managed-by-osism"],
     status="active",
     cf_device_type=["server"],
-    cf_provisioning_state=["active"]
+    cf_provision_state=["active"]
 )
 
 devices_to_tags = {}
