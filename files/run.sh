@@ -11,6 +11,18 @@ rsync -a /inventory.generics/ /inventory.pre/
 rsync -a /extra/ //inventory.pre/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
+# get version files from /interface/versions
+cp /interface/versions/osism-ansible.yml /inventory.pre/group_vars/all/100-versions-osism-ansible.yml
+if [[ -e /interface/versions/ceph-ansible.yml ]]; then
+    cp /interface/versions/ceph-ansible.yml /inventory.pre/group_vars/all/100-versions-ceph-ansible.yml
+fi
+if [[ -e /interface/versions/kolla-ansible.yml ]]; then
+    cp /interface/versions/kolla-ansible.yml /inventory.pre/group_vars/all/100-versions-kolla-ansible.yml
+fi
+
+# get overlay files from /interface/overlays
+cp /interface/overlays/kolla-ansible.yml /inventory.pre/group_vars/all/100-overlays-kolla-ansible.yml
+
 if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
     python3 /generate-inventory-from-netbox.py
 fi
