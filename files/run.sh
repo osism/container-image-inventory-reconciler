@@ -32,6 +32,9 @@ if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
 fi
 
 python3 /handle-inventory-overwrite.py
+if [[ -e /inventory.pre/99-overwrite ]]; then
+    mv /inventory.pre/99-overwrite /inventory.pre/49-overwrite
+fi
 
 # NOTE: The intermediate step via the inventory.merge directory
 #       is necessary to remove other files in /inventory via -delete.
