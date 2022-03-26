@@ -4,4 +4,4 @@ ansible>=5.0.0,<6.0.0
 celery[redis]==5.2.3
 netaddr==0.8.0
 pynetbox==6.1.2
-yq==2.12.2
+yq==2.14.0
