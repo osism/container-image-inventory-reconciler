@@ -29,7 +29,7 @@
       delay: 5
 
     - name: Check inventory host_vars file with long hostnames
-      stat:
+      ansible.builtin.stat:
         path: "/inventory/host_vars/{{ item }}.yml"
       register: results
       loop: "{{ groups['generic'] }}"
@@ -37,7 +37,7 @@
       ignore_errors: true
 
     - name: Create local config context
-      netbox_device:
+      netbox.netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
         validate_certs: false
@@ -48,7 +48,7 @@
       when: item.stat.exists == True
 
     - name: Check inventory host_vars file with short hostnames
-      stat:
+      ansible.builtin.stat:
         path: "/inventory/host_vars/{{ hostvars[item]['inventory_hostname_short'] }}.yml"
       register: results
       loop: "{{ groups['generic'] }}"
@@ -56,7 +56,7 @@
       ignore_errors: true
 
     - name: Create local config context
-      netbox_device:
+      netbox.netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
         validate_certs: false
