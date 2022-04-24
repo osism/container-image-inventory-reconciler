@@ -58,6 +58,8 @@ else:
 devices = nb.dcim.devices.filter(
     tag=["managed-by-bifrost", "managed-by-osism"],
     status="active",
+    cf_deployment_enabled=[True],
+    cf_deployment_type=["osism"],
     cf_device_type=["server"],
     cf_provision_state=["active"]
 )
