@@ -71,6 +71,8 @@ RUN apk add --no-cache \
       /extra \
     && rm /etc/crontabs/root
 
+USER dragon
+
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/entrypoint.sh"]
 
