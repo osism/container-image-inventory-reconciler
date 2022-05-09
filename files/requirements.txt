@@ -1,6 +1,6 @@
 Jinja2==3.0.3
 ansible-runner==2.2.0
-ansible==5.7.0
+ansible==5.7.1
 celery[redis]==5.2.6
 netaddr==0.8.0
 pynetbox==6.6.2
