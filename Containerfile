@@ -44,7 +44,7 @@ RUN apk add --no-cache \
     && ( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/$VERSION/base.yml")" ) \
     && mkdir -p /inventory.generics/ \
     && cp /generics/inventory/50-ceph /inventory.generics/50-ceph \
-    && cp /generics/inventory/50-infrastruture /inventory.generics/50-infrastruture \
+    && cp /generics/inventory/50-infrastructure /inventory.generics/50-infrastructure \
     && cp /generics/inventory/50-kolla /inventory.generics/50-kolla \
     && cp /generics/inventory/50-monitoring /inventory.generics/50-monitoring \
     && cp /generics/inventory/50-openstack /inventory.generics/50-openstack \
