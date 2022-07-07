@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Union
 from ansiblelint.file_utils import Lintable
 from ansiblelint.rules import AnsibleLintRule
 
+
 class OsismFQCNRule(AnsibleLintRule):
     """Use FQCN for all actions."""
 
@@ -27,7 +28,7 @@ class OsismFQCNRule(AnsibleLintRule):
             except yaml.YAMLError as exception:
                 print(exception)
                 sys.exit(0)
-        
+
         for category in osism_fqcn_list:
             if task["action"]["__ansible_module_original__"] in osism_fqcn_list[category]:
                 return False

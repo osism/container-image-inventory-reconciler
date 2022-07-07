@@ -4,9 +4,6 @@
   hosts: localhost
   gather_facts: false
 
-  collections:
-    - netbox.netbox
-
   vars:
     netbox_token: "{{ lookup('file', '/run/secrets/NETBOX_TOKEN') }}"
     netbox_url: "{{ lookup('env', 'NETBOX_API') }}"
@@ -37,7 +34,7 @@
       ignore_errors: true
 
     - name: Create local config context
-      netbox.netbox_device:
+      netbox.netbox.netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
         validate_certs: false
@@ -56,7 +53,7 @@
       ignore_errors: true
 
     - name: Create local config context
-      netbox.netbox_device:
+      netbox.netbox.netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
         validate_certs: false
