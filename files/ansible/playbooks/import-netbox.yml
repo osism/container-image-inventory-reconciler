@@ -42,7 +42,7 @@
           name: "{{ item.item | basename | regex_replace(regex, regex_2) }}"
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
       loop: "{{ results.results }}"
-      when: item.stat.exists == True
+      when: item.stat.exists
 
     - name: Check inventory host_vars file with short hostnames
       ansible.builtin.stat:
@@ -61,4 +61,4 @@
           name: "{{ item.item | basename | regex_replace(regex, regex_2) }}"
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
       loop: "{{ results.results }}"
-      when: item.stat.exists == True
+      when: item.stat.exists
