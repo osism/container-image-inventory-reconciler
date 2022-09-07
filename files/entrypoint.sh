@@ -7,5 +7,5 @@ CELERY=${CELERY:-0}
 if [[ "${CELERY}" == 0 ]]; then
     exec /usr/sbin/crond -f -d 8
 elif [[ "${CELERY}" == 1 ]]; then
-    exec osism reconciler
+    exec osism service reconciler
 fi
