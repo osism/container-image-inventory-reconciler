@@ -38,6 +38,17 @@ jobs:
           VERSION: ${{ matrix.version }}
           REPOSITORY: osism/inventory-reconciler
 
+      - name: Get short revision ID
+        id: revision
+        shell: bash
+        run: echo "::set-output name=short::$(git rev-parse --short HEAD)"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          artifact-name: inventory-reconciler-${{ matrix.version }}.spdx
+          image: "inventory-reconciler:${{ steps.revision.outputs.short }}"
+
       - name: Push container image
         run: |
           scripts/push.sh
