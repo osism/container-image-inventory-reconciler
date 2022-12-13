@@ -8,7 +8,7 @@ ls -1 /opt/configuration/inventory/
 
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
-rsync -a /extra/ //inventory.pre/
+rsync -a /extra/ /inventory.pre/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
 # get version files from /interface/versions
