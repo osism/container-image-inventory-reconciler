@@ -41,7 +41,7 @@ fi
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
 rsync -a --delete --exclude .git /inventory.merge/ /inventory
 
-pushd /inventory > /dev/null
+pushd /inventory > /dev/null || exit 1
 
 if [[ ! -e .git ]]; then
     git init
