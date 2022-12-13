@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-source /etc/environment
+if [[ -e /etc/environment ]]; then
+    source /etc/environment
+fi
 
 rm -rf /inventory.pre/*
 
