@@ -47,12 +47,9 @@ if [[ ! -e .git ]]; then
     git init
     git config user.name "Inventory Reconciler"
     git config user.email "inventory@reconciler.local"
-
-    git add -A
-    git commit -m $(date +"%Y-%m-%d-%H-%M")
-else
-    git add -A
-    git commit -m $(date +"%Y-%m-%d-%H-%M")
 fi
+
+git add -A
+git commit -m $(date +"%Y-%m-%d-%H-%M")
 
 popd > /dev/null
