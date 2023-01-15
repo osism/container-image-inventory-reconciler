@@ -10,7 +10,7 @@ ls -1 /opt/configuration/inventory/
 
 rsync -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -a /inventory.generics/ /inventory.pre/
-rsync -a /extra/ //inventory.pre/
+rsync -a /extra/ /inventory.pre/
 rsync -a /opt/configuration/inventory/ /inventory.pre/
 
 # get version files from /interface/versions
@@ -43,18 +43,15 @@ fi
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
 rsync -a --delete --exclude .git /inventory.merge/ /inventory
 
-pushd /inventory > /dev/null
+pushd /inventory > /dev/null || exit 1
 
 if [[ ! -e .git ]]; then
     git init
     git config user.name "Inventory Reconciler"
     git config user.email "inventory@reconciler.local"
-
-    git add -A
-    git commit -m $(date +"%Y-%m-%d-%H-%M")
-else
-    git add -A
-    git commit -m $(date +"%Y-%m-%d-%H-%M")
 fi
+
+git add -A
+git commit -m $(date +"%Y-%m-%d-%H-%M")
 
 popd > /dev/null
