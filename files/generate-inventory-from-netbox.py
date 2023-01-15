@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # This script reads all required systems from the Netbox and writes them
-# into a form that can be evaluated by the Ansible Inventory Plugin INI. 
+# into a form that can be evaluated by the Ansible Inventory Plugin INI.
 #
 # This is a workaround to use the groups defined in cfg-generics without
 # having to import them into Netbox.
@@ -17,9 +17,9 @@ import pynetbox
 # Read secret from file
 def read_secret(secret_name):
     try:
-        f = open('/run/secrets/' + secret_name, 'r', encoding='utf-8')
+        f = open("/run/secrets/" + secret_name, "r", encoding="utf-8")
     except EnvironmentError:
-        return ''
+        return ""
     else:
         with f:
             return f.readline().strip()
@@ -27,20 +27,18 @@ def read_secret(secret_name):
 
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
-IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", "True") == "True")
+IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
 # After a restart of the container, the Netbox is not directly
 # accessible. Therefore up to 10 attempts until the Netbox is
 # reachable.
 for i in range(10):
     try:
-        nb = pynetbox.api(
-            NETBOX_URL,
-            NETBOX_TOKEN
-        )
+        nb = pynetbox.api(NETBOX_URL, NETBOX_TOKEN)
 
         if IGNORE_SSL_ERRORS:
             import requests
+
             requests.packages.urllib3.disable_warnings()
             session = requests.Session()
             session.verify = False
@@ -68,14 +66,16 @@ devices = nb.dcim.devices.filter(
 devices_to_tags = {}
 
 for device in devices:
-    for tag in device.tags:
+    for tag in [
+        x
+        for x in device.tags
+        if x.slug not in ["managed-by-osism", "managed-by-ironic"]
+    ]:
         if not tag.slug in devices_to_tags:
             devices_to_tags[tag.slug] = []
         devices_to_tags[tag.slug].append(device)
 
-data = {
-    "devices_to_tags": devices_to_tags
-}
+data = {"devices_to_tags": devices_to_tags}
 
 loader = jinja2.FileSystemLoader(searchpath="/templates/")
 environment = jinja2.Environment(loader=loader)
