@@ -55,3 +55,7 @@ git add -A
 git commit -m $(date +"%Y-%m-%d-%H-%M")
 
 popd > /dev/null
+
+if [[ -e /run/secrets/NETBOX_TOKEN ]]; then
+    bash /sync-inventory-with-netbox.sh
+fi
