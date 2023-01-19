@@ -21,7 +21,9 @@ class OsismAttributeOrderRule(AnsibleLintRule):
         self, task: Dict[str, Any], file: Optional[Lintable] = None
     ) -> Union[bool, str]:
 
-        with open(f"{os.getcwd()}/.ansible-lint-rules/osism_attribute_order_list.yaml", 'r') as fileStream:
+        with open(
+            f"{os.getcwd()}/.ansible-lint-rules/osism_attribute_order_list.yaml", "r"
+        ) as fileStream:
             try:
                 osism_attribute_order_list = yaml.safe_load(fileStream)
             except yaml.YAMLError as exception:

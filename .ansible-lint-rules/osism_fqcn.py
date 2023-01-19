@@ -13,16 +13,16 @@ class OsismFQCNRule(AnsibleLintRule):
 
     id = "osism-fqcn"
     severity = "MEDIUM"
-    description = (
-        "Check whether the long version is used in the playbook"
-    )
+    description = "Check whether the long version is used in the playbook"
     tags = ["formatting", "experimental"]
 
     def matchtask(
         self, task: Dict[str, Any], file: Optional[Lintable] = None
     ) -> Union[bool, str]:
 
-        with open(f"{os.getcwd()}/.ansible-lint-rules/osism_fqcn_list.yaml", 'r') as fileStream:
+        with open(
+            f"{os.getcwd()}/.ansible-lint-rules/osism_fqcn_list.yaml", "r"
+        ) as fileStream:
             try:
                 osism_fqcn_list = yaml.safe_load(fileStream)
             except yaml.YAMLError as exception:
@@ -30,6 +30,9 @@ class OsismFQCNRule(AnsibleLintRule):
                 sys.exit(0)
 
         for category in osism_fqcn_list:
-            if task["action"]["__ansible_module_original__"] in osism_fqcn_list[category]:
+            if (
+                task["action"]["__ansible_module_original__"]
+                in osism_fqcn_list[category]
+            ):
                 return False
         return True
