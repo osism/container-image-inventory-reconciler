@@ -49,6 +49,8 @@ RUN apk add --no-cache \
     && cp /generics/inventory/51-ceph /inventory.generics/51-ceph \
     && cp /generics/inventory/51-kolla /inventory.generics/51-kolla \
     && cp /generics/inventory/60-generic /inventory.generics/60-generic \
+    && ansible-galaxy collection install -v -f -r /ansible/requirements.yml -p /usr/share/ansible/collections \
+    && ln -s /usr/share/ansible/collections /ansible/collections \
     && adduser -D inventory-reconciler \
     && apk del .build-deps \
     && addgroup -g $GROUP_ID dragon \
