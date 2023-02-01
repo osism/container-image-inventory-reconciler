@@ -24,6 +24,7 @@ RUN apk add --no-cache \
       bash \
       git \
       jq \
+      lockfile-progs \
       rsync \
       sudo \
       tini \
