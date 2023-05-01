@@ -15,6 +15,7 @@ COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
 COPY files/requirements.txt /requirements.txt
 COPY files/run.sh /run.sh
+COPY files/render-python-requirements.py /render-python-requirements.py
 COPY files/templates /templates
 COPY files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY files/ansible /ansible
@@ -35,6 +36,8 @@ RUN apk add --no-cache \
     && pip3 install --no-cache-dir --upgrade pip \
     && pip3 install --no-cache-dir -r /requirements.txt \
     && git clone https://github.com/osism/release /release \
+    && python3 /render-python-requirements.py \
+    && pip3 install --no-cache-dir -r /requirements.extra.txt \
     && git clone https://github.com/osism/ansible-defaults /defaults \
     && ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" ) \
     && git clone https://github.com/osism/cfg-generics /generics \
@@ -68,7 +71,11 @@ RUN apk add --no-cache \
       /inventory.generics \
       /opt/configuration/inventory \
       /extra \
-    && rm /etc/crontabs/root
+    && rm /etc/crontabs/root \
+    && rm /render-python-requirements.py \
+    && rm /templates/requirements.txt.j2 \
+    && rm /requirements.extra.txt \
+    && rm /requirements.txt
 
 USER dragon
 
