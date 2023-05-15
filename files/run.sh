@@ -51,6 +51,11 @@ if [[ ! -e .git ]]; then
     git config user.email "inventory@reconciler.local"
 fi
 
+if [[ $(git status --porcelain --untracked-files=no | wc -l) != 0 ]]; then
+    mkdir -p /inventory/clustershell
+    ansible -i /inventory/hosts.yml -m ansible.builtin.template -a "src=/templates/clustershell.yml.j2 dest=/inventory/clustershell/ansible.yml mode=0644" localhost
+fi
+
 git add -A
 git commit -m $(date +"%Y-%m-%d-%H-%M")
 
