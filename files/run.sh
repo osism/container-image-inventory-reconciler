@@ -29,7 +29,7 @@ if [[ -e /interface/overlays/kolla-ansible.yml ]]; then
     cp /interface/overlays/kolla-ansible.yml /inventory.pre/group_vars/all/100-overlays-kolla-ansible.yml
 fi
 
-if [[ -e /run/secrets/NETBOX_TOKEN && ! -s /run/secrets/NETBOX_TOKEN ]]; then
+if [[ -e /run/secrets/NETBOX_TOKEN && z "$(cat /run/secrets/NETBOX_TOKEN)" ]]; then
     python3 /generate-inventory-from-netbox.py
 fi
 
@@ -61,6 +61,6 @@ git commit -m $(date +"%Y-%m-%d-%H-%M")
 
 popd > /dev/null
 
-if [[ -e /run/secrets/NETBOX_TOKEN && ! -s /run/secrets/NETBOX_TOKEN ]]; then
+if [[ -e /run/secrets/NETBOX_TOKEN && z "$(cat /run/secrets/NETBOX_TOKEN)" ]]; then
     bash /sync-inventory-with-netbox.sh
 fi
