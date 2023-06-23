@@ -33,7 +33,7 @@
       when: "item != 'localhost'"
       ignore_errors: true
 
-    - name: Create local config context
+    - name: Create local config context  # noqa: args[module]
       netbox.netbox.netbox_device:
         netbox_url: "{{ netbox_url }}"
         netbox_token: "{{ netbox_token }}"
@@ -43,6 +43,8 @@
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
       loop: "{{ results.results }}"
       when: item.stat.exists
+      tags:
+        - skip_ansible_lint
 
     - name: Check inventory host_vars file with short hostnames
       ansible.builtin.stat:
@@ -62,3 +64,5 @@
           local_context_data: "{{ lookup('file', item.stat.path) | from_yaml }}"
       loop: "{{ results.results }}"
       when: item.stat.exists
+      tags:
+        - skip_ansible_lint
