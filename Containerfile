@@ -1,5 +1,4 @@
-ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-alpine
+FROM python:3.11-alpine
 
 ARG VERSION
 

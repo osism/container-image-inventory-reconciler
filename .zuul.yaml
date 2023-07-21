@@ -1,4 +1,51 @@
 ---
+- secret:
+    name: SECRET_CONTAINER_IMAGE_INVENTORY_RECONCILER
+    data:
+      DOCKER_USERNAME: !encrypted/pkcs1-oaep
+        - euk+LNTOxUJRTUPKhyHW8CKvgl1WtWN4PcVMMz5M9jYzA+0XIIj8ZhmcMHJvxvFXNsPso
+          +QJrWlkHE8xVQUihRxpC33dqHM1DSgI0ynViXB+zAsXZFfzd5t4DmrhfxtDBdZigSO2Vy
+          HrPlRn+NoPlINQ8cbCFnPBnZsV8lAKPdcOjXfIhL7nfN3D9ztuwUGtC02Pm8Fct4X2U8Q
+          /siQ6oRhXqbD7ARwhXGlSDObxgcv3ffOuJsmG57u/TQX888JsQTtLEFHLzMJwKizAXciU
+          70FLHIgRonW/FczbhcZKKA6sOufripJg5KDPuWr01letkVZm8za/6NLIPlUCrg12HHhXW
+          lhXeu71JGMVGaWaZssxMTuIfC2Dbb5ia9jjw0xXhYw6WpJ2JmlSPiSIbX1IUsGpFNUwhL
+          YNjvCEuPO6TWOVw3TwhzNVkms0h8oTsgYqY9i8vOnrhBjCq8IM48c+1cNyAiYp3gkdU8r
+          hv7F+5fg+Y+0DmdKUbuyQiEQeY3Unf8hzjrlqw/kGnirQkMbADn7rCP3VdVvEA2C9Mdk8
+          jIYYTc2qQelrZHFi4Dpl24vd3c58YegPYW7Ut1YI2wuoCWZLFKwgZBewCfWNAj613QSXt
+          gD6IJeVQSZbaRk9K1VSdb4gaAUwV/uxiQUQmeQ2YkwYQHW+q59LjQQuWJmyiNM=
+      DOCKER_PASSWORD: !encrypted/pkcs1-oaep
+        - BBCZnp6TKP0u6cqQ/QMrJufpsRAHWhxMlQx41S0SDYzTvsmkts36aieDZ5l/3Ka4nBvu7
+          cTdxoL5j3/jMf5X+0y2STc110nX9bdMDEhY7Oeop1Du4PEy+wn8ltvfeK0ypxU+irB/lI
+          zbCngCc1uk2L4EbW1iCD0kO+ISFKleeontdF3q0/1voU0usRCwmFEwU+VWNG6YhWIysBF
+          0vMUp0yBKoM6oPEM47R9AJxZYi916+C+zrg+FH8SbZnUp6CKL2B9tCT5syymyydtzl6hZ
+          RrT5i582pl41hA0MCjvWTVzDAhYTqRJRujOF320Lmj7ltMTEl3rrzj/OPU2Ma/OtLdbM2
+          IBNYJxfB/XCThJ4+W5cOAPrW7UI3q08sCtKY2q+Kuba/Pltf5hySl4kMfUx/8B5XQXxnT
+          v86T4G4PQvxv0R5pty5iHGuStDhTmZZ7zpJvSIZFgExuruUlP54dfPhrIyIx7ANjenl5c
+          wn+L1OPmFDmdNqL9Z11D2klL0eSPQDG9W6AuK+mAXc98PA/7que6xWrnCn2/j4P81JvcL
+          JUmo4VKBikYhfKlI+kCyFu++XyA++Kcmk9kw+fEw2o1bkUVCoOwfIa7oIr/RCxii77xIY
+          ShGcqTZGLbkHqjUHHtrVfudwl7TRWgvGAs4JF8k/OgmR4x/QmSQR5kHgAADJBU=
+
+- job:
+    name: container-image-inventory-reconciler-build
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      push_image: false
+
+- job:
+    name: container-image-inventory-reconciler-push
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      push_image: true
+    secrets:
+      - name: secret
+        secret: SECRET_CONTAINER_IMAGE_INVENTORY_RECONCILER
+
 - project:
     merge-mode: squash-merge
     default-branch: main
@@ -8,6 +55,7 @@
         - flake8
         - hadolint
         - yamllint
+        - container-image-inventory-reconciler-build
     gate:
       jobs:
         - ansible-lint
@@ -20,3 +68,8 @@
         - flake8
         - hadolint
         - yamllint
+        - container-image-inventory-reconciler-push
+    post:
+      jobs:
+        - container-image-inventory-reconciler-push:
+            branches: main

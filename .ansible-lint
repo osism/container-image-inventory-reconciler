@@ -1,6 +1,8 @@
 ---
 exclude_paths:
   - .github
+mock_roles:
+  - ensure-docker
 use_default_rules: true
 rulesdir:
   - ./.ansible-lint-rules/
