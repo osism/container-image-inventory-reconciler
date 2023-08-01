@@ -44,7 +44,7 @@ git clone https://github.com/osism/release /release
 python3 /render-python-requirements.py
 pip3 install --no-cache-dir -r /requirements.extra.txt
 
-git clone https://github.com/osism/ansible-defaults /defaults
+git clone https://github.com/osism/defaults /defaults
 ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" )
 
 git clone https://github.com/osism/cfg-generics /generics
