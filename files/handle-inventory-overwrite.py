@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # NOTE: This is a quick workaround.
 #
 # This script reads the file 99-overwrite in the /inventory.pre directory (if it exists).
