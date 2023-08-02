@@ -73,7 +73,7 @@ mkdir -p \
   /inventory \
   /inventory.pre \
   /inventory.merge \
-  /opt/configuration/inventory \
+  /opt/configuration \
   /extra
 
 chown -R dragon: \
@@ -82,7 +82,7 @@ chown -R dragon: \
   /inventory.pre \
   /inventory.merge \
   /inventory.generics \
-  /opt/configuration/inventory \
+  /opt/configuration \
   /extra
 
 apk del .build-deps
@@ -103,4 +103,4 @@ CMD ["/entrypoint.sh"]
 VOLUME /extra
 VOLUME /inventory
 VOLUME /inventory.pre
-VOLUME /opt/configuration/inventory
+VOLUME /opt/configuration
