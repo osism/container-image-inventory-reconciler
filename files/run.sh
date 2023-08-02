@@ -38,8 +38,8 @@ if [[ -e /inventory.pre/99-overwrite ]]; then
     mv /inventory.pre/99-overwrite /inventory.pre/49-overwrite
 fi
 
-# NOTE: The intermediate step via the inventory.merge directory
-#       is necessary to remove other files in /inventory via -delete.
+# The intermediate step via the inventory.merge directory
+# is necessary to remove other files in /inventory via -delete.
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
 rsync -a --delete --exclude .git /inventory.merge/ /inventory
 
@@ -55,6 +55,9 @@ if [[ $(git status --porcelain --untracked-files=no | wc -l) != 0 ]]; then
     mkdir -p /inventory/clustershell
     ansible -i /inventory/hosts.yml -m ansible.builtin.template -a "src=/templates/clustershell.yml.j2 dest=/inventory/clustershell/ansible.yaml mode=0644" localhost
 fi
+
+mkdir -p /inventory/ansible
+python3 /merge-ansible-cfg.py
 
 git add -A
 git commit -m $(date +"%Y-%m-%d-%H-%M")
