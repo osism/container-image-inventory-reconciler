@@ -73,3 +73,6 @@
       jobs:
         - container-image-inventory-reconciler-push:
             branches: main
+    tag:
+      jobs:
+        - container-image-inventory-reconciler-push
