@@ -87,11 +87,12 @@ chown -R dragon: \
 
 apk del .build-deps
 
-rm /etc/crontabs/root
-rm /render-python-requirements.py
-rm /templates/requirements.txt.j2
-rm /requirements.extra.txt
-rm /requirements.txt
+rm -f \
+  /etc/crontabs/root \
+  /render-python-requirements.py \
+  /templates/requirements.txt.j2 \
+  /requirements.extra.txt \
+  /requirements.txt
 
 EOF
 
