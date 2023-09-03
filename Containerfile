@@ -41,7 +41,7 @@ apk add --no-cache --virtual .build-deps \
 pip3 install --no-cache-dir --upgrade pip
 pip3 install --no-cache-dir -r /requirements.txt
 
-git clone https://github.com/osism/release /release
+git clone --depth 1 https://github.com/osism/release /release
 python3 /render-python-requirements.py
 pip3 install --no-cache-dir -r /requirements.extra.txt
 
