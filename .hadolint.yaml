@@ -1,4 +1,4 @@
 ---
 ignored:
-  - DL3013 # we decided not to pin versions
-  - DL3018 # we decided not to pin versions
+  - DL3013  # we decided not to pin versions
+  - DL3018  # we decided not to pin versions
