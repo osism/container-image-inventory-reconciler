@@ -22,8 +22,6 @@ environment = jinja2.Environment(loader=loader)
 # render requirements.txt
 
 template = environment.get_template("requirements.txt.j2")
-result = template.render({
-  'osism_projects': versions['osism_projects']
-})
+result = template.render({"osism_projects": versions["osism_projects"]})
 with open("/requirements.extra.txt", "w+") as fp:
     fp.write(result)
