@@ -64,7 +64,6 @@
 
           docker tag "$revision" "$repository:$version"
           docker push "$repository:$version"
-
       when: push_image | bool
       changed_when: true
       no_log: true
