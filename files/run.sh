@@ -29,6 +29,10 @@ if [[ -e /interface/overlays/kolla-ansible.yml ]]; then
     cp /interface/overlays/kolla-ansible.yml /inventory.pre/group_vars/all/100-overlays-kolla-ansible.yml
 fi
 
+if [[ -e /interface/overlays/release-kolla-ansible.yml ]]; then
+    cp /interface/overlays/release-kolla-ansible.yml /inventory.pre/group_vars/all/100-overlays-release-kolla-ansible.yml
+fi
+
 if [[ -e /run/secrets/NETBOX_TOKEN && -z "$(cat /run/secrets/NETBOX_TOKEN)" ]]; then
     python3 /generate-inventory-from-netbox.py
 fi
