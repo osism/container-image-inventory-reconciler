@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import configparser
-import os
 
 config = configparser.ConfigParser()
 config.read(["/defaults/ansible.cfg", "/opt/configuration/environments/ansible.cfg"])

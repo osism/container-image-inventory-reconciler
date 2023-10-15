@@ -71,7 +71,7 @@ for device in devices:
         for x in device.tags
         if x.slug not in ["managed-by-osism", "managed-by-ironic"]
     ]:
-        if not tag.slug in devices_to_tags:
+        if tag.slug not in devices_to_tags:
             devices_to_tags[tag.slug] = []
         devices_to_tags[tag.slug].append(device)
 
@@ -82,5 +82,5 @@ environment = jinja2.Environment(loader=loader)
 template = environment.get_template("netbox.hosts.j2")
 result = template.render(data)
 
-with open(f"/inventory.pre/99-netbox", "w+") as fp:
+with open("/inventory.pre/99-netbox", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))
