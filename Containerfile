@@ -8,17 +8,17 @@ ARG GROUP_ID=45000
 ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 ENV TZ=UTC
 
-COPY files/ansible /ansible
-COPY files/crontab /etc/crontabs/dragon
-COPY files/entrypoint.sh /entrypoint.sh
-COPY files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
-COPY files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
-COPY files/merge-ansible-cfg.py /merge-ansible-cfg.py
-COPY files/render-python-requirements.py /render-python-requirements.py
-COPY files/requirements.txt /requirements.txt
-COPY files/run.sh /run.sh
-COPY files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
-COPY files/templates /templates
+COPY --link files/ansible /ansible
+COPY --link files/crontab /etc/crontabs/dragon
+COPY --link files/entrypoint.sh /entrypoint.sh
+COPY --link files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
+COPY --link files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
+COPY --link files/merge-ansible-cfg.py /merge-ansible-cfg.py
+COPY --link files/render-python-requirements.py /render-python-requirements.py
+COPY --link files/requirements.txt /requirements.txt
+COPY --link files/run.sh /run.sh
+COPY --link files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
+COPY --link files/templates /templates
 
 # hadolint ignore=DL3003
 RUN <<EOF
