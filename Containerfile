@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.12-alpine as builder
 
 ARG VERSION
 
@@ -98,10 +98,12 @@ EOF
 
 USER dragon
 
+FROM python:3.12-alpine
+
+COPY --link --from=builder / /
+
+USER dragon
+
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/entrypoint.sh"]
-
-VOLUME /extra
-VOLUME /inventory
-VOLUME /inventory.pre
-VOLUME /opt/configuration
+VOLUME ["/extra", "/inventory", "/inventory.pre", "/opt/configuration"]
