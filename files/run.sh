@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 
+ON_CHANGE=${ON_CHANGE:-0}
+
 if [[ -e /etc/environment ]]; then
     source /etc/environment
+fi
+
+# If the reconciler should only run on changes to /opt/configuraiton it is
+# checked here first and stopped if necessary.
+if [[ $ON_CHANGE == 1 && -e /state/last_change ]]; then
+    if [[ $(cat /state/last_change) == $(git --git-dir=/opt/configuration/.git rev-parse --short HEAD) ]]; then
+        echo "No change detected in /opt/configuration since last run. Exit."
+        exit 0
+    fi
 fi
 
 rm -rf /inventory.pre/*
@@ -65,6 +76,10 @@ python3 /merge-ansible-cfg.py
 
 git add -A
 git commit -m $(date +"%Y-%m-%d-%H-%M")
+
+if [[ $ON_CHANGE == 1 ]]; then
+    git --git-dir=/opt/configuration/.git rev-parse --short HEAD > /state/last_change
+fi
 
 popd > /dev/null
 
