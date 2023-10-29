@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The reconciler now has a mode to check in advance for changes in /opt/configuration.
+    If there are no changes, the execution is terminated.

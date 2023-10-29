@@ -70,20 +70,22 @@ addgroup -g $GROUP_ID dragon
 adduser -D -u $USER_ID -G dragon dragon
 
 mkdir -p \
+  /extra \
   /inventory \
-  /inventory.pre \
   /inventory.merge \
+  /inventory.pre \
   /opt/configuration \
-  /extra
+  /state
 
 chown -R dragon: \
   /defaults \
+  /extra \
   /inventory \
-  /inventory.pre \
-  /inventory.merge \
   /inventory.generics \
+  /inventory.merge \
+  /inventory.pre \
   /opt/configuration \
-  /extra
+  /state
 
 apk del .build-deps
 
