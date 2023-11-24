@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 ON_CHANGE=${ON_CHANGE:-0}
 
 if [[ -e /etc/environment ]]; then
