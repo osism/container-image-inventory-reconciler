@@ -38,8 +38,8 @@ if GROUP_CEPH_RGW in groups:
             }
         )
 
-    logger.info("Writing 50-kolla-ceph-rgw-hosts.yml with ceph_rgw_hosts")
-    with open("/inventory.pre/group_vars/all/50-kolla-ceph-rgw-hosts.yml", "w+") as fp:
+    logger.info("Writing 050-kolla-ceph-rgw-hosts.yml with ceph_rgw_hosts")
+    with open("/inventory.pre/group_vars/all/050-kolla-ceph-rgw-hosts.yml", "w+") as fp:
         dump = yaml.dump({"ceph_rgw_hosts": result})
         fp.write(dump)
 
@@ -52,9 +52,9 @@ if GROUP_CEPH_MON in groups:
             + " }}",
         )
 
-    logger.info("Writing 50-infrastructure-cephclient-mons.yml with cephclient_mons")
+    logger.info("Writing 050-infrastructure-cephclient-mons.yml with cephclient_mons")
     with open(
-        "/inventory.pre/group_vars/all/50-infrastructure-cephclient-mons.yml", "w+"
+        "/inventory.pre/group_vars/all/050-infrastructure-cephclient-mons.yml", "w+"
     ) as fp:
         dump = yaml.dump({"cephclient_mons": result})
         fp.write(dump)
