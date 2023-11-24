@@ -6,7 +6,7 @@ if [[ -e /etc/environment ]]; then
     source /etc/environment
 fi
 
-# If the reconciler should only run on changes to /opt/configuraiton it is
+# If the reconciler should only run on changes to /opt/configuration it is
 # checked here first and stopped if necessary.
 if [[ $ON_CHANGE == 1 && -e /state/last_change ]]; then
     if [[ $(cat /state/last_change) == $(git --git-dir=/opt/configuration/.git rev-parse --short HEAD) ]]; then
@@ -45,6 +45,8 @@ fi
 if [[ -e /run/secrets/NETBOX_TOKEN && -z "$(cat /run/secrets/NETBOX_TOKEN)" ]]; then
     python3 /generate-inventory-from-netbox.py
 fi
+
+python3 /prepare-vars.py
 
 python3 /handle-inventory-overwrite.py
 if [[ -e /inventory.pre/99-overwrite ]]; then
