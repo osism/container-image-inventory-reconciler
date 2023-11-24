@@ -8,6 +8,12 @@ if [[ -e /etc/environment ]]; then
     source /etc/environment
 fi
 
+# Ignore the following warning message:
+#
+# [WARNING]: Invalid characters were found in group names but not replaced, use
+# -vvvv to see details
+export ANSIBLE_TRANSFORM_INVALID_GROUP_CHARS=ignore
+
 # If the reconciler should only run on changes to /opt/configuration it is
 # checked here first and stopped if necessary.
 if [[ $ON_CHANGE == 1 && -e /state/last_change ]]; then
