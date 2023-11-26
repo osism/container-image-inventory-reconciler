@@ -45,7 +45,7 @@ if GROUP_CEPH_RGW in groups:
 
 if GROUP_CEPH_MON in groups:
     result = []
-    for host in groups[GROUP_CEPH_RGW]:
+    for host in groups[GROUP_CEPH_MON]:
         result.append(
             "{{ "
             + f"hostvars['{host}']['monitor_address'] | default(hostvars['{host}']['ansible_host'])"
