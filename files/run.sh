@@ -82,11 +82,13 @@ fi
 mkdir -p /inventory/ansible
 python3 /merge-ansible-cfg.py
 
-git add -A
-git commit -m $(date +"%Y-%m-%d-%H-%M")
+if [[ $(git status --porcelain) ]]; then
+    git add -A
+    git commit -m $(date +"%Y-%m-%d-%H-%M")
 
-if [[ $ON_CHANGE == 1 ]]; then
-    git --git-dir=/opt/configuration/.git rev-parse --short HEAD > /state/last_change
+    if [[ $ON_CHANGE == 1 ]]; then
+        git --git-dir=/opt/configuration/.git rev-parse --short HEAD > /state/last_change
+    fi
 fi
 
 popd > /dev/null
