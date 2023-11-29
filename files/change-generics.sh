@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 rm -rf /generics
-git clone --depth 1 -b $1 https://github.com/osism/generics /generics
+git clone --depth 1 -b $1 https://github.com/osism/cfg-generics /generics
 
 rm -rf /inventory.generics/
 mkdir -p /inventory.generics/
