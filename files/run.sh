@@ -28,7 +28,7 @@ rm -rf /inventory.pre/*
 rsync -q -a --exclude README.md --exclude LICENSE --exclude '.*' /defaults/ /inventory.pre/group_vars/
 rsync -q -a /inventory.generics/ /inventory.pre/
 rsync -q -a /extra/ /inventory.pre/
-rsync -q -a /opt/configuration/inventory/ /inventory.pre/
+rsync -q -a --exclude '.*' /opt/configuration/inventory/ /inventory.pre/
 
 # get version files from /interface/versions
 if [[ -e /interface/versions/osism-ansible.yml ]]; then

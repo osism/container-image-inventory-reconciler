@@ -34,7 +34,7 @@ for section in config.sections():
     sections.append(section)
 
 for f in os.scandir(dirname):
-    if f.is_file() and not f.path.endswith(filename):
+    if f.is_file() and not f.path.endswith(filename) and not f.name.startswith("."):
         changed = False
 
         config = configparser.ConfigParser(allow_no_value=True, delimiters="=")
