@@ -38,7 +38,12 @@ for f in os.scandir(dirname):
         changed = False
 
         config = configparser.ConfigParser(allow_no_value=True, delimiters="=")
-        config.read(os.path.join(f))
+
+        try:
+            config.read(os.path.join(f))
+        except UnicodeDecodeError as e:
+            print(f"Syntax issue in file {f.name}: {e}")
+            sys.exit(1)
 
         for section in sections:
             if config.remove_section(section):
