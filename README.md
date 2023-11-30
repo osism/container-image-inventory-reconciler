@@ -1,7 +1,4 @@
 # container-image-inventory-reconciler
 
 [![Quay](https://img.shields.io/badge/Quay-osism%2Finventory--reconciler-blue.svg)](https://quay.io/repository/osism/inventory-reconciler)
-
-## How it works
-
-![Overview](https://raw.githubusercontent.com/osism/container-image-inventory-reconciler/main/images/overview.png)
+[![Documentation](https://img.shields.io/static/v1?label=&message=documentation&color=blue)](https://osism.github.io/docs/guides/configuration-guide/inventory#reconciler)
