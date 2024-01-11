@@ -4,7 +4,7 @@
 
   environment:
     registry: "{{ docker_registry | default('osism.harbor.regio.digital') }}"
-    repository: "{{ docker_namespace | default('osism') }}//inventory-reconciler"
+    repository: "{{ docker_namespace | default('osism') }}/inventory-reconciler"
     version: "{{ zuul['tag'] | default('latest') }}"
 
   tasks:
