@@ -68,6 +68,8 @@
         - flake8
         - hadolint
         - yamllint
+    periodic-midnight:
+      jobs:
         - container-image-inventory-reconciler-push
     post:
       jobs:
