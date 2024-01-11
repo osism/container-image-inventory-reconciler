@@ -101,6 +101,9 @@ rm -f \
   /requirements.extra.txt \
   /requirements.txt
 
+pip3 install --no-cache-dir pyclean==2.7.6
+pyclean /usr
+pip3 uninstall -y pyclean
 EOF
 
 USER dragon
