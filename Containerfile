@@ -57,14 +57,7 @@ git clone https://github.com/osism/cfg-generics /generics
 ( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/$VERSION/base.yml")" )
 
 mkdir -p /inventory.generics/
-cp /generics/inventory/50-ceph /inventory.generics/50-ceph
-cp /generics/inventory/50-infrastruture /inventory.generics/50-infrastruture
-cp /generics/inventory/50-kolla /inventory.generics/50-kolla
-cp /generics/inventory/50-monitoring /inventory.generics/50-monitoring
-cp /generics/inventory/50-openstack /inventory.generics/50-openstack
-cp /generics/inventory/51-ceph /inventory.generics/51-ceph
-cp /generics/inventory/51-kolla /inventory.generics/51-kolla
-cp /generics/inventory/60-generic /inventory.generics/60-generic
+cp /generics/inventory/* /inventory.generics/
 
 ansible-galaxy collection install -v -f -r /ansible/requirements.yml -p /usr/share/ansible/collections
 ln -s /usr/share/ansible/collections /ansible/collections
