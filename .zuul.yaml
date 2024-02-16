@@ -25,6 +25,10 @@
           JUmo4VKBikYhfKlI+kCyFu++XyA++Kcmk9kw+fEw2o1bkUVCoOwfIa7oIr/RCxii77xIY
           ShGcqTZGLbkHqjUHHtrVfudwl7TRWgvGAs4JF8k/OgmR4x/QmSQR5kHgAADJBU=
 
+- semaphore:
+    name: semaphore-container-image-inventory-reconciler-push
+    max: 1
+
 - job:
     name: container-image-inventory-reconciler-build
     pre-run: playbooks/pre.yml
@@ -36,6 +40,8 @@
 
 - job:
     name: container-image-inventory-reconciler-push
+    semaphores:
+      - name: semaphore-container-image-inventory-reconciler-push
     pre-run: playbooks/pre.yml
     run: playbooks/build.yml
     vars:
