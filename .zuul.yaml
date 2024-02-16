@@ -39,7 +39,8 @@
       push_image: false
 
 - job:
-    name: container-image-inventory-reconciler-push
+    name: abstract-container-image-inventory-reconciler-push
+    abstract: true
     semaphores:
       - name: semaphore-container-image-inventory-reconciler-push
     pre-run: playbooks/pre.yml
@@ -48,9 +49,14 @@
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
       push_image: true
+
+- job:
+    name: container-image-inventory-reconciler-push
+    parent: abstract-container-image-inventory-reconciler-push
     secrets:
       - name: secret
         secret: SECRET_CONTAINER_IMAGE_INVENTORY_RECONCILER
+        pass-to-parent: true
 
 - project:
     merge-mode: squash-merge
