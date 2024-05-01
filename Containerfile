@@ -9,10 +9,7 @@ ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 ENV TZ=UTC
 
 COPY --link files/ansible /ansible
-COPY --link files/change-defaults.sh /change-defaults.sh
-COPY --link files/change-generics.sh /change-generics.sh
-COPY --link files/change-release.sh /change-release.sh
-COPY --link files/change-osism.sh /change-osism.sh
+COPY --link files/change.sh /change.sh
 COPY --link files/crontab /etc/crontabs/dragon
 COPY --link files/entrypoint.sh /entrypoint.sh
 COPY --link files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
