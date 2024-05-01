@@ -58,3 +58,20 @@ if GROUP_CEPH_MON in groups:
     ) as fp:
         dump = yaml.dump({"cephclient_mons": result})
         fp.write(dump)
+
+# Make the fsid from the Ceph environment available as ceph_cluster_fsid for all environments.
+try:
+    with open("/opt/configuration/environments/ceph/configuration.yml", "r") as fp:
+        data = yaml.full_load(fp)
+        if "fsid" in data:
+            fsid = data["fsid"]
+
+            logger.info("Writing 050-ceph-cluster-fsid.yml with ceph_cluster_fsid")
+            with open(
+                "/inventory.pre/group_vars/all/050-ceph-cluster-fsid.yml", "w+"
+            ) as fp:
+                dump = yaml.dump({"ceph_cluster_fsid": fsid})
+                fp.write(dump)
+# There are deployments without Ceph environments.
+except FileNotFoundError:
+    pass
