@@ -91,7 +91,7 @@ rm -f \
   /requirements.extra.txt \
   /requirements.txt
 
-pip3 install --no-cache-dir pyclean==2.7.6
+pip3 install --no-cache-dir pyclean==3.0.0
 pyclean /usr
 pip3 uninstall -y pyclean
 EOF
