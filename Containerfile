@@ -12,6 +12,7 @@ COPY --link files/ansible /ansible
 COPY --link files/change.sh /change.sh
 COPY --link files/crontab /etc/crontabs/dragon
 COPY --link files/entrypoint.sh /entrypoint.sh
+COPY --link files/generate-clustershell-ansible-file.py /generate-clustershell-ansible-file.py
 COPY --link files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
 COPY --link files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY --link files/merge-ansible-cfg.py /merge-ansible-cfg.py
