@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# SPDX-License-Identifier: Apache-2.0
+
 # This script reads all required systems from the Netbox and writes them
 # into a form that can be evaluated by the Ansible Inventory Plugin INI.
 #

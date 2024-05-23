@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# SPDX-License-Identifier: Apache-2.0
+
 # NOTE: This is a quick workaround.
 #
 # This script reads the file 99-overwrite in the /inventory.pre directory (if it exists).
