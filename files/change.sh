@@ -34,3 +34,13 @@ elif [[ "$1" == "release" ]]; then
     rm -rf /release
     git clone --depth 1 -b $1 https://github.com/osism/release /release
 fi
+
+chown -R dragon: \
+    /defaults \
+    /extra \
+    /inventory \
+    /inventory.generics \
+    /inventory.merge \
+    /inventory.pre
+
+sudo -u dragon bash /run.sh
