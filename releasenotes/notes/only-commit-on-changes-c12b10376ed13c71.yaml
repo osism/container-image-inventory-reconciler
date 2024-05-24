@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Only commit on changes in `/inventory`. This will avoid a RC of 1 when nothing changed.

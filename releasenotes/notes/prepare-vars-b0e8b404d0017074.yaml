@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Various variables with useful defaults are now prepared. These can be overwritten
-    in the configuration repository. The variables `ceph_rgw_hosts` and `cephclient_mons`
-    are currently supported.
