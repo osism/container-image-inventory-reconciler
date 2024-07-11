@@ -6,12 +6,24 @@
 # This is a workaround to use the groups defined in cfg-generics without
 # having to import them into Netbox.
 
+import glob
 import os
 import sys
 import time
 
 import jinja2
+from loguru import logger
 import pynetbox
+import yaml
+
+level = "INFO"
+log_fmt = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+    "<level>{message}</level>"
+)
+
+logger.remove()
+logger.add(sys.stdout, format=log_fmt, level=level, colorize=True)
 
 
 # Read secret from file
@@ -32,6 +44,7 @@ IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 # After a restart of the container, the Netbox is not directly
 # accessible. Therefore up to 10 attempts until the Netbox is
 # reachable.
+logger.info(f"Connecting with Netbox @ {NETBOX_URL}")
 for i in range(10):
     try:
         nb = pynetbox.api(NETBOX_URL, NETBOX_TOKEN)
@@ -75,6 +88,27 @@ for device in devices:
             devices_to_tags[tag.slug] = []
         devices_to_tags[tag.slug].append(device)
 
+    config_context = yaml.dump(device.config_context, Dumper=yaml.Dumper)
+    result = glob.glob(f"/inventory.pre/host_vars/{device}*")
+    if len(result) == 1:
+        p = result[0]
+        if os.path.isdir(p):
+            logger.info(
+                f"Writing Netbox config context of {device} in the file {p}/999-netbox.yml"
+            )
+            with open(f"{p}/999-netbox.yml", "w+") as fp:
+                fp.write(config_context)
+        else:
+            logger.info(f"Appending Netbox config context of {device} in the file {p}")
+            with open(p, "a") as fp:
+                fp.write(config_context)
+    elif len(result) == 0:
+        logger.info(
+            f"Writing Netbox config context of {device} in the file /inventory.pre/host_vars/{device}.yml"
+        )
+        with open(f"/inventory.pre/host_vars/{device}.yml", "w+") as fp:
+            fp.write(config_context)
+
 data = {"devices_to_tags": devices_to_tags}
 
 loader = jinja2.FileSystemLoader(searchpath="/templates/")
@@ -82,5 +116,6 @@ environment = jinja2.Environment(loader=loader)
 template = environment.get_template("netbox.hosts.j2")
 result = template.render(data)
 
+logger.info("Writing host groups from Netbox in the file /inventory.pre/99-netbox")
 with open("/inventory.pre/99-netbox", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))
