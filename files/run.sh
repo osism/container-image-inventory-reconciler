@@ -92,7 +92,3 @@ if [[ $(git status --porcelain) ]]; then
 fi
 
 popd > /dev/null
-
-if [[ -e /run/secrets/NETBOX_TOKEN && ! -z "$(cat /run/secrets/NETBOX_TOKEN)" && $INVENTORY_FROM_NETBOX == "True" ]]; then
-    bash /sync-inventory-with-netbox.sh
-fi
