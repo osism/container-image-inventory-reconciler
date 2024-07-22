@@ -103,6 +103,8 @@ FROM python:3.12-alpine
 
 COPY --link --from=builder / /
 
+ENV PYTHONWARNINGS="ignore::UserWarning"
+
 USER dragon
 
 ENTRYPOINT ["/sbin/tini", "--"]
