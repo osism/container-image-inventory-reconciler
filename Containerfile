@@ -33,7 +33,6 @@ apk add --no-cache \
   git \
   jq \
   rsync \
-  sudo \
   tini
 apk add --no-cache --virtual .build-deps \
   build-base \
