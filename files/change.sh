@@ -43,4 +43,4 @@ chown -R dragon: \
     /inventory.merge \
     /inventory.pre
 
-sudo -u dragon bash /run.sh
+su -c bash /run.sh dragon
