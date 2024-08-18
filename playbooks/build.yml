@@ -2,6 +2,9 @@
 - name: Build inventory-reconciler image
   hosts: all
 
+  vars:
+    python_venv_dir: /tmp/venv
+
   environment:
     registry: "{{ docker_registry | default('osism.harbor.regio.digital') }}"
     repository: "{{ docker_namespace | default('osism') }}/inventory-reconciler"
