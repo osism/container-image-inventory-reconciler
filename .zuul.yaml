@@ -2,6 +2,17 @@
 - secret:
     name: SECRET_CONTAINER_IMAGE_INVENTORY_RECONCILER
     data:
+      DTRACK_API_KEY: !encrypted/pkcs1-oaep
+        - CpFVHHI5FjJmrCOLKHL15gj1LbDd9GYHuz1bjlBMfpWLcur1/QPESN4MucC94RYp92BEG
+          xEkbeImdghWTO+D6CgCRVAJskngAFjcEhB5fkY2LyRqVVsr1moW/lPees2l13bFNDB+GZ
+          Uq9B8hz9QwdbVi5jCIRDm4/ip5CPeKZh12iaU9KQb/aaauPML5G98S5YpX6tRBx2tCHCQ
+          9KbwwNbkGtVYeJIINwzhN2mtWYpVT1kE8RUuWTLJ7OPINZpYqnTk81qSj05fTcVnFnyNw
+          muWibEJCHv3OwALy0+WPEkTgDDXBOitB1y4z9v/4/F37xfK2Ws33b4PPICQh+SUuM1iHY
+          9lrSxt+8+vxFUeK+z9sX0mMucVlquP08I8CvSYcpn5jagITrwij9u8iokRj4mqd0X8kr7
+          ecLetUT9tpoySwXAAjJ4aQBAazv6jeLnPGALL2/QvhsdaKNBjxjO4o+4oIaevJMGWS0e8
+          l8AvFjNRhx2/yoK6seVV+0PzYC7iJB3xItVq5AiKQHNaLBUMqPUmrx962X4rrrMzxzpTR
+          u/O3O2igLBHhIR7qaa6gMwH+6v2Fl40kt1n9ieS0q++Xr+TMqToGOpfSG1JD3aXRiF04e
+          9WCYgkdetANrH1N027QN0Af06gMv3/o4SU8f358ACPpyX9o3hth61pLOw+8N7A=
       DOCKER_USERNAME: !encrypted/pkcs1-oaep
         - euk+LNTOxUJRTUPKhyHW8CKvgl1WtWN4PcVMMz5M9jYzA+0XIIj8ZhmcMHJvxvFXNsPso
           +QJrWlkHE8xVQUihRxpC33dqHM1DSgI0ynViXB+zAsXZFfzd5t4DmrhfxtDBdZigSO2Vy
@@ -36,7 +47,6 @@
     vars:
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
-      push_image: false
 
 - job:
     name: abstract-container-image-inventory-reconciler-push
@@ -49,6 +59,7 @@
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
       push_image: true
+      push_sbom: true
 
 - job:
     name: container-image-inventory-reconciler-push
