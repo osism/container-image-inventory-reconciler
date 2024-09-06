@@ -68,9 +68,14 @@ rsync -q -a --delete --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null || exit 1
 
-if [[ ! -e .git ]]; then
+# check if we are in a git repository
+if git -C . rev-parse 2> /dev/null ; then
     git init
     git config user.name "Inventory Reconciler"
+    git config user.email "inventory@reconciler.local"
+elif [[ -z "$(git config --get user.name)"  ]]; then
+    git config user.name "Inventory Reconciler"
+elif [[ -z "$(git config --get user.email)"  ]]; then
     git config user.email "inventory@reconciler.local"
 fi
 
