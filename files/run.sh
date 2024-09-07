@@ -68,8 +68,8 @@ rsync -q -a --delete --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null || exit 1
 
-# check if we are in a git repository
-if git -C . rev-parse 2> /dev/null ; then
+# Check if we are in a Git repository
+if [[ $(git rev-parse --is-inside-work-tree) != "true" ]]; then
     git init
     git config user.name "Inventory Reconciler"
     git config user.email "inventory@reconciler.local"
