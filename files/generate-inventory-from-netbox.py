@@ -116,6 +116,6 @@ environment = jinja2.Environment(loader=loader)
 template = environment.get_template("netbox.hosts.j2")
 result = template.render(data)
 
-logger.info("Writing host groups from Netbox in the file /inventory.pre/99-netbox")
-with open("/inventory.pre/99-netbox", "w+") as fp:
+logger.info("Writing host groups from Netbox in the file /inventory.pre/20-netbox")
+with open("/inventory.pre/20-netbox", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))

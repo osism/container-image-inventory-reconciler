@@ -75,5 +75,5 @@ def handle_overwrite_file(filename, dirname="/inventory.pre/"):
 
 if __name__ == "__main__":
     handle_overwrite_file("99-overwrite")
-    handle_overwrite_file("99-netbox")
+    handle_overwrite_file("20-netbox")
     handle_overwrite_file("20-roles")
