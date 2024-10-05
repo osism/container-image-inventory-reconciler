@@ -48,6 +48,8 @@ def handle_overwrite_file(filename, dirname="/inventory.pre/"):
         if (
             f.is_file()
             and not f.path.endswith(filename)
+            and not f.path.endswith("20-roles")
+            and not f.path.endswith("20-netbox")
             and not f.path.endswith("99-overwrite")
             and not f.name.startswith(".")
             and not f.name.endswith(".yml")
