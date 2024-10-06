@@ -31,8 +31,12 @@ def handle_overwrite_file(filename, dirname="/inventory.pre/"):
 
     logger.info(f"Handling group overwrites in {filename}")
 
-    config = configparser.ConfigParser(allow_no_value=True, delimiters="=")
-    config.read(os.path.join(dirname, filename))
+    try:
+        config = configparser.ConfigParser(allow_no_value=True, delimiters="😈")
+        config.read(os.path.join(dirname, filename))
+    except UnicodeDecodeError as e:
+        logger.error(f"Syntax issue in file {filename}: {e}")
+        return
 
     sections = []
 
@@ -57,7 +61,7 @@ def handle_overwrite_file(filename, dirname="/inventory.pre/"):
         ):
             changed = False
 
-            config = configparser.ConfigParser(allow_no_value=True, delimiters="=")
+            config = configparser.ConfigParser(allow_no_value=True, delimiters="😈")
 
             try:
                 config.read(os.path.join(f))
