@@ -16,6 +16,7 @@ COPY --link files/generate-clustershell-ansible-file.py /generate-clustershell-a
 COPY --link files/generate-inventory-from-netbox.py /generate-inventory-from-netbox.py
 COPY --link files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY --link files/merge-ansible-cfg.py /merge-ansible-cfg.py
+COPY --link files/merge-inventory-files.py /merge-inventory-files.py
 COPY --link files/prepare-vars.py /prepare-vars.py
 COPY --link files/render-python-requirements.py /render-python-requirements.py
 COPY --link files/requirements.txt /requirements.txt
