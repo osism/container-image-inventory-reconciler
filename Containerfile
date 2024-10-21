@@ -1,4 +1,4 @@
-FROM python:3.12-alpine AS builder
+FROM python:3.13-alpine AS builder
 
 ARG VERSION
 
@@ -99,7 +99,7 @@ EOF
 
 USER dragon
 
-FROM python:3.12-alpine
+FROM python:3.13-alpine
 
 COPY --link --from=builder / /
 
