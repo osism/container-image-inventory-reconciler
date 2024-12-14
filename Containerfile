@@ -8,6 +8,13 @@ ARG GROUP_ID=45000
 ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 ENV TZ=UTC
 
+# This solves the following problem. It can be removed in the future if
+# netifaces is no longer used as a dependency of the OpenStack SDK.
+#
+# netifaces.c:1808:9: error: initialization of 'int' from 'void *' makes
+# integer from pointer without a cast [-Wint-conversion]
+ENV CFLAGS="-Wno-int-conversion"
+
 COPY --link files/ansible /ansible
 COPY --link files/change.sh /change.sh
 COPY --link files/crontab /etc/crontabs/dragon
