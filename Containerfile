@@ -37,9 +37,11 @@ apk add --no-cache \
   tini
 apk add --no-cache --virtual .build-deps \
   build-base \
+  cargo \
   libffi-dev \
   openssl-dev \
-  python3-dev
+  python3-dev \
+  rust
 
 pip3 install --no-cache-dir --upgrade pip==24.1.2
 pip3 install --no-cache-dir -r /requirements.txt
