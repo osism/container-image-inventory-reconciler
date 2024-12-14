@@ -31,7 +31,6 @@ COPY --link files/run.sh /run.sh
 COPY --link files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY --link files/templates /templates
 
-# hadolint ignore=DL3003
 RUN <<EOF
 set -e
 set -x
