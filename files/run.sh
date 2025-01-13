@@ -54,6 +54,7 @@ if [[ -e /run/secrets/NETBOX_TOKEN && ! -z "$(cat /run/secrets/NETBOX_TOKEN)" &&
     python3 /generate-inventory-from-netbox.py
 fi
 
+python3 /move-group-vars.py
 python3 /prepare-vars.py
 
 python3 /handle-inventory-overwrite.py
