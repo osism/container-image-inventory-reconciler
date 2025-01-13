@@ -10,7 +10,7 @@ if [[ "$1" == "defaults" ]]; then
     git clone --depth 1 -b $2 https://github.com/osism/defaults /defaults
 elif [[ "$1" == "generics" ]]; then
     rm -rf /generics
-    git clone --depth 1 -b $1 https://github.com/osism/cfg-generics /generics
+    git clone --depth 1 -b $2 https://github.com/osism/cfg-generics /generics
 
     rm -rf /inventory.generics/
     mkdir -p /inventory.generics/
@@ -24,7 +24,7 @@ elif [[ "$1" == "generics" ]]; then
     cp /generics/inventory/60-generic /inventory.generics/60-generic
 elif [[ "$1" == "osism" ]]; then
     rm -rf /python-osism
-    git clone --depth 1 -b $1 https://github.com/osism/python-osism /python-osism
+    git clone --depth 1 -b $2 https://github.com/osism/python-osism /python-osism
 
     pushd /python-osism
     pip3 uninstall -y osism
@@ -32,7 +32,7 @@ elif [[ "$1" == "osism" ]]; then
     popd
 elif [[ "$1" == "release" ]]; then
     rm -rf /release
-    git clone --depth 1 -b $1 https://github.com/osism/release /release
+    git clone --depth 1 -b $2 https://github.com/osism/release /release
 fi
 
 chown -R dragon: \
