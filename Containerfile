@@ -48,7 +48,7 @@ apk add --no-cache --virtual .build-deps \
   openssl-dev \
   python3-dev
 
-pip3 install --no-cache-dir --upgrade pip==24.3.1
+pip3 install --no-cache-dir --upgrade pip==25.0.1
 pip3 install --no-cache-dir -r /requirements.txt
 
 git clone --depth 1 https://github.com/osism/release /release
