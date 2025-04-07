@@ -56,10 +56,12 @@ python3 /render-python-requirements.py
 pip3 install --no-cache-dir -r /requirements.extra.txt
 
 git clone https://github.com/osism/defaults /defaults
-( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" )
-
 git clone https://github.com/osism/cfg-generics /generics
-( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/$VERSION/base.yml")" )
+
+if [ "$VERSION" != "latest" ]; then
+  ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" )
+  ( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/$VERSION/base.yml")" )
+fi
 
 mkdir -p /inventory.generics/
 cp /generics/inventory/* /inventory.generics/
