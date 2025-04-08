@@ -51,17 +51,18 @@ apk add --no-cache --virtual .build-deps \
 pip3 install --no-cache-dir --upgrade pip==25.0.1
 pip3 install --no-cache-dir -r /requirements.txt
 
-git clone --depth 1 https://github.com/osism/release /release
-python3 /render-python-requirements.py
-pip3 install --no-cache-dir -r /requirements.extra.txt
-
+git clone https://github.com/osism/release /release
 git clone https://github.com/osism/defaults /defaults
 git clone https://github.com/osism/cfg-generics /generics
 
 if [ "$VERSION" != "latest" ]; then
-  ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/$VERSION/base.yml")" )
-  ( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/$VERSION/base.yml")" )
+  ( cd /release || exit; git fetch --all --force; git chechkout "inventory-reconciler-$VERSION" )
+  ( cd /defaults || exit; git fetch --all --force; git checkout "$(yq -M -r .defaults_version "/release/latest/base.yml")" )
+  ( cd /generics || exit; git fetch --all --force; git checkout "$(yq -M -r .generics_version "/release/latest/base.yml")" )
 fi
+
+python3 /render-python-requirements.py
+pip3 install --no-cache-dir -r /requirements.extra.txt
 
 mkdir -p /inventory.generics/
 cp /generics/inventory/* /inventory.generics/
