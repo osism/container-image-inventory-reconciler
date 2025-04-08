@@ -32,6 +32,8 @@ COPY --link files/run.sh /run.sh
 COPY --link files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY --link files/templates /templates
 
+COPY --from=ghcr.io/astral-sh/uv:0.6.12 /uv /usr/local/bin/uv
+
 RUN <<EOF
 set -e
 set -x
@@ -48,8 +50,7 @@ apk add --no-cache --virtual .build-deps \
   openssl-dev \
   python3-dev
 
-pip3 install --no-cache-dir --upgrade pip==25.0.1
-pip3 install --no-cache-dir -r /requirements.txt
+uv pip install --no-cache --system -r /requirements.txt
 
 git clone https://github.com/osism/release /release
 git clone https://github.com/osism/defaults /defaults
@@ -62,7 +63,7 @@ if [ "$VERSION" != "latest" ]; then
 fi
 
 python3 /render-python-requirements.py
-pip3 install --no-cache-dir -r /requirements.extra.txt
+uv pip install --no-cache --system -r /requirements.extra.txt
 
 mkdir -p /inventory.generics/
 cp /generics/inventory/* /inventory.generics/
@@ -102,9 +103,9 @@ rm -f \
   /requirements.extra.txt \
   /requirements.txt
 
-pip3 install --no-cache-dir pyclean==3.0.0
+uv pip install --no-cache --system pyclean==3.0.0
 pyclean /usr
-pip3 uninstall -y pyclean
+uv pip uninstall --system pyclean
 EOF
 
 USER dragon
