@@ -48,7 +48,8 @@ apk add --no-cache --virtual .build-deps \
   build-base \
   libffi-dev \
   openssl-dev \
-  python3-dev
+  python3-dev \
+  yq
 
 uv pip install --no-cache --system -r /requirements.txt
 
