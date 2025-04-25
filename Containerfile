@@ -32,7 +32,7 @@ COPY --link files/run.sh /run.sh
 COPY --link files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY --link files/templates /templates
 
-COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.6.17 /uv /usr/local/bin/uv
 
 RUN <<EOF
 set -e
