@@ -197,7 +197,7 @@ class InventoryManager:
 
 def setup_logging() -> None:
     """Configure logging settings."""
-    level = "INFO"
+    level = os.getenv("OSISM_LOG_LEVEL", "INFO")
     log_fmt = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
         "<level>{message}</level>"

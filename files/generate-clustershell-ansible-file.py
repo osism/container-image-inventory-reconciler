@@ -3,6 +3,7 @@
 
 """Generate ClusterShell configuration file from Ansible inventory."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,7 @@ import yaml
 
 
 # Configure logging
-LOG_LEVEL = "INFO"
+LOG_LEVEL = os.getenv("OSISM_LOG_LEVEL", "INFO")
 LOG_FORMAT = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
     "<level>{message}</level>"

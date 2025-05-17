@@ -9,6 +9,7 @@ This script generates specific Ansible variable files based on the inventory gro
 - Ceph cluster FSID from configuration
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -42,7 +43,12 @@ LOGGER_FORMAT = (
     "<level>{message}</level>"
 )
 logger.remove()
-logger.add(sys.stdout, format=LOGGER_FORMAT, level="INFO", colorize=True)
+logger.add(
+    sys.stdout,
+    format=LOGGER_FORMAT,
+    level=os.getenv("OSISM_LOG_LEVEL", "INFO"),
+    colorize=True,
+)
 
 
 def write_yaml_file(file_path: Path, data: Dict[str, Any]) -> bool:
