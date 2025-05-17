@@ -168,11 +168,11 @@ class InventoryManager:
         """Write config context to existing location."""
         if os.path.isdir(path):
             output_file = f"{path}/999-netbox.yml"
-            logger.info(f"Writing NetBox config context of {device} to {output_file}")
+            logger.debug(f"Writing NetBox config context of {device} to {output_file}")
             with open(output_file, "w+") as fp:
                 fp.write(content)
         else:
-            logger.info(f"Appending NetBox config context of {device} to {path}")
+            logger.debug(f"Appending NetBox config context of {device} to {path}")
             with open(path, "a") as fp:
                 fp.write(content)
 
@@ -189,7 +189,7 @@ class InventoryManager:
         result = template.render({"devices_to_tags": devices_to_tags})
 
         output_file = f"{self.config.inventory_path}/20-netbox"
-        logger.info(f"Writing host groups from NetBox to {output_file}")
+        logger.debug(f"Writing host groups from NetBox to {output_file}")
         with open(output_file, "w+") as fp:
             # Remove empty lines
             fp.write(os.linesep.join([s for s in result.splitlines() if s]))
@@ -245,9 +245,11 @@ def main() -> None:
 
         # Write device config contexts
         for device in all_devices:
+            logger.info(f"Processing {device}")
             inventory_manager.write_device_config_context(device)
 
         # Write host groups
+        logger.info("Generating host groups")
         inventory_manager.write_host_groups(devices_to_tags)
 
         logger.info("NetBox inventory generation completed successfully")
