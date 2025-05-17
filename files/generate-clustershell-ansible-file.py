@@ -133,7 +133,7 @@ def main():
 
     try:
         # Generate initial ClusterShell file using Ansible template
-        logger.debug("Generating ClusterShell configuration from Ansible inventory")
+        logger.info("Generating ClusterShell configuration from Ansible inventory")
         run_ansible_template(inventory_path, template_path, output_path)
 
         # Load and sort the generated data
