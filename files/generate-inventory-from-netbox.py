@@ -114,25 +114,30 @@ class NetBoxClient:
         devices_with_both_tags = self.api.dcim.devices.filter(
             tag=["managed-by-osism", "managed-by-ironic"],
             status="active",
-            cf_maintenance=[False],
             cf_provision_state=["active"],
         )
+        # Filter out devices where cf_maintenance is True
+        devices_with_both_tags_filtered = [
+            device
+            for device in devices_with_both_tags
+            if device.custom_fields.get("maintenance") is not True
+        ]
 
         # Second set: Nodes with managed-by-osism but NOT managed-by-ironic
         # For these, cf_provision_state is not evaluated
         devices_osism_only = self.api.dcim.devices.filter(
             tag=["managed-by-osism"],
             status="active",
-            cf_maintenance=[False],
         )
-        # Filter out devices that also have managed-by-ironic tag
+        # Filter out devices that also have managed-by-ironic tag and where cf_maintenance is True
         devices_osism_only_filtered = [
             device
             for device in devices_osism_only
             if "managed-by-ironic" not in [tag.slug for tag in device.tags]
+            and device.custom_fields.get("maintenance") is not True
         ]
 
-        return list(devices_with_both_tags), devices_osism_only_filtered
+        return devices_with_both_tags_filtered, devices_osism_only_filtered
 
 
 class InventoryManager:
