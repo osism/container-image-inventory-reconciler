@@ -179,7 +179,7 @@ class InventoryManager:
     def _write_to_new_location(self, device: Any, content: str) -> None:
         """Write config context to new location."""
         output_file = f"{self.config.inventory_path}/host_vars/{device}.yml"
-        logger.info(f"Writing NetBox config context of {device} to {output_file}")
+        logger.debug(f"Writing NetBox config context of {device} to {output_file}")
         with open(output_file, "w+") as fp:
             fp.write(content)
 
@@ -236,9 +236,10 @@ def main() -> None:
         inventory_manager = InventoryManager(config)
 
         # Fetch devices
+        logger.info("Getting managed devices from NetBox. This could take some time.")
         devices_with_both_tags, devices_osism_only = netbox_client.get_managed_devices()
         all_devices = devices_with_both_tags + devices_osism_only
-        logger.debug(f"Found {len(all_devices)} total managed devices")
+        logger.info(f"Found {len(all_devices)} total managed devices")
 
         # Process devices and build tag mapping
         devices_to_tags = build_device_tag_mapping(all_devices)
