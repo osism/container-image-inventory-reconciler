@@ -31,12 +31,18 @@ rsync -q -a /extra/ /inventory.pre/
 rsync -q -a --exclude '.*' /opt/configuration/inventory/ /inventory.pre/
 
 # get version files from /interface/versions
+if [[ -e /interface/versions/osism-kubernetes.yml ]]; then
+    cp /interface/versions/osism-kubernetes.yml /inventory.pre/group_vars/all/100-versions-osism-kubernetes.yml
+fi
+
 if [[ -e /interface/versions/osism-ansible.yml ]]; then
     cp /interface/versions/osism-ansible.yml /inventory.pre/group_vars/all/100-versions-osism-ansible.yml
 fi
+
 if [[ -e /interface/versions/ceph-ansible.yml ]]; then
     cp /interface/versions/ceph-ansible.yml /inventory.pre/group_vars/all/100-versions-ceph-ansible.yml
 fi
+
 if [[ -e /interface/versions/kolla-ansible.yml ]]; then
     cp /interface/versions/kolla-ansible.yml /inventory.pre/group_vars/all/100-versions-kolla-ansible.yml
 fi
