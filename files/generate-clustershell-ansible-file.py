@@ -118,7 +118,7 @@ def save_clustershell_data(data: Dict[str, Any], file_path: Path) -> None:
             yaml.dump(
                 data, fp, default_flow_style=False, sort_keys=False, allow_unicode=True
             )
-        logger.info(f"Successfully wrote ClusterShell configuration to {file_path}")
+        logger.info("Successfully wrote ClusterShell configuration")
     except OSError as e:
         logger.error(f"Failed to write file: {e}")
         raise
