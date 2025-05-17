@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 import jinja2
 from loguru import logger
@@ -71,7 +71,7 @@ class NetBoxClient:
 
     def _connect(self) -> None:
         """Establish connection to NetBox with retry logic."""
-        logger.info(f"Connecting to NetBox @ {self.config.netbox_url}")
+        logger.info(f"Connecting to NetBox {self.config.netbox_url}")
 
         for attempt in range(self.config.retry_attempts):
             try:
@@ -84,11 +84,11 @@ class NetBoxClient:
 
                 # Test connection
                 self.api.dcim.sites.count()
-                logger.info("Successfully connected to NetBox")
+                logger.debug("Successfully connected to NetBox")
                 return
 
             except Exception as e:
-                logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                logger.warning(f"NetBox connection attempt {attempt + 1} failed: {e}")
                 time.sleep(self.config.retry_delay)
 
         raise ConnectionError("Failed to connect to NetBox after all retry attempts")
@@ -102,17 +102,37 @@ class NetBoxClient:
         session.verify = False
         self.api.http_session = session
 
-    def get_managed_devices(self) -> List[Any]:
-        """Retrieve managed devices from NetBox."""
-        return self.api.dcim.devices.filter(
-            tag=["managed-by-osism"],
+    def get_managed_devices(self) -> Tuple[List[Any], List[Any]]:
+        """Retrieve managed devices from NetBox.
+
+        Returns:
+            A tuple containing:
+            - Devices with both managed-by-osism and managed-by-ironic tags
+            - Devices with only managed-by-osism tag (not managed-by-ironic)
+        """
+        # First set: Nodes with both managed-by-osism AND managed-by-ironic
+        devices_with_both_tags = self.api.dcim.devices.filter(
+            tag=["managed-by-osism", "managed-by-ironic"],
             status="active",
-            cf_deployment_enabled=[True],
-            cf_deployment_type=["osism"],
-            cf_device_type=["server"],
             cf_maintenance=[False],
             cf_provision_state=["active"],
         )
+
+        # Second set: Nodes with managed-by-osism but NOT managed-by-ironic
+        # For these, cf_provision_state is not evaluated
+        devices_osism_only = self.api.dcim.devices.filter(
+            tag=["managed-by-osism"],
+            status="active",
+            cf_maintenance=[False],
+        )
+        # Filter out devices that also have managed-by-ironic tag
+        devices_osism_only_filtered = [
+            device
+            for device in devices_osism_only
+            if "managed-by-ironic" not in [tag.slug for tag in device.tags]
+        ]
+
+        return list(devices_with_both_tags), devices_osism_only_filtered
 
 
 class InventoryManager:
@@ -201,6 +221,8 @@ def main() -> None:
     setup_logging()
 
     try:
+        logger.info("Generate the inventory from the Netbox")
+
         # Load configuration
         config = Config.from_environment()
 
@@ -209,14 +231,15 @@ def main() -> None:
         inventory_manager = InventoryManager(config)
 
         # Fetch devices
-        devices = netbox_client.get_managed_devices()
-        logger.info(f"Found {len(list(devices))} managed devices")
+        devices_with_both_tags, devices_osism_only = netbox_client.get_managed_devices()
+        all_devices = devices_with_both_tags + devices_osism_only
+        logger.debug(f"Found {len(all_devices)} total managed devices")
 
         # Process devices and build tag mapping
-        devices_to_tags = build_device_tag_mapping(devices)
+        devices_to_tags = build_device_tag_mapping(all_devices)
 
         # Write device config contexts
-        for device in devices:
+        for device in all_devices:
             inventory_manager.write_device_config_context(device)
 
         # Write host groups
