@@ -64,6 +64,7 @@ if [ "$VERSION" != "latest" ]; then
 fi
 
 python3 /render-python-requirements.py
+cat /requirements.extra.txt
 uv pip install --no-cache --system -r /requirements.extra.txt
 
 mkdir -p /inventory.generics/
