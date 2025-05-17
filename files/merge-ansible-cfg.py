@@ -9,6 +9,7 @@ to the inventory directory. The user configuration takes precedence over default
 """
 
 import configparser
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -26,7 +27,12 @@ LOGGER_FORMAT = (
     "<level>{message}</level>"
 )
 logger.remove()
-logger.add(sys.stdout, format=LOGGER_FORMAT, level="INFO", colorize=True)
+logger.add(
+    sys.stdout,
+    format=LOGGER_FORMAT,
+    level=os.getenv("OSISM_LOG_LEVEL", "INFO"),
+    colorize=True,
+)
 
 
 def validate_config_files(config_paths: List[str]) -> List[str]:
