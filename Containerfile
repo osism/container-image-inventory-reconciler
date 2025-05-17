@@ -29,7 +29,6 @@ COPY --link files/prepare-vars.py /prepare-vars.py
 COPY --link files/render-python-requirements.py /render-python-requirements.py
 COPY --link files/requirements.txt /requirements.txt
 COPY --link files/run.sh /run.sh
-COPY --link files/sync-inventory-with-netbox.sh /sync-inventory-with-netbox.sh
 COPY --link files/templates /templates
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.5 /uv /usr/local/bin/uv
@@ -69,9 +68,6 @@ uv pip install --no-cache --system -r /requirements.extra.txt
 
 mkdir -p /inventory.generics/
 cp /generics/inventory/* /inventory.generics/
-
-ansible-galaxy collection install -v -f -r /ansible/requirements.yml -p /usr/share/ansible/collections
-ln -s /usr/share/ansible/collections /ansible/collections
 
 adduser -D inventory-reconciler
 
