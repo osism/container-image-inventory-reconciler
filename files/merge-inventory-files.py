@@ -153,10 +153,7 @@ def merge_inventory_files(
 def main() -> None:
     """Main entry point for the script."""
     logger.info("Starting merge of inventory files")
-    success = merge_inventory_files("20-roles", "20-netbox", "20-roles")
-    if not success:
-        logger.error("Failed to merge inventory files")
-        sys.exit(1)
+    merge_inventory_files("20-roles", "20-netbox", "20-roles")
     logger.info("Inventory files merged successfully")
 
 
