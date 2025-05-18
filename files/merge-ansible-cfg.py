@@ -17,9 +17,9 @@ from typing import List, Optional
 from loguru import logger
 
 # Constants
-DEFAULT_CONFIG_PATH = "/defaults/ansible.cfg"
-USER_CONFIG_PATH = "/opt/configuration/environments/ansible.cfg"
-OUTPUT_CONFIG_PATH = "/inventory/ansible/ansible.cfg"
+DEFAULT_CONFIG_PATH = Path("/defaults/ansible.cfg")
+USER_CONFIG_PATH = Path("/opt/configuration/environments/ansible.cfg")
+OUTPUT_CONFIG_PATH = Path("/inventory/ansible/ansible.cfg")
 
 # Logger configuration
 LOGGER_FORMAT = (
@@ -35,7 +35,7 @@ logger.add(
 )
 
 
-def validate_config_files(config_paths: List[str]) -> List[str]:
+def validate_config_files(config_paths: List[Path]) -> List[Path]:
     """
     Validate that configuration files exist and are readable.
 
@@ -48,8 +48,7 @@ def validate_config_files(config_paths: List[str]) -> List[str]:
     valid_paths = []
 
     for path in config_paths:
-        file_path = Path(path)
-        if file_path.exists() and file_path.is_file():
+        if path.exists() and path.is_file():
             valid_paths.append(path)
             logger.debug(f"Found configuration file: {path}")
         else:
@@ -59,7 +58,7 @@ def validate_config_files(config_paths: List[str]) -> List[str]:
 
 
 def merge_configurations(
-    config_paths: List[str],
+    config_paths: List[Path],
 ) -> Optional[configparser.ConfigParser]:
     """
     Merge multiple configuration files into a single ConfigParser object.
@@ -73,8 +72,11 @@ def merge_configurations(
     config = configparser.ConfigParser()
 
     try:
+        # Convert Path objects to strings for ConfigParser.read()
+        path_strings = [str(path) for path in config_paths]
+
         # Read configuration files in order (later files override earlier ones)
-        files_read = config.read(config_paths)
+        files_read = config.read(path_strings)
 
         if not files_read:
             logger.error("No configuration files could be read")
@@ -88,7 +90,7 @@ def merge_configurations(
         return None
 
 
-def write_configuration(config: configparser.ConfigParser, output_path: str) -> bool:
+def write_configuration(config: configparser.ConfigParser, output_path: Path) -> bool:
     """
     Write the merged configuration to the output file.
 
@@ -101,11 +103,10 @@ def write_configuration(config: configparser.ConfigParser, output_path: str) -> 
     """
     try:
         # Ensure the output directory exists
-        output_file = Path(output_path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the configuration
-        with open(output_path, "w+") as fp:
+        with open(output_path, "w+", encoding="utf-8") as fp:
             config.write(fp)
 
         logger.debug(f"Successfully wrote merged configuration to {output_path}")
