@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 
 import jinja2
 from loguru import logger
@@ -33,6 +33,7 @@ class Config:
     retry_delay: int = 1
     inventory_path: str = "/inventory.pre"
     template_path: str = "/templates/"
+    data_types: List[str] = None  # Configurable data types to extract
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -45,10 +46,17 @@ class Config:
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
 
+        # Parse data types from environment variable (comma-separated)
+        data_types_env = os.getenv("NETBOX_DATA_TYPES", "")
+        data_types = None
+        if data_types_env:
+            data_types = [dt.strip() for dt in data_types_env.split(",") if dt.strip()]
+
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
             ignore_ssl_errors=os.getenv("IGNORE_SSL_ERRORS", "True") == "True",
+            data_types=data_types,
         )
 
     @staticmethod
@@ -140,6 +148,42 @@ class NetBoxClient:
         return devices_with_both_tags_filtered, devices_osism_only_filtered
 
 
+class DeviceDataExtractor:
+    """Extracts various data fields from NetBox devices."""
+
+    @staticmethod
+    def extract_config_context(device: Any) -> Dict[str, Any]:
+        """Extract config context from device."""
+        return device.config_context
+
+    @staticmethod
+    def extract_custom_field(device: Any, field_name: str) -> Any:
+        """Extract a specific custom field from device."""
+        custom_fields = device.custom_fields or {}
+        return custom_fields.get(field_name)
+
+    @staticmethod
+    def extract_primary_ip(device: Any) -> Optional[str]:
+        """Extract primary IP address from device."""
+        if device.primary_ip:
+            return device.primary_ip.address
+        return None
+
+    @staticmethod
+    def extract_all_data(device: Any) -> Dict[str, Any]:
+        """Extract all configured data types from a device."""
+        return {
+            "config_context": DeviceDataExtractor.extract_config_context(device),
+            "primary_ip": DeviceDataExtractor.extract_primary_ip(device),
+            "netplan_parameters": DeviceDataExtractor.extract_custom_field(
+                device, "netplan_parameters"
+            ),
+            "frr_parameters": DeviceDataExtractor.extract_custom_field(
+                device, "frr_parameters"
+            ),
+        }
+
+
 class InventoryManager:
     """Manages inventory file operations."""
 
@@ -149,39 +193,91 @@ class InventoryManager:
             loader=jinja2.FileSystemLoader(searchpath=config.template_path)
         )
 
-    def write_device_config_context(self, device: Any) -> None:
-        """Write device config context to appropriate location."""
-        config_context = yaml.dump(device.config_context, Dumper=yaml.Dumper)
+    def write_device_data(self, device: Any, data_types: List[str] = None) -> None:
+        """Write various device data types to appropriate files.
+
+        Args:
+            device: The NetBox device object
+            data_types: List of data types to extract and write.
+                       If None, only config_context will be used.
+        """
+        if data_types is None:
+            data_types = ["config_context", "primary_ip"]
+
+        # Extract all requested data
+        all_data = DeviceDataExtractor.extract_all_data(device)
+
+        # Determine base path for device files
         host_vars_pattern = f"{self.config.inventory_path}/host_vars/{device}*"
         result = glob.glob(host_vars_pattern)
 
-        if len(result) == 1:
-            self._write_to_existing_location(device, result[0], config_context)
-        elif len(result) == 0:
-            self._write_to_new_location(device, config_context)
-        else:
+        if len(result) > 1:
             logger.warning(
-                f"Multiple matches found for {device}, skipping config context"
+                f"Multiple matches found for {device}, skipping data writing"
             )
+            return
 
-    def _write_to_existing_location(self, device: Any, path: str, content: str) -> None:
-        """Write config context to existing location."""
-        if os.path.isdir(path):
-            output_file = f"{path}/999-netbox.yml"
-            logger.debug(f"Writing NetBox config context of {device} to {output_file}")
+        base_path = result[0] if len(result) == 1 else None
+
+        # Write each data type to its own file
+        for data_type in data_types:
+            if data_type not in all_data:
+                logger.warning(f"Unknown data type '{data_type}' for device {device}")
+                continue
+
+            data = all_data[data_type]
+            if data is None or (isinstance(data, dict) and not data):
+                logger.debug(f"No {data_type} data for device {device}, skipping")
+                continue
+
+            self._write_data_to_file(device, data_type, data, base_path)
+
+    def _write_data_to_file(
+        self, device: Any, data_type: str, data: Any, base_path: Optional[str]
+    ) -> None:
+        """Write specific data type to file."""
+        # Prepare content based on data type
+        if data_type == "primary_ip":
+            content = f"ansible_host: {data}\n"
+        elif data_type in ["netplan_parameters", "frr_parameters"]:
+            content = yaml.dump({data_type: data}, Dumper=yaml.Dumper)
+        else:
+            content = yaml.dump(data, Dumper=yaml.Dumper)
+
+        # Determine file naming convention based on data type
+        file_suffixes = {
+            "config_context": "999-netbox-config-context.yml",
+            "primary_ip": "999-netbox-ansible.yml",
+            "netplan_parameters": "999-netbox-netplan.yml",
+            "frr_parameters": "999-netbox-frr.yml",
+        }
+
+        file_suffix = file_suffixes.get(data_type, f"990-netbox-{data_type}.yml")
+
+        if base_path:
+            if os.path.isdir(base_path):
+                output_file = f"{base_path}/{file_suffix}"
+                logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
+                with open(output_file, "w+") as fp:
+                    fp.write(content)
+            else:
+                # For existing single file, append with separator
+                logger.debug(f"Appending NetBox {data_type} of {device} to {base_path}")
+                with open(base_path, "a") as fp:
+                    fp.write(f"\n# NetBox {data_type}\n")
+                    fp.write(content)
+        else:
+            # Create new directory structure
+            device_dir = f"{self.config.inventory_path}/host_vars/{device}"
+            os.makedirs(device_dir, exist_ok=True)
+            output_file = f"{device_dir}/{file_suffix}"
+            logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
             with open(output_file, "w+") as fp:
                 fp.write(content)
-        else:
-            logger.debug(f"Appending NetBox config context of {device} to {path}")
-            with open(path, "a") as fp:
-                fp.write(content)
 
-    def _write_to_new_location(self, device: Any, content: str) -> None:
-        """Write config context to new location."""
-        output_file = f"{self.config.inventory_path}/host_vars/{device}.yml"
-        logger.debug(f"Writing NetBox config context of {device} to {output_file}")
-        with open(output_file, "w+") as fp:
-            fp.write(content)
+    def write_device_config_context(self, device: Any) -> None:
+        """Legacy method for backward compatibility - writes only config context."""
+        self.write_device_data(device, data_types=["config_context"])
 
     def write_host_groups(self, devices_to_tags: Dict[str, List[Any]]) -> None:
         """Write host groups to inventory file."""
@@ -244,10 +340,15 @@ def main() -> None:
         # Process devices and build tag mapping
         devices_to_tags = build_device_tag_mapping(all_devices)
 
-        # Write device config contexts
+        # Write device data (config context and optionally other data types)
         for device in all_devices:
             logger.info(f"Processing {device}")
-            inventory_manager.write_device_config_context(device)
+            if config.data_types:
+                inventory_manager.write_device_data(
+                    device, data_types=config.data_types
+                )
+            else:
+                inventory_manager.write_device_config_context(device)
 
         # Write host groups
         logger.info("Generating host groups")
