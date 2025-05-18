@@ -9,11 +9,11 @@ This is a workaround to use the groups defined in cfg-generics without
 having to import them into NetBox.
 """
 
-import glob
 import os
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 
 import jinja2
@@ -31,8 +31,8 @@ class Config:
     ignore_ssl_errors: bool = True
     retry_attempts: int = 10
     retry_delay: int = 1
-    inventory_path: str = "/inventory.pre"
-    template_path: str = "/templates/"
+    inventory_path: Path = Path("/inventory.pre")
+    template_path: Path = Path("/templates/")
     data_types: List[str] = None  # Configurable data types to extract
 
     @classmethod
@@ -56,15 +56,17 @@ class Config:
             netbox_url=netbox_url,
             netbox_token=netbox_token,
             ignore_ssl_errors=os.getenv("IGNORE_SSL_ERRORS", "True") == "True",
+            inventory_path=Path(os.getenv("INVENTORY_PATH", "/inventory.pre")),
+            template_path=Path(os.getenv("TEMPLATE_PATH", "/templates/")),
             data_types=data_types,
         )
 
     @staticmethod
     def _read_secret(secret_name: str) -> str:
         """Read secret from file."""
+        secret_path = Path(f"/run/secrets/{secret_name}")
         try:
-            with open(f"/run/secrets/{secret_name}", "r", encoding="utf-8") as f:
-                return f.readline().strip()
+            return secret_path.read_text(encoding="utf-8").strip()
         except (EnvironmentError, FileNotFoundError):
             return ""
 
@@ -190,7 +192,7 @@ class InventoryManager:
     def __init__(self, config: Config):
         self.config = config
         self.jinja_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(searchpath=config.template_path)
+            loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )
 
     def write_device_data(self, device: Any, data_types: List[str] = None) -> None:
@@ -208,8 +210,9 @@ class InventoryManager:
         all_data = DeviceDataExtractor.extract_all_data(device)
 
         # Determine base path for device files
-        host_vars_pattern = f"{self.config.inventory_path}/host_vars/{device}*"
-        result = glob.glob(host_vars_pattern)
+        host_vars_path = self.config.inventory_path / "host_vars"
+        device_pattern = f"{device}*"
+        result = list(host_vars_path.glob(device_pattern))
 
         if len(result) > 1:
             logger.warning(
@@ -233,7 +236,7 @@ class InventoryManager:
             self._write_data_to_file(device, data_type, data, base_path)
 
     def _write_data_to_file(
-        self, device: Any, data_type: str, data: Any, base_path: Optional[str]
+        self, device: Any, data_type: str, data: Any, base_path: Optional[Path]
     ) -> None:
         """Write specific data type to file."""
         # Prepare content based on data type
@@ -255,24 +258,24 @@ class InventoryManager:
         file_suffix = file_suffixes.get(data_type, f"990-netbox-{data_type}.yml")
 
         if base_path:
-            if os.path.isdir(base_path):
-                output_file = f"{base_path}/{file_suffix}"
+            if base_path.is_dir():
+                output_file = base_path / file_suffix
                 logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
-                with open(output_file, "w+") as fp:
+                with open(output_file, "w+", encoding="utf-8") as fp:
                     fp.write(content)
             else:
                 # For existing single file, append with separator
                 logger.debug(f"Appending NetBox {data_type} of {device} to {base_path}")
-                with open(base_path, "a") as fp:
+                with open(base_path, "a", encoding="utf-8") as fp:
                     fp.write(f"\n# NetBox {data_type}\n")
                     fp.write(content)
         else:
             # Create new directory structure
-            device_dir = f"{self.config.inventory_path}/host_vars/{device}"
-            os.makedirs(device_dir, exist_ok=True)
-            output_file = f"{device_dir}/{file_suffix}"
+            device_dir = self.config.inventory_path / "host_vars" / str(device)
+            device_dir.mkdir(parents=True, exist_ok=True)
+            output_file = device_dir / file_suffix
             logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
-            with open(output_file, "w+") as fp:
+            with open(output_file, "w+", encoding="utf-8") as fp:
                 fp.write(content)
 
     def write_device_config_context(self, device: Any) -> None:
@@ -284,11 +287,12 @@ class InventoryManager:
         template = self.jinja_env.get_template("netbox.hosts.j2")
         result = template.render({"devices_to_tags": devices_to_tags})
 
-        output_file = f"{self.config.inventory_path}/20-netbox"
+        output_file = self.config.inventory_path / "20-netbox"
         logger.debug(f"Writing host groups from NetBox to {output_file}")
-        with open(output_file, "w+") as fp:
+        with open(output_file, "w+", encoding="utf-8") as fp:
             # Remove empty lines
-            fp.write(os.linesep.join([s for s in result.splitlines() if s]))
+            cleaned_lines = [line for line in result.splitlines() if line]
+            fp.write("\n".join(cleaned_lines))
 
 
 def setup_logging() -> None:
