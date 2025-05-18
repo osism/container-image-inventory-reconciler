@@ -168,7 +168,7 @@ class DeviceDataExtractor:
     def extract_primary_ip(device: Any) -> Optional[str]:
         """Extract primary IP address from device."""
         if device.primary_ip:
-            return device.primary_ip.address
+            return device.primary_ip.address.split("/")[0]
         return None
 
     @staticmethod
