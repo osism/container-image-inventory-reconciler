@@ -260,12 +260,12 @@ class InventoryManager:
         if base_path:
             if base_path.is_dir():
                 output_file = base_path / file_suffix
-                logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
+                logger.debug(f"Writing {data_type} of {device} to {output_file}")
                 with open(output_file, "w+", encoding="utf-8") as fp:
                     fp.write(content)
             else:
                 # For existing single file, append with separator
-                logger.debug(f"Appending NetBox {data_type} of {device} to {base_path}")
+                logger.debug(f"Appending {data_type} of {device} to {base_path}")
                 with open(base_path, "a", encoding="utf-8") as fp:
                     fp.write(f"\n# NetBox {data_type}\n")
                     fp.write(content)
@@ -274,7 +274,7 @@ class InventoryManager:
             device_dir = self.config.inventory_path / "host_vars" / str(device)
             device_dir.mkdir(parents=True, exist_ok=True)
             output_file = device_dir / file_suffix
-            logger.debug(f"Writing NetBox {data_type} of {device} to {output_file}")
+            logger.debug(f"Writing {data_type} of {device} to {output_file}")
             with open(output_file, "w+", encoding="utf-8") as fp:
                 fp.write(content)
 
