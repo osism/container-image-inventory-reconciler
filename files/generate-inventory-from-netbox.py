@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
+import ipaddress
 
 import jinja2
 from loguru import logger
@@ -192,6 +193,22 @@ class NetBoxClient:
         except Exception as e:
             logger.warning(f"Failed to get OOB interface for device {device}: {e}")
             return None, None
+
+    def get_oob_networks(self) -> List[Any]:
+        """Get networks with managed-by-osism tag and OOB role.
+
+        Returns:
+            List of prefix objects that have managed-by-osism tag and OOB role.
+        """
+        try:
+            # Get all prefixes with managed-by-osism tag and OOB role
+            prefixes = self.api.ipam.prefixes.filter(
+                tag=["managed-by-osism"], role="oob"
+            )
+            return list(prefixes)
+        except Exception as e:
+            logger.warning(f"Failed to get OOB networks: {e}")
+            return []
 
 
 class DeviceDataExtractor:
@@ -397,6 +414,64 @@ class InventoryManager:
                     with open(output_file, "w+", encoding="utf-8") as fp:
                         yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
 
+    def write_dnsmasq_dhcp_ranges(self, netbox_client: NetBoxClient) -> None:
+        """Generate and write dnsmasq DHCP ranges for OOB networks."""
+        oob_networks = netbox_client.get_oob_networks()
+
+        if not oob_networks:
+            logger.debug("No OOB networks with managed-by-osism tag found")
+            return
+
+        dhcp_ranges = []
+
+        for network in oob_networks:
+            try:
+                # Parse the network prefix
+                net = ipaddress.ip_network(network.prefix)
+
+                # Get all hosts in the network
+                all_hosts = list(net.hosts())
+
+                if len(all_hosts) < 4:
+                    logger.warning(f"Network {network.prefix} has fewer than 4 hosts")
+                    continue
+
+                # Get the last 4 IP addresses
+                last_4_hosts = all_hosts[-4:]
+
+                # Create the DHCP range string
+                # Format: start_ip,end_ip,subnet_mask,lease_time
+                start_ip = str(last_4_hosts[0])
+                end_ip = str(last_4_hosts[-1])
+                subnet_mask = str(net.netmask)
+                lease_time = "3h"  # 3 hours as specified
+
+                dhcp_range = f"{start_ip},{end_ip},{subnet_mask},{lease_time}"
+                dhcp_ranges.append(dhcp_range)
+
+                logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")
+
+            except Exception as e:
+                logger.warning(f"Failed to process network {network.prefix}: {e}")
+                continue
+
+        if dhcp_ranges:
+            # Write the dnsmasq DHCP ranges to group_vars/all
+            dnsmasq_dhcp_data = {"dnsmasq_dhcp_ranges": dhcp_ranges}
+
+            # Ensure group_vars/all directory exists
+            group_vars_path = self.config.inventory_path / "group_vars" / "all"
+            group_vars_path.mkdir(parents=True, exist_ok=True)
+
+            # Write to dnsmasq.yml
+            output_file = group_vars_path / "dnsmasq.yml"
+            logger.debug(f"Writing DHCP ranges to {output_file}")
+
+            with open(output_file, "w", encoding="utf-8") as fp:
+                yaml.dump(
+                    dnsmasq_dhcp_data, fp, Dumper=yaml.Dumper, default_flow_style=False
+                )
+
 
 def setup_logging() -> None:
     """Configure logging settings."""
@@ -464,6 +539,10 @@ def main() -> None:
         # Generate dnsmasq configuration
         logger.info("Generating dnsmasq configuration")
         inventory_manager.write_dnsmasq_config(netbox_client, all_devices)
+
+        # Generate dnsmasq DHCP ranges
+        logger.info("Generating dnsmasq DHCP ranges")
+        inventory_manager.write_dnsmasq_dhcp_ranges(netbox_client)
 
         logger.info("NetBox inventory generation completed successfully")
 
