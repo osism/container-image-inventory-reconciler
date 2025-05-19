@@ -373,14 +373,24 @@ class InventoryManager:
                 # Create the dnsmasq configuration data
                 dnsmasq_data = {f"dnsmasq_dhcp_hosts__{device.name}": [entry]}
 
-                # Add dnsmasq_dhcp_macs using device type slug
-                if device.device_type and device.device_type.slug:
+                # Add dnsmasq_dhcp_macs using custom field or device type slug
+                custom_dhcp_tag = device.custom_fields.get("dnsmasq_dhcp_tag")
+
+                if custom_dhcp_tag:
+                    # Use custom field value if set
+                    mac_entry = f"tag:{custom_dhcp_tag},{mac_formatted}"
+                    dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = [mac_entry]
+                    logger.debug(
+                        f"Added dnsmasq MAC entry for {device.name} using custom tag: {mac_entry}"
+                    )
+                elif device.device_type and device.device_type.slug:
+                    # Fallback to device type slug
                     device_type_slug = device.device_type.slug
                     # Format: dhcp-mac=tag:device-type-slug,mac-address
                     mac_entry = f"tag:{device_type_slug},{mac_formatted}"
                     dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = [mac_entry]
                     logger.debug(
-                        f"Added dnsmasq MAC entry for {device.name}: {mac_entry}"
+                        f"Added dnsmasq MAC entry for {device.name} using device type: {mac_entry}"
                     )
 
                 # Determine base path for device files
