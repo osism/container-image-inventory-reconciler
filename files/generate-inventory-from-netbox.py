@@ -354,7 +354,7 @@ class InventoryManager:
                 logger.debug(f"Added dnsmasq entry for {device.name}: {entry}")
 
                 # Create the dnsmasq configuration data
-                dnsmasq_data = {"dnsmasq_dhcp_hosts": [entry]}
+                dnsmasq_data = {f"_dnsmasq_dhcp_hosts__{device.name}": [entry]}
 
                 # Determine base path for device files
                 host_vars_path = self.config.inventory_path / "host_vars"
