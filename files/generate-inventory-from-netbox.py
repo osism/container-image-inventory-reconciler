@@ -149,6 +149,50 @@ class NetBoxClient:
 
         return devices_with_both_tags_filtered, devices_osism_only_filtered
 
+    def get_device_oob_interface(
+        self, device: Any
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Get OOB management interface with IP and MAC address for a device.
+
+        Returns:
+            A tuple of (ip_address, mac_address) or (None, None) if not found.
+        """
+        try:
+            # Get all interfaces for the device
+            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+
+            for interface in interfaces:
+                # Check if interface has 'managed-by-osism' tag and is management only
+                if not interface.tags or not interface.mgmt_only:
+                    continue
+
+                has_managed_tag = any(
+                    tag.slug == "managed-by-osism" for tag in interface.tags
+                )
+                if not has_managed_tag:
+                    continue
+
+                # Get MAC address
+                mac_address = interface.mac_address
+                if not mac_address:
+                    continue
+
+                # Get IP addresses for this interface
+                ip_addresses = self.api.ipam.ip_addresses.filter(
+                    interface_id=interface.id
+                )
+
+                for ip in ip_addresses:
+                    # Return the first IP address found
+                    ip_without_mask = ip.address.split("/")[0]
+                    return ip_without_mask, mac_address
+
+            return None, None
+
+        except Exception as e:
+            logger.warning(f"Failed to get OOB interface for device {device}: {e}")
+            return None, None
+
 
 class DeviceDataExtractor:
     """Extracts various data fields from NetBox devices."""
@@ -255,7 +299,7 @@ class InventoryManager:
             "frr_parameters": "999-netbox-frr.yml",
         }
 
-        file_suffix = file_suffixes.get(data_type, f"990-netbox-{data_type}.yml")
+        file_suffix = file_suffixes.get(data_type, f"999-netbox-{data_type}.yml")
 
         if base_path:
             if base_path.is_dir():
@@ -293,6 +337,65 @@ class InventoryManager:
             # Remove empty lines
             cleaned_lines = [line for line in result.splitlines() if line]
             fp.write("\n".join(cleaned_lines))
+
+    def write_dnsmasq_config(
+        self, netbox_client: NetBoxClient, devices: List[Any]
+    ) -> None:
+        """Write dnsmasq DHCP configuration for devices with OOB management interfaces."""
+        for device in devices:
+            logger.debug(f"Checking OOB interface for device {device}")
+            ip_address, mac_address = netbox_client.get_device_oob_interface(device)
+
+            if ip_address and mac_address:
+                # Format MAC address properly (lowercase with colons)
+                mac_formatted = mac_address.lower()
+                # Create dnsmasq DHCP host entry: "mac,hostname,ip"
+                entry = f"{mac_formatted},{device.name},{ip_address}"
+                logger.debug(f"Added dnsmasq entry for {device.name}: {entry}")
+
+                # Create the dnsmasq configuration data
+                dnsmasq_data = {"dnsmasq_dhcp_hosts": [entry]}
+
+                # Determine base path for device files
+                host_vars_path = self.config.inventory_path / "host_vars"
+                device_pattern = f"{device}*"
+                result = list(host_vars_path.glob(device_pattern))
+
+                if len(result) > 1:
+                    logger.warning(
+                        f"Multiple matches found for {device}, skipping dnsmasq writing"
+                    )
+                    continue
+
+                base_path = result[0] if len(result) == 1 else None
+
+                # Write to device-specific file
+                if base_path:
+                    if base_path.is_dir():
+                        output_file = base_path / "999-netbox-dnsmasq.yml"
+                        logger.debug(
+                            f"Writing dnsmasq config for {device} to {output_file}"
+                        )
+                        with open(output_file, "w+", encoding="utf-8") as fp:
+                            yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
+                    else:
+                        # For existing single file, append with separator
+                        logger.debug(
+                            f"Appending dnsmasq config for {device} to {base_path}"
+                        )
+                        with open(base_path, "a", encoding="utf-8") as fp:
+                            fp.write("\n# NetBox dnsmasq\n")
+                            yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
+                else:
+                    # Create new directory structure
+                    device_dir = self.config.inventory_path / "host_vars" / str(device)
+                    device_dir.mkdir(parents=True, exist_ok=True)
+                    output_file = device_dir / "999-netbox-dnsmasq.yml"
+                    logger.debug(
+                        f"Writing dnsmasq config for {device} to {output_file}"
+                    )
+                    with open(output_file, "w+", encoding="utf-8") as fp:
+                        yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
 
 
 def setup_logging() -> None:
@@ -357,6 +460,10 @@ def main() -> None:
         # Write host groups
         logger.info("Generating host groups")
         inventory_manager.write_host_groups(devices_to_tags)
+
+        # Generate dnsmasq configuration
+        logger.info("Generating dnsmasq configuration")
+        inventory_manager.write_dnsmasq_config(netbox_client, all_devices)
 
         logger.info("NetBox inventory generation completed successfully")
 
