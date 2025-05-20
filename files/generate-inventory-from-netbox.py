@@ -573,7 +573,7 @@ def build_device_role_mapping(
 
     for device in devices:
         # Skip if device has no role
-        if not device.device_role or not device.device_role.slug:
+        if not device.role or not device.role.slug:
             continue
 
         # Check if device has managed-by-osism tag
@@ -581,7 +581,7 @@ def build_device_role_mapping(
         if not has_managed_tag:
             continue
 
-        role_slug = device.device_role.slug.lower()
+        role_slug = device.role.slug.lower()
 
         # Skip ignored roles
         if role_slug in ignored_roles:
