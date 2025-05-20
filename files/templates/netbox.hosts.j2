@@ -1,6 +1,6 @@
-{% for tag in devices_to_tags %}
-[{{ tag }}]
-{% for device in devices_to_tags[tag] %}
+{% for group, devices in devices_to_roles.items() %}
+[{{ group }}]
+{% for device in devices %}
 {{ device }}
 {% endfor %}
 {% endfor %}
