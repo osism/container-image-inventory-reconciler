@@ -592,8 +592,8 @@ def build_device_role_mapping(
         if role_slug in default_role_mapping:
             groups = default_role_mapping[role_slug]
         else:
-            # Default behavior: add to a group with the role name and to 'generic'
-            groups = [role_slug, "generic"]
+            # Default behavior: add to group 'generic'
+            groups = ["generic"]
 
         # Add device to each of its groups
         for group in groups:
