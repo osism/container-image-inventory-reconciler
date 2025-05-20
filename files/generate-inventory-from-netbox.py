@@ -35,6 +35,7 @@ class Config:
     inventory_path: Path = Path("/inventory.pre")
     template_path: Path = Path("/templates/")
     data_types: List[str] = None  # Configurable data types to extract
+    ignored_roles: List[str] = None  # Device roles to ignore
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -53,6 +54,15 @@ class Config:
         if data_types_env:
             data_types = [dt.strip() for dt in data_types_env.split(",") if dt.strip()]
 
+        # Parse ignored roles from environment variable (comma-separated)
+        # Default: skip 'housing', 'pdu', 'other' and 'oob' roles
+        ignored_roles_env = os.getenv("NETBOX_IGNORED_ROLES", "housing,pdu,other,oob")
+        ignored_roles = [
+            role.strip().lower()
+            for role in ignored_roles_env.split(",")
+            if role.strip()
+        ]
+
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
@@ -60,6 +70,7 @@ class Config:
             inventory_path=Path(os.getenv("INVENTORY_PATH", "/inventory.pre")),
             template_path=Path(os.getenv("TEMPLATE_PATH", "/templates/")),
             data_types=data_types,
+            ignored_roles=ignored_roles,
         )
 
     @staticmethod
@@ -343,10 +354,14 @@ class InventoryManager:
         """Legacy method for backward compatibility - writes only config context."""
         self.write_device_data(device, data_types=["config_context"])
 
-    def write_host_groups(self, devices_to_tags: Dict[str, List[Any]]) -> None:
-        """Write host groups to inventory file."""
+    def write_host_groups(self, devices_to_roles: Dict[str, List[Any]]) -> None:
+        """Write host groups to inventory file based on device roles.
+
+        Args:
+            devices_to_roles: Dictionary mapping role slugs to lists of devices
+        """
         template = self.jinja_env.get_template("netbox.hosts.j2")
-        result = template.render({"devices_to_tags": devices_to_tags})
+        result = template.render({"devices_to_roles": devices_to_roles})
 
         output_file = self.config.inventory_path / "20-netbox"
         logger.debug(f"Writing host groups from NetBox to {output_file}")
@@ -505,7 +520,7 @@ def setup_logging() -> None:
 
 
 def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
-    """Build mapping of tags to devices."""
+    """Build mapping of tags to devices (legacy function)."""
     devices_to_tags = {}
     excluded_tags = {"managed-by-osism", "managed-by-ironic"}
 
@@ -517,6 +532,77 @@ def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
                 devices_to_tags[tag.slug].append(device)
 
     return devices_to_tags
+
+
+def build_device_role_mapping(
+    devices: List[Any], ignored_roles: List[str] = None
+) -> Dict[str, List[Any]]:
+    """Build mapping of roles to devices.
+
+    Only includes devices that have the managed-by-osism tag.
+    Each device role can be mapped to multiple Ansible inventory groups.
+    Default mapping includes the device role itself and 'generic' for all roles.
+
+    Role to group mapping can be customized via environment variables:
+    ROLE_MAPPING_<ROLE>="group1,group2,group3"
+
+    Example:
+    ROLE_MAPPING_COMPUTE="compute,generic,openstack"
+
+    Args:
+        devices: List of NetBox device objects
+        ignored_roles: List of role slugs to skip (default: None)
+    """
+    devices_to_groups = {}
+
+    # Default group mapping - can be overridden with environment variables
+    default_role_mapping = {
+        # Format: 'role_slug': ['group1', 'group2', ...],
+        # By default, each role gets mapped to itself and to 'generic'
+    }
+
+    # Read custom role mappings from environment variables
+    for key, value in os.environ.items():
+        if key.startswith("ROLE_MAPPING_"):
+            role_name = key[13:].lower()  # Remove 'ROLE_MAPPING_' prefix and lowercase
+            groups = [group.strip() for group in value.split(",") if group.strip()]
+            default_role_mapping[role_name] = groups
+
+    if ignored_roles is None:
+        ignored_roles = []
+
+    for device in devices:
+        # Skip if device has no role
+        if not device.device_role or not device.device_role.slug:
+            continue
+
+        # Check if device has managed-by-osism tag
+        has_managed_tag = any(tag.slug == "managed-by-osism" for tag in device.tags)
+        if not has_managed_tag:
+            continue
+
+        role_slug = device.device_role.slug.lower()
+
+        # Skip ignored roles
+        if role_slug in ignored_roles:
+            logger.debug(f"Skipping device {device} with ignored role '{role_slug}'")
+            continue
+
+        # Determine which groups this device should be assigned to
+        if role_slug in default_role_mapping:
+            groups = default_role_mapping[role_slug]
+        else:
+            # Default behavior: add to a group with the role name and to 'generic'
+            groups = [role_slug, "generic"]
+
+        # Add device to each of its groups
+        for group in groups:
+            if group not in devices_to_groups:
+                devices_to_groups[group] = []
+            if device not in devices_to_groups[group]:
+                devices_to_groups[group].append(device)
+
+    return devices_to_groups
 
 
 def main() -> None:
@@ -539,8 +625,8 @@ def main() -> None:
         all_devices = devices_with_both_tags + devices_osism_only
         logger.info(f"Found {len(all_devices)} total managed devices")
 
-        # Process devices and build tag mapping
-        devices_to_tags = build_device_tag_mapping(all_devices)
+        # Process devices and build role mapping
+        devices_to_roles = build_device_role_mapping(all_devices, config.ignored_roles)
 
         # Write device data (config context and optionally other data types)
         for device in all_devices:
@@ -552,9 +638,9 @@ def main() -> None:
             else:
                 inventory_manager.write_device_config_context(device)
 
-        # Write host groups
-        logger.info("Generating host groups")
-        inventory_manager.write_host_groups(devices_to_tags)
+        # Write host groups based on device roles
+        logger.info("Generating host groups based on device roles")
+        inventory_manager.write_host_groups(devices_to_roles)
 
         # Generate dnsmasq configuration
         logger.info("Generating dnsmasq configuration")
