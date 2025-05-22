@@ -42,7 +42,7 @@ class Config:
     def from_environment(cls) -> "Config":
         """Create configuration from environment variables using dynaconf."""
         settings = Dynaconf(
-            envvar_prefix="",  # No prefix, use exact environment variable names
+            envvar_prefix=False,  # No prefix, use exact environment variable names
             environments=False,  # Disable environments feature
             load_dotenv=False,  # Don't load .env files
         )
