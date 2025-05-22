@@ -244,8 +244,15 @@ class DeviceDataExtractor:
 
     @staticmethod
     def extract_primary_ip(device: Any) -> Optional[str]:
-        """Extract primary IP address from device."""
-        if device.primary_ip:
+        """Extract primary IP address from device, prioritizing IPv4 over IPv6."""
+        # Check if device has primary_ip4
+        if device.primary_ip4:
+            return device.primary_ip4.address.split("/")[0]
+        # Fall back to primary_ip6 if no IPv4 is available
+        elif device.primary_ip6:
+            return device.primary_ip6.address.split("/")[0]
+        # Legacy fallback to primary_ip if neither is available
+        elif device.primary_ip:
             return device.primary_ip.address.split("/")[0]
         return None
 
