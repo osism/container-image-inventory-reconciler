@@ -9,7 +9,7 @@ This is a workaround to use the groups defined in cfg-generics without
 having to import them into NetBox.
 """
 
-import os
+import json
 import sys
 import time
 from dataclasses import dataclass
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 import ipaddress
 
+from dynaconf import Dynaconf
 import jinja2
 from loguru import logger
 import pynetbox
@@ -39,36 +40,39 @@ class Config:
 
     @classmethod
     def from_environment(cls) -> "Config":
-        """Create configuration from environment variables."""
-        netbox_url = os.getenv("NETBOX_API")
+        """Create configuration from environment variables using dynaconf."""
+        settings = Dynaconf(
+            envvar_prefix="",  # No prefix, use exact environment variable names
+            environments=False,  # Disable environments feature
+            load_dotenv=False,  # Don't load .env files
+        )
+
+        netbox_url = settings.get("NETBOX_API")
         if not netbox_url:
             raise ValueError("NETBOX_API environment variable is required")
 
-        netbox_token = os.getenv("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
+        netbox_token = settings.get("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
 
-        # Parse data types from environment variable (comma-separated)
-        data_types_env = os.getenv("NETBOX_DATA_TYPES", "")
-        data_types = None
-        if data_types_env:
-            data_types = [dt.strip() for dt in data_types_env.split(",") if dt.strip()]
+        # Get data types from dynaconf (already a list)
+        # Default: primary_ip and config_context
+        data_types = settings.get("NETBOX_DATA_TYPES", ["primary_ip", "config_context"])
 
-        # Parse ignored roles from environment variable (comma-separated)
+        # Get ignored roles from dynaconf (already a list)
         # Default: skip 'housing', 'pdu', 'other' and 'oob' roles
-        ignored_roles_env = os.getenv("NETBOX_IGNORED_ROLES", "housing,pdu,other,oob")
-        ignored_roles = [
-            role.strip().lower()
-            for role in ignored_roles_env.split(",")
-            if role.strip()
-        ]
+        ignored_roles = settings.get(
+            "NETBOX_IGNORED_ROLES", ["housing", "pdu", "other", "oob"]
+        )
+        # Ensure lowercase for consistency
+        ignored_roles = [role.lower() for role in ignored_roles]
 
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
-            ignore_ssl_errors=os.getenv("IGNORE_SSL_ERRORS", "True") == "True",
-            inventory_path=Path(os.getenv("INVENTORY_PATH", "/inventory.pre")),
-            template_path=Path(os.getenv("TEMPLATE_PATH", "/templates/")),
+            ignore_ssl_errors=settings.get("IGNORE_SSL_ERRORS", True),
+            inventory_path=Path(settings.get("INVENTORY_PATH", "/inventory.pre")),
+            template_path=Path(settings.get("TEMPLATE_PATH", "/templates/")),
             data_types=data_types,
             ignored_roles=ignored_roles,
         )
@@ -510,7 +514,12 @@ class InventoryManager:
 
 def setup_logging() -> None:
     """Configure logging settings."""
-    level = os.getenv("OSISM_LOG_LEVEL", "INFO")
+    settings = Dynaconf(
+        envvar_prefix="",
+        environments=False,
+        load_dotenv=False,
+    )
+    level = settings.get("OSISM_LOG_LEVEL", "INFO")
     log_fmt = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
         "<level>{message}</level>"
@@ -541,13 +550,10 @@ def build_device_role_mapping(
 
     Only includes devices that have the managed-by-osism tag.
     Each device role can be mapped to multiple Ansible inventory groups.
-    Default mapping includes the device role itself and 'generic' for all roles.
 
-    Role to group mapping can be customized via environment variables:
-    ROLE_MAPPING_<ROLE>="group1,group2,group3"
-
-    Example:
-    ROLE_MAPPING_COMPUTE="compute,generic,openstack"
+    Role to group mapping can be customized via ROLE_MAPPING environment variable
+    which should contain a JSON dictionary:
+    ROLE_MAPPING='{"compute": ["generic", "compute"], "manager": ["generic", "manager"]}'
 
     Args:
         devices: List of NetBox device objects
@@ -555,18 +561,23 @@ def build_device_role_mapping(
     """
     devices_to_groups = {}
 
-    # Default group mapping - can be overridden with environment variables
-    default_role_mapping = {
-        # Format: 'role_slug': ['group1', 'group2', ...],
-        # By default, each role gets mapped to itself and to 'generic'
-    }
+    # Read role mappings from ROLE_MAPPING environment variable
+    settings = Dynaconf(
+        envvar_prefix="",
+        environments=False,
+        load_dotenv=False,
+    )
 
-    # Read custom role mappings from environment variables
-    for key, value in os.environ.items():
-        if key.startswith("ROLE_MAPPING_"):
-            role_name = key[13:].lower()  # Remove 'ROLE_MAPPING_' prefix and lowercase
-            groups = [group.strip() for group in value.split(",") if group.strip()]
-            default_role_mapping[role_name] = groups
+    role_mapping = {}
+    role_mapping_env = settings.get("ROLE_MAPPING", "")
+
+    if role_mapping_env:
+        try:
+            role_mapping = json.loads(role_mapping_env)
+            logger.debug(f"Loaded role mapping: {role_mapping}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse ROLE_MAPPING environment variable: {e}")
+            logger.warning("Using default behavior (add devices to 'generic' group)")
 
     if ignored_roles is None:
         ignored_roles = []
@@ -589,8 +600,13 @@ def build_device_role_mapping(
             continue
 
         # Determine which groups this device should be assigned to
-        if role_slug in default_role_mapping:
-            groups = default_role_mapping[role_slug]
+        if role_slug in role_mapping:
+            groups = role_mapping[role_slug]
+            if not isinstance(groups, list):
+                logger.warning(
+                    f"Role mapping for '{role_slug}' is not a list, using default"
+                )
+                groups = ["generic"]
         else:
             # Default behavior: add to group 'generic'
             groups = ["generic"]
