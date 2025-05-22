@@ -9,7 +9,6 @@ This is a workaround to use the groups defined in cfg-generics without
 having to import them into NetBox.
 """
 
-import json
 import sys
 import time
 from dataclasses import dataclass
@@ -555,9 +554,9 @@ def build_device_role_mapping(
     Only includes devices that have the managed-by-osism tag.
     Each device role can be mapped to multiple Ansible inventory groups.
 
-    Role to group mapping can be customized via ROLE_MAPPING environment variable
+    Role to group mapping can be customized via NETBOX_ROLE_MAPPING environment variable
     which should contain a JSON dictionary:
-    ROLE_MAPPING='{"compute": ["generic", "compute"], "manager": ["generic", "manager"]}'
+    NETBOX_ROLE_MAPPING='{"compute": ["generic", "compute"], "manager": ["generic", "manager"]}'
 
     Args:
         devices: List of NetBox device objects
@@ -565,17 +564,8 @@ def build_device_role_mapping(
     """
     devices_to_groups = {}
 
-    # Read role mappings from ROLE_MAPPING environment variable
-    role_mapping = {}
-    role_mapping_env = SETTINGS.get("ROLE_MAPPING", "")
-
-    if role_mapping_env:
-        try:
-            role_mapping = json.loads(role_mapping_env)
-            logger.debug(f"Loaded role mapping: {role_mapping}")
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse ROLE_MAPPING environment variable: {e}")
-            logger.warning("Using default behavior (add devices to 'generic' group)")
+    # Read role mappings from NETBOX_ROLE_MAPPING environment variable
+    role_mapping = SETTINGS.get("NETBOX_ROLE_MAPPING", {})
 
     if ignored_roles is None:
         ignored_roles = []
