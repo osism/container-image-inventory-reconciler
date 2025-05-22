@@ -24,6 +24,14 @@ import pynetbox
 import yaml
 
 
+# Initialize settings once at module level
+SETTINGS = Dynaconf(
+    envvar_prefix=False,  # No prefix, use exact environment variable names
+    environments=False,  # Disable environments feature
+    load_dotenv=False,  # Don't load .env files
+)
+
+
 @dataclass
 class Config:
     """Configuration settings for NetBox integration."""
@@ -41,27 +49,21 @@ class Config:
     @classmethod
     def from_environment(cls) -> "Config":
         """Create configuration from environment variables using dynaconf."""
-        settings = Dynaconf(
-            envvar_prefix=False,  # No prefix, use exact environment variable names
-            environments=False,  # Disable environments feature
-            load_dotenv=False,  # Don't load .env files
-        )
-
-        netbox_url = settings.get("NETBOX_API")
+        netbox_url = SETTINGS.get("NETBOX_API")
         if not netbox_url:
             raise ValueError("NETBOX_API environment variable is required")
 
-        netbox_token = settings.get("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
+        netbox_token = SETTINGS.get("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
 
         # Get data types from dynaconf (already a list)
         # Default: primary_ip and config_context
-        data_types = settings.get("NETBOX_DATA_TYPES", ["primary_ip", "config_context"])
+        data_types = SETTINGS.get("NETBOX_DATA_TYPES", ["primary_ip", "config_context"])
 
         # Get ignored roles from dynaconf (already a list)
         # Default: skip 'housing', 'pdu', 'other' and 'oob' roles
-        ignored_roles = settings.get(
+        ignored_roles = SETTINGS.get(
             "NETBOX_IGNORED_ROLES", ["housing", "pdu", "other", "oob"]
         )
         # Ensure lowercase for consistency
@@ -70,9 +72,9 @@ class Config:
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
-            ignore_ssl_errors=settings.get("IGNORE_SSL_ERRORS", True),
-            inventory_path=Path(settings.get("INVENTORY_PATH", "/inventory.pre")),
-            template_path=Path(settings.get("TEMPLATE_PATH", "/templates/")),
+            ignore_ssl_errors=SETTINGS.get("IGNORE_SSL_ERRORS", True),
+            inventory_path=Path(SETTINGS.get("INVENTORY_PATH", "/inventory.pre")),
+            template_path=Path(SETTINGS.get("TEMPLATE_PATH", "/templates/")),
             data_types=data_types,
             ignored_roles=ignored_roles,
         )
@@ -514,12 +516,7 @@ class InventoryManager:
 
 def setup_logging() -> None:
     """Configure logging settings."""
-    settings = Dynaconf(
-        envvar_prefix="",
-        environments=False,
-        load_dotenv=False,
-    )
-    level = settings.get("OSISM_LOG_LEVEL", "INFO")
+    level = SETTINGS.get("OSISM_LOG_LEVEL", "INFO")
     log_fmt = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
         "<level>{message}</level>"
@@ -562,14 +559,8 @@ def build_device_role_mapping(
     devices_to_groups = {}
 
     # Read role mappings from ROLE_MAPPING environment variable
-    settings = Dynaconf(
-        envvar_prefix="",
-        environments=False,
-        load_dotenv=False,
-    )
-
     role_mapping = {}
-    role_mapping_env = settings.get("ROLE_MAPPING", "")
+    role_mapping_env = SETTINGS.get("ROLE_MAPPING", "")
 
     if role_mapping_env:
         try:
