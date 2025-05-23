@@ -18,6 +18,7 @@ class InventoryManager:
 
     def __init__(self, config: Config):
         self.config = config
+        self.data_extractor = DeviceDataExtractor()
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )
@@ -34,7 +35,7 @@ class InventoryManager:
             data_types = ["config_context", "primary_ip"]
 
         # Extract all requested data
-        all_data = DeviceDataExtractor.extract_all_data(device, self.config.default_mtu)
+        all_data = self.data_extractor.extract_all_data(device, self.config.default_mtu)
 
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
