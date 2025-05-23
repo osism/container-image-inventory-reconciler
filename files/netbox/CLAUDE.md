@@ -33,12 +33,13 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 
 - `NETBOX_API` - NetBox API URL (required)
 - `NETBOX_TOKEN` - Authentication token (via env or `/run/secrets/NETBOX_TOKEN`)
-- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context")
+- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters")
 - `NETBOX_IGNORED_ROLES` - Device roles to skip (default: "housing,pdu,other,oob")
 - `NETBOX_ROLE_MAPPING` - JSON mapping of device roles to inventory groups
 - `NETBOX_FILTER_INVENTORY` - JSON filter for device selection (default: `{"status": "active", "tag": "managed-by-osism"}`)
 - `IGNORE_SSL_ERRORS` - Skip SSL verification (default: true)
 - `INVENTORY_PATH` - Output path for inventory files (default: "/inventory.pre")
+- `DEFAULT_MTU` - Default MTU value for interfaces without explicit MTU (default: 9100)
 
 ## Device Selection Logic
 
@@ -70,6 +71,33 @@ Devices are assigned to Ansible groups based on their NetBox role:
   - `999-netbox-ansible.yml` - Ansible connection info (ansible_host)
   - `999-netbox-netplan.yml` - Netplan parameters (if configured)
   - `999-netbox-frr.yml` - FRR parameters (if configured)
+
+### Netplan Configuration
+The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
+- **Manual configuration**: If the `netplan_parameters` custom field is set on the device, its content is used directly
+- **Automatic generation**: If no manual configuration exists, netplan_parameters are automatically generated from:
+  - **Interface Requirements**: All interfaces must have the `managed-by-osism` tag to be included
+  - **Regular interfaces**: Interfaces with the tag, a MAC address AND a label
+    - The label becomes the interface name in Netplan
+    - MTU is set from the interface's MTU value in NetBox, or uses the default (9100, configurable via DEFAULT_MTU)
+  - **Dummy0 interface**: If an interface named "dummy0" exists with the tag
+    - All IPv4 and IPv6 addresses assigned to it are included
+    - The interface is listed in `network_dummy_interfaces`
+  - Example output:
+    ```yaml
+    network_dummy_interfaces:
+      - dummy0
+    network_ethernets:
+      leaf1:
+        match:
+          macaddress: "aa:bb:cc:dd:ee:ff"
+        set-name: leaf1
+        mtu: 9100
+      dummy0:
+        addresses:
+          - 192.168.45.123/32
+          - 2001:db8:85a3::8a2e:370:7334/128
+    ```
 
 ### Dnsmasq Files
 - `/inventory.pre/group_vars/manager/999-netbox-dnsmasq.yml` - OOB device configurations

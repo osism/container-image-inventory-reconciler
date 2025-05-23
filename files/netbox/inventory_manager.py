@@ -34,7 +34,7 @@ class InventoryManager:
             data_types = ["config_context", "primary_ip"]
 
         # Extract all requested data
-        all_data = DeviceDataExtractor.extract_all_data(device)
+        all_data = DeviceDataExtractor.extract_all_data(device, self.config.default_mtu)
 
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
@@ -69,8 +69,11 @@ class InventoryManager:
         # Prepare content based on data type
         if data_type == "primary_ip":
             content = f"ansible_host: {data}\n"
-        elif data_type in ["netplan_parameters", "frr_parameters"]:
+        elif data_type == "frr_parameters":
             content = yaml.dump({data_type: data}, Dumper=yaml.Dumper)
+        elif data_type == "netplan_parameters":
+            # For netplan_parameters, write the content directly without wrapper
+            content = yaml.dump(data, Dumper=yaml.Dumper)
         else:
             content = yaml.dump(data, Dumper=yaml.Dumper)
 

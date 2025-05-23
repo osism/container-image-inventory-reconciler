@@ -11,11 +11,12 @@ from dynaconf import Dynaconf
 # Default configuration values
 DEFAULT_INVENTORY_PATH = "/inventory.pre"
 DEFAULT_TEMPLATE_PATH = "/netbox/templates/"
-DEFAULT_DATA_TYPES = ["primary_ip", "config_context"]
+DEFAULT_DATA_TYPES = ["primary_ip", "config_context", "netplan_parameters"]
 DEFAULT_IGNORED_ROLES = ["housing", "pdu", "other", "oob"]
 DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
 DEFAULT_RETRY_ATTEMPTS = 10
 DEFAULT_RETRY_DELAY = 1
+DEFAULT_MTU = 9100
 
 # Initialize settings once at module level
 SETTINGS = Dynaconf(
@@ -56,6 +57,7 @@ class Config:
     filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = field(
         default_factory=lambda: DEFAULT_FILTER_INVENTORY.copy()
     )
+    default_mtu: int = DEFAULT_MTU
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -97,6 +99,7 @@ class Config:
             data_types=data_types,
             ignored_roles=ignored_roles,
             filter_inventory=filter_inventory,
+            default_mtu=SETTINGS.get("DEFAULT_MTU", DEFAULT_MTU),
         )
 
     @staticmethod
