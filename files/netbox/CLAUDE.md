@@ -36,15 +36,21 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context")
 - `NETBOX_IGNORED_ROLES` - Device roles to skip (default: "housing,pdu,other,oob")
 - `NETBOX_ROLE_MAPPING` - JSON mapping of device roles to inventory groups
+- `NETBOX_FILTER_INVENTORY` - JSON filter for device selection (default: `{"status": "active", "tag": "managed-by-osism"}`)
 - `IGNORE_SSL_ERRORS` - Skip SSL verification (default: true)
 - `INVENTORY_PATH` - Output path for inventory files (default: "/inventory.pre")
 
 ## Device Selection Logic
 
 ### Devices are selected if:
-- Tagged with "managed-by-osism" AND status is "active"
+- They match the filter criteria specified in `NETBOX_FILTER_INVENTORY` (default: status="active" AND tag="managed-by-osism")
 - NOT in maintenance mode (custom field)
 - For devices also tagged with "managed-by-ironic": provision_state must be "active"
+
+### Custom Filter Examples
+- Filter by specific device type: `{"status": "active", "tag": "managed-by-osism", "device_type": "server"}`
+- Filter by site: `{"status": "active", "tag": "managed-by-osism", "site": "datacenter-1"}`
+- Filter by multiple tags: `{"status": "active", "tag": ["managed-by-osism", "production"]}`
 
 ### Role Mapping
 Devices are assigned to Ansible groups based on their NetBox role:
