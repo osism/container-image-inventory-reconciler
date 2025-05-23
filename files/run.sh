@@ -57,7 +57,7 @@ if [[ -e /interface/overlays/release-kolla-ansible.yml ]]; then
 fi
 
 if [[ -e /run/secrets/NETBOX_TOKEN && ! -z "$(cat /run/secrets/NETBOX_TOKEN)" && $INVENTORY_FROM_NETBOX == "True" ]]; then
-    python3 /generate-inventory-from-netbox.py
+    python3 /netbox/main.py
 fi
 
 python3 /move-group-vars.py
