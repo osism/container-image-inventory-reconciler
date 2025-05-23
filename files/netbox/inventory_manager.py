@@ -115,8 +115,29 @@ class InventoryManager:
         Args:
             devices_to_roles: Dictionary mapping role slugs to lists of devices
         """
+        # Filter out metalbox devices from each role group
+        filtered_devices_to_roles = {}
+        for role, devices in devices_to_roles.items():
+            filtered_devices = []
+            for device in devices:
+                # Skip devices with metalbox role
+                if (
+                    device.role
+                    and device.role.slug
+                    and device.role.slug.lower() == "metalbox"
+                ):
+                    logger.debug(
+                        f"Excluding metalbox device {device} from 20-netbox file"
+                    )
+                    continue
+                filtered_devices.append(device)
+
+            # Only add the role if it has devices after filtering
+            if filtered_devices:
+                filtered_devices_to_roles[role] = filtered_devices
+
         template = self.jinja_env.get_template("netbox.hosts.j2")
-        result = template.render({"devices_to_roles": devices_to_roles})
+        result = template.render({"devices_to_roles": filtered_devices_to_roles})
 
         output_file = self.config.inventory_path / "20-netbox"
         logger.debug(f"Writing host groups from NetBox to {output_file}")
