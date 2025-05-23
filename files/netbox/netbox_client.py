@@ -53,41 +53,56 @@ class NetBoxClient:
         self.api.http_session = session
 
     def get_managed_devices(self) -> Tuple[List[Any], List[Any]]:
-        """Retrieve managed devices from NetBox.
+        """Retrieve managed devices from NetBox using configured filter.
 
         Returns:
             A tuple containing:
-            - Devices with both managed-by-osism and managed-by-ironic tags
-            - Devices with only managed-by-osism tag (not managed-by-ironic)
+            - Devices with both base filter and managed-by-ironic tag
+            - Devices with only base filter (not managed-by-ironic)
         """
-        # First set: Nodes with both managed-by-osism AND managed-by-ironic
-        devices_with_both_tags = self.api.dcim.devices.filter(
-            tag=["managed-by-osism", "managed-by-ironic"],
-            status="active",
-            cf_provision_state=["active"],
-        )
+        # Get base filter from configuration
+        base_filter = self.config.filter_inventory.copy()
+
+        # First set: Nodes with base filter AND managed-by-ironic
+        # For ironic-managed devices, we need to check provision_state
+        ironic_filter = base_filter.copy()
+
+        # Handle tag parameter specially - it can be a string or list
+        if "tag" in ironic_filter:
+            existing_tags = ironic_filter["tag"]
+            if isinstance(existing_tags, str):
+                ironic_filter["tag"] = [existing_tags, "managed-by-ironic"]
+            elif isinstance(existing_tags, list):
+                if "managed-by-ironic" not in existing_tags:
+                    ironic_filter["tag"] = existing_tags + ["managed-by-ironic"]
+        else:
+            ironic_filter["tag"] = ["managed-by-ironic"]
+
+        # Add provision state filter for ironic devices
+        ironic_filter["cf_provision_state"] = ["active"]
+
+        devices_with_ironic = self.api.dcim.devices.filter(**ironic_filter)
+
         # Filter out devices where cf_maintenance is True
-        devices_with_both_tags_filtered = [
+        devices_with_ironic_filtered = [
             device
-            for device in devices_with_both_tags
+            for device in devices_with_ironic
             if device.custom_fields.get("maintenance") is not True
         ]
 
-        # Second set: Nodes with managed-by-osism but NOT managed-by-ironic
+        # Second set: Nodes with base filter but NOT managed-by-ironic
         # For these, cf_provision_state is not evaluated
-        devices_osism_only = self.api.dcim.devices.filter(
-            tag=["managed-by-osism"],
-            status="active",
-        )
+        devices_all = self.api.dcim.devices.filter(**base_filter)
+
         # Filter out devices that also have managed-by-ironic tag and where cf_maintenance is True
-        devices_osism_only_filtered = [
+        devices_non_ironic_filtered = [
             device
-            for device in devices_osism_only
+            for device in devices_all
             if "managed-by-ironic" not in [tag.slug for tag in device.tags]
             and device.custom_fields.get("maintenance") is not True
         ]
 
-        return devices_with_both_tags_filtered, devices_osism_only_filtered
+        return devices_with_ironic_filtered, devices_non_ironic_filtered
 
     def get_device_oob_interface(
         self, device: Any

@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Any
 
 from dynaconf import Dynaconf
 
@@ -30,6 +30,7 @@ class Config:
     template_path: Path = Path("/netbox/templates/")
     data_types: List[str] = None  # Configurable data types to extract
     ignored_roles: List[str] = None  # Device roles to ignore
+    filter_inventory: Dict[str, Any] = None  # Custom filter for device selection
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -54,6 +55,12 @@ class Config:
         # Ensure lowercase for consistency
         ignored_roles = [role.lower() for role in ignored_roles]
 
+        # Get filter inventory from dynaconf
+        # Default: devices with state=active and tag=managed-by-osism
+        filter_inventory = SETTINGS.get(
+            "NETBOX_FILTER_INVENTORY", {"status": "active", "tag": "managed-by-osism"}
+        )
+
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
@@ -62,6 +69,7 @@ class Config:
             template_path=Path(SETTINGS.get("TEMPLATE_PATH", "/netbox/templates/")),
             data_types=data_types,
             ignored_roles=ignored_roles,
+            filter_inventory=filter_inventory,
         )
 
     @staticmethod
