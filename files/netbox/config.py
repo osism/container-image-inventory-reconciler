@@ -27,7 +27,7 @@ class Config:
     retry_attempts: int = 10
     retry_delay: int = 1
     inventory_path: Path = Path("/inventory.pre")
-    template_path: Path = Path("/templates/")
+    template_path: Path = Path("/netbox/templates/")
     data_types: List[str] = None  # Configurable data types to extract
     ignored_roles: List[str] = None  # Device roles to ignore
 
@@ -59,7 +59,7 @@ class Config:
             netbox_token=netbox_token,
             ignore_ssl_errors=SETTINGS.get("IGNORE_SSL_ERRORS", True),
             inventory_path=Path(SETTINGS.get("INVENTORY_PATH", "/inventory.pre")),
-            template_path=Path(SETTINGS.get("TEMPLATE_PATH", "/templates/")),
+            template_path=Path(SETTINGS.get("TEMPLATE_PATH", "/netbox/templates/")),
             data_types=data_types,
             ignored_roles=ignored_roles,
         )
