@@ -13,7 +13,7 @@ ENV TZ=UTC
 ENV CFLAGS="-Wno-int-conversion"
 
 # Install UV early for better caching
-COPY --from=ghcr.io/astral-sh/uv:0.7.6 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.7.7 /uv /usr/local/bin/uv
 
 # Install system dependencies in a single layer
 RUN <<EOF
