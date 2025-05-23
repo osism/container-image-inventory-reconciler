@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 
 from dynaconf import Dynaconf
 
@@ -30,7 +30,9 @@ class Config:
     template_path: Path = Path("/netbox/templates/")
     data_types: List[str] = None  # Configurable data types to extract
     ignored_roles: List[str] = None  # Device roles to ignore
-    filter_inventory: Dict[str, Any] = None  # Custom filter for device selection
+    filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = (
+        None  # Custom filter(s) for device selection
+    )
 
     @classmethod
     def from_environment(cls) -> "Config":

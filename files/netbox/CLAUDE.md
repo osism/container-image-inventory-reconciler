@@ -48,9 +48,12 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - For devices also tagged with "managed-by-ironic": provision_state must be "active"
 
 ### Custom Filter Examples
-- Filter by specific device type: `{"status": "active", "tag": "managed-by-osism", "device_type": "server"}`
+- Single filter (dictionary): `{"status": "active", "tag": "managed-by-osism", "device_type": "server"}`
 - Filter by site: `{"status": "active", "tag": "managed-by-osism", "site": "datacenter-1"}`
 - Filter by multiple tags: `{"status": "active", "tag": ["managed-by-osism", "production"]}`
+- Multiple filters (list of dictionaries): `[{"status": "active", "tag": "managed-by-osism", "site": "dc1"}, {"status": "active", "tag": "managed-by-osism", "site": "dc2"}]`
+  - When using a list, devices matching ANY filter will be included (OR operation)
+  - Duplicate devices are automatically removed
 
 ### Role Mapping
 Devices are assigned to Ansible groups based on their NetBox role:
