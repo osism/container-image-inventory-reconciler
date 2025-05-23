@@ -2,12 +2,20 @@
 
 """Configuration management for NetBox integration."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Any, Union
+from typing import Any, Dict, List, Union
 
 from dynaconf import Dynaconf
 
+# Default configuration values
+DEFAULT_INVENTORY_PATH = "/inventory.pre"
+DEFAULT_TEMPLATE_PATH = "/netbox/templates/"
+DEFAULT_DATA_TYPES = ["primary_ip", "config_context"]
+DEFAULT_IGNORED_ROLES = ["housing", "pdu", "other", "oob"]
+DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
+DEFAULT_RETRY_ATTEMPTS = 10
+DEFAULT_RETRY_DELAY = 1
 
 # Initialize settings once at module level
 SETTINGS = Dynaconf(
@@ -19,24 +27,47 @@ SETTINGS = Dynaconf(
 
 @dataclass
 class Config:
-    """Configuration settings for NetBox integration."""
+    """Configuration settings for NetBox integration.
+
+    Attributes:
+        netbox_url: NetBox API URL
+        netbox_token: Authentication token for NetBox API
+        ignore_ssl_errors: Whether to ignore SSL certificate errors
+        retry_attempts: Number of retry attempts for API calls
+        retry_delay: Delay in seconds between retry attempts
+        inventory_path: Path where inventory files will be written
+        template_path: Path to Jinja2 templates
+        data_types: List of data types to extract from devices
+        ignored_roles: Device roles to exclude from inventory
+        filter_inventory: Filter(s) for device selection from NetBox
+    """
 
     netbox_url: str
     netbox_token: str
     ignore_ssl_errors: bool = True
-    retry_attempts: int = 10
-    retry_delay: int = 1
-    inventory_path: Path = Path("/inventory.pre")
-    template_path: Path = Path("/netbox/templates/")
-    data_types: List[str] = None  # Configurable data types to extract
-    ignored_roles: List[str] = None  # Device roles to ignore
-    filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = (
-        None  # Custom filter(s) for device selection
+    retry_attempts: int = DEFAULT_RETRY_ATTEMPTS
+    retry_delay: int = DEFAULT_RETRY_DELAY
+    inventory_path: Path = field(default_factory=lambda: Path(DEFAULT_INVENTORY_PATH))
+    template_path: Path = field(default_factory=lambda: Path(DEFAULT_TEMPLATE_PATH))
+    data_types: List[str] = field(default_factory=lambda: DEFAULT_DATA_TYPES.copy())
+    ignored_roles: List[str] = field(
+        default_factory=lambda: DEFAULT_IGNORED_ROLES.copy()
+    )
+    filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = field(
+        default_factory=lambda: DEFAULT_FILTER_INVENTORY.copy()
     )
 
     @classmethod
     def from_environment(cls) -> "Config":
-        """Create configuration from environment variables using dynaconf."""
+        """Create configuration from environment variables using dynaconf.
+
+        Returns:
+            Config: Configuration instance populated from environment variables
+
+        Raises:
+            ValueError: If required environment variables are missing
+        """
+        # Required settings
         netbox_url = SETTINGS.get("NETBOX_API")
         if not netbox_url:
             raise ValueError("NETBOX_API environment variable is required")
@@ -45,30 +76,24 @@ class Config:
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
 
-        # Get data types from dynaconf (already a list)
-        # Default: primary_ip and config_context
-        data_types = SETTINGS.get("NETBOX_DATA_TYPES", ["primary_ip", "config_context"])
+        # Optional settings with defaults
+        data_types = SETTINGS.get("NETBOX_DATA_TYPES", DEFAULT_DATA_TYPES)
 
-        # Get ignored roles from dynaconf (already a list)
-        # Default: skip 'housing', 'pdu', 'other' and 'oob' roles
-        ignored_roles = SETTINGS.get(
-            "NETBOX_IGNORED_ROLES", ["housing", "pdu", "other", "oob"]
-        )
-        # Ensure lowercase for consistency
-        ignored_roles = [role.lower() for role in ignored_roles]
+        ignored_roles = SETTINGS.get("NETBOX_IGNORED_ROLES", DEFAULT_IGNORED_ROLES)
+        ignored_roles = [
+            role.lower() for role in ignored_roles
+        ]  # Normalize to lowercase
 
-        # Get filter inventory from dynaconf
-        # Default: devices with state=active and tag=managed-by-osism
         filter_inventory = SETTINGS.get(
-            "NETBOX_FILTER_INVENTORY", {"status": "active", "tag": "managed-by-osism"}
+            "NETBOX_FILTER_INVENTORY", DEFAULT_FILTER_INVENTORY
         )
 
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
             ignore_ssl_errors=SETTINGS.get("IGNORE_SSL_ERRORS", True),
-            inventory_path=Path(SETTINGS.get("INVENTORY_PATH", "/inventory.pre")),
-            template_path=Path(SETTINGS.get("TEMPLATE_PATH", "/netbox/templates/")),
+            inventory_path=Path(SETTINGS.get("INVENTORY_PATH", DEFAULT_INVENTORY_PATH)),
+            template_path=Path(SETTINGS.get("TEMPLATE_PATH", DEFAULT_TEMPLATE_PATH)),
             data_types=data_types,
             ignored_roles=ignored_roles,
             filter_inventory=filter_inventory,
@@ -76,7 +101,14 @@ class Config:
 
     @staticmethod
     def _read_secret(secret_name: str) -> str:
-        """Read secret from file."""
+        """Read secret from file system.
+
+        Args:
+            secret_name: Name of the secret to read
+
+        Returns:
+            str: Secret value or empty string if not found
+        """
         secret_path = Path(f"/run/secrets/{secret_name}")
         try:
             return secret_path.read_text(encoding="utf-8").strip()
