@@ -65,8 +65,12 @@ def build_device_role_mapping(
             logger.debug(f"Skipping device {device} with ignored role '{role_slug}'")
             continue
 
+        # Special handling for metalbox role
+        if role_slug == "metalbox":
+            # Metalbox devices always go to these groups, ignoring NETBOX_ROLE_MAPPING
+            groups = ["generic", "manager", "control"]
         # Determine which groups this device should be assigned to
-        if role_slug in role_mapping:
+        elif role_slug in role_mapping:
             groups = role_mapping[role_slug]
             if not isinstance(groups, list):
                 logger.warning(
