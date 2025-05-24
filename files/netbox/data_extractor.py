@@ -15,12 +15,16 @@ from extractors import (
 class DeviceDataExtractor:
     """Extracts various data fields from NetBox devices."""
 
-    def __init__(self):
-        """Initialize extractors."""
+    def __init__(self, api=None):
+        """Initialize extractors.
+
+        Args:
+            api: NetBox API instance (required for NetplanExtractor)
+        """
         self.config_context_extractor = ConfigContextExtractor()
         self.primary_ip_extractor = PrimaryIPExtractor()
         self.custom_field_extractor = CustomFieldExtractor()
-        self.netplan_extractor = NetplanExtractor()
+        self.netplan_extractor = NetplanExtractor(api=api)
 
     def extract_config_context(self, device: Any) -> Dict[str, Any]:
         """Extract config context from device."""

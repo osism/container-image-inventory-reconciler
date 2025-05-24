@@ -33,7 +33,7 @@ def main() -> None:
 
         # Initialize components
         netbox_client = NetBoxClient(config)
-        inventory_manager = InventoryManager(config)
+        inventory_manager = InventoryManager(config, api=netbox_client.api)
         dnsmasq_manager = DnsmasqManager(config)
 
         # Fetch devices

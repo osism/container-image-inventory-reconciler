@@ -16,9 +16,9 @@ from data_extractor import DeviceDataExtractor
 class InventoryManager:
     """Manages inventory file operations."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, api=None):
         self.config = config
-        self.data_extractor = DeviceDataExtractor()
+        self.data_extractor = DeviceDataExtractor(api=api)
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )

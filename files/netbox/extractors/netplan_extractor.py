@@ -11,6 +11,14 @@ from .custom_field_extractor import CustomFieldExtractor
 class NetplanExtractor(BaseExtractor):
     """Extracts netplan parameters from NetBox devices."""
 
+    def __init__(self, api=None):
+        """Initialize the extractor.
+
+        Args:
+            api: NetBox API instance (required for interface fetching)
+        """
+        self.api = api
+
     def extract(
         self, device: Any, default_mtu: int = 9100, **kwargs
     ) -> Optional[Dict[str, Any]]:
@@ -37,8 +45,15 @@ class NetplanExtractor(BaseExtractor):
         if manual_params:
             return manual_params
 
-        # Get interfaces from device
-        interfaces = device.interfaces.all()
+        # Get interfaces from device using API filter
+        if not self.api:
+            return None
+
+        try:
+            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+        except Exception:
+            return None
+
         if not interfaces:
             return None
 
@@ -51,7 +66,9 @@ class NetplanExtractor(BaseExtractor):
             if not hasattr(interface, "tags") or not interface.tags:
                 continue
 
-            tag_names = [tag.name for tag in interface.tags.all()]
+            tag_names = [
+                tag.name if hasattr(tag, "name") else tag.slug for tag in interface.tags
+            ]
             if "managed-by-osism" not in tag_names:
                 continue
 
@@ -84,13 +101,17 @@ class NetplanExtractor(BaseExtractor):
         if dummy0_interface:
             dummy0_config = {}
 
-            # Get all IP addresses assigned to dummy0
+            # Get all IP addresses assigned to dummy0 using API filter
             addresses = []
-            if hasattr(dummy0_interface, "ip_addresses"):
-                ip_addresses = dummy0_interface.ip_addresses.all()
+            try:
+                ip_addresses = self.api.ipam.ip_addresses.filter(
+                    interface_id=dummy0_interface.id
+                )
                 for ip in ip_addresses:
                     if ip.address:
                         addresses.append(ip.address)
+            except Exception:
+                pass
 
             if addresses:
                 dummy0_config["addresses"] = addresses
