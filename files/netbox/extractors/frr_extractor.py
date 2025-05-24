@@ -147,16 +147,18 @@ class FRRExtractor(BaseExtractor):
             return result
 
         try:
-            # Get dummy0 interface
-            interfaces = self.api.dcim.interfaces.filter(
-                device_id=device.id, name="dummy0"
-            )
+            # Get all interfaces and find dummy0 (case-insensitive)
+            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
 
-            if not interfaces:
+            dummy0 = None
+            for interface in interfaces:
+                if interface.name and interface.name.lower() == "dummy0":
+                    dummy0 = interface
+                    break
+
+            if not dummy0:
                 logger.debug(f"No dummy0 interface found for device {device.name}")
                 return result
-
-            dummy0 = interfaces[0]
 
             # Get IP addresses assigned to dummy0
             ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=dummy0.id)
