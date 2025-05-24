@@ -66,10 +66,8 @@ class NetplanExtractor(BaseExtractor):
             if not hasattr(interface, "tags") or not interface.tags:
                 continue
 
-            tag_names = [
-                tag.name if hasattr(tag, "name") else tag.slug for tag in interface.tags
-            ]
-            if "managed-by-osism" not in tag_names:
+            tag_slugs = [tag.slug for tag in interface.tags]
+            if "managed-by-osism" not in tag_slugs:
                 continue
 
             # Check for dummy0 interface
