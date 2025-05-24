@@ -76,7 +76,8 @@ class InventoryManager:
         if data_type == "primary_ip":
             content = f"ansible_host: {data}\n"
         elif data_type == "frr_parameters":
-            content = yaml.dump({data_type: data}, Dumper=yaml.Dumper)
+            # For frr_parameters, write the content directly without wrapper
+            content = yaml.dump(data, Dumper=yaml.Dumper)
         elif data_type == "netplan_parameters":
             # For netplan_parameters, write the content directly without wrapper
             content = yaml.dump(data, Dumper=yaml.Dumper)
