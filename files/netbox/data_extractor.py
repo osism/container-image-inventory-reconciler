@@ -2,11 +2,12 @@
 
 """Device data extraction functionality."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from extractors import (
     ConfigContextExtractor,
     CustomFieldExtractor,
+    FRRExtractor,
     NetplanExtractor,
     PrimaryIPExtractor,
 )
@@ -19,12 +20,13 @@ class DeviceDataExtractor:
         """Initialize extractors.
 
         Args:
-            api: NetBox API instance (required for NetplanExtractor)
+            api: NetBox API instance (required for NetplanExtractor and FRRExtractor)
         """
         self.config_context_extractor = ConfigContextExtractor()
         self.primary_ip_extractor = PrimaryIPExtractor()
         self.custom_field_extractor = CustomFieldExtractor()
         self.netplan_extractor = NetplanExtractor(api=api)
+        self.frr_extractor = FRRExtractor(api=api)
 
     def extract_config_context(self, device: Any) -> Dict[str, Any]:
         """Extract config context from device."""
@@ -42,11 +44,27 @@ class DeviceDataExtractor:
         """Extract netplan parameters, combining manual and auto-generated config."""
         return self.netplan_extractor.extract(device, default_mtu=default_mtu)
 
-    def extract_all_data(self, device: Any, default_mtu: int = 9100) -> Dict[str, Any]:
+    def extract_frr_parameters(
+        self, device: Any, local_as_prefix: int = 42, switch_roles: List[str] = None
+    ) -> Any:
+        """Extract FRR parameters, combining manual and auto-generated config."""
+        return self.frr_extractor.extract(
+            device, local_as_prefix=local_as_prefix, switch_roles=switch_roles
+        )
+
+    def extract_all_data(
+        self,
+        device: Any,
+        default_mtu: int = 9100,
+        local_as_prefix: int = 42,
+        switch_roles: List[str] = None,
+    ) -> Dict[str, Any]:
         """Extract all configured data types from a device."""
         return {
             "config_context": self.extract_config_context(device),
             "primary_ip": self.extract_primary_ip(device),
             "netplan_parameters": self.extract_netplan_parameters(device, default_mtu),
-            "frr_parameters": self.extract_custom_field(device, "frr_parameters"),
+            "frr_parameters": self.extract_frr_parameters(
+                device, local_as_prefix, switch_roles
+            ),
         }

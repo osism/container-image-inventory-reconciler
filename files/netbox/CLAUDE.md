@@ -40,6 +40,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `IGNORE_SSL_ERRORS` - Skip SSL verification (default: true)
 - `INVENTORY_PATH` - Output path for inventory files (default: "/inventory.pre")
 - `DEFAULT_MTU` - Default MTU value for interfaces without explicit MTU (default: 9100)
+- `DEFAULT_LOCAL_AS_PREFIX` - Default local AS prefix for FRR configuration (default: 42)
 
 ## Device Selection Logic
 
@@ -97,6 +98,30 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
         addresses:
           - 192.168.45.123/32
           - 2001:db8:85a3::8a2e:370:7334/128
+    ```
+
+### FRR Configuration
+The `999-netbox-frr.yml` file contains frr_parameters which can be:
+- **Manual configuration**: If the `frr_parameters` custom field is set on the device, its content is used directly
+- **Automatic generation**: If no manual configuration exists, frr_parameters are automatically generated from:
+  - **AS Number**: Calculated from dummy0 IPv4 address (prefix + 3rd octet padded + 4th octet padded)
+    - Example: 192.168.45.123 with prefix 42 → 42045123
+    - Can be overridden with `frr_local_as` custom field
+  - **Loopback addresses**: IPv4 and IPv6 addresses from dummy0 interface
+  - **Uplinks**: Interfaces with `managed-by-osism` tag and label connected to switches
+    - Switch device roles are configurable via FRR_SWITCH_ROLES
+    - Remote AS calculated from connected switch's dummy0 IPv4 or `frr_local_as` field
+  - Example output:
+    ```yaml
+    frr_parameters:
+      frr_local_as: 42045123
+      frr_loopback_v4: 192.168.45.123
+      frr_loopback_v6: 2001:db8:85a3::8a2e:370:7334
+      frr_uplinks:
+        - interface: leaf1
+          remote_as: 42042100
+        - interface: leaf2
+          remote_as: 42042101
     ```
 
 ### Dnsmasq Files

@@ -17,6 +17,15 @@ DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
 DEFAULT_RETRY_ATTEMPTS = 10
 DEFAULT_RETRY_DELAY = 1
 DEFAULT_MTU = 9100
+DEFAULT_LOCAL_AS_PREFIX = 42
+DEFAULT_FRR_SWITCH_ROLES = [
+    "leaf",
+    "access-leaf",
+    "data-leaf",
+    "storage-leaf",
+    "border-leaf",
+    "service-leaf",
+]
 
 # Initialize settings once at module level
 SETTINGS = Dynaconf(
@@ -41,6 +50,8 @@ class Config:
         data_types: List of data types to extract from devices
         ignored_roles: Device roles to exclude from inventory
         filter_inventory: Filter(s) for device selection from NetBox
+        default_local_as_prefix: Default local AS prefix for FRR configuration
+        frr_switch_roles: Device roles considered as switches for FRR uplinks
     """
 
     netbox_url: str
@@ -58,6 +69,10 @@ class Config:
         default_factory=lambda: DEFAULT_FILTER_INVENTORY.copy()
     )
     default_mtu: int = DEFAULT_MTU
+    default_local_as_prefix: int = DEFAULT_LOCAL_AS_PREFIX
+    frr_switch_roles: List[str] = field(
+        default_factory=lambda: DEFAULT_FRR_SWITCH_ROLES.copy()
+    )
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -100,6 +115,10 @@ class Config:
             ignored_roles=ignored_roles,
             filter_inventory=filter_inventory,
             default_mtu=SETTINGS.get("DEFAULT_MTU", DEFAULT_MTU),
+            default_local_as_prefix=SETTINGS.get(
+                "DEFAULT_LOCAL_AS_PREFIX", DEFAULT_LOCAL_AS_PREFIX
+            ),
+            frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
         )
 
     @staticmethod
