@@ -20,11 +20,11 @@ DEFAULT_MTU = 9100
 DEFAULT_LOCAL_AS_PREFIX = 42
 DEFAULT_FRR_SWITCH_ROLES = [
     "leaf",
-    "access-leaf",
-    "data-leaf",
-    "storage-leaf",
-    "border-leaf",
-    "service-leaf",
+    "accessleaf",
+    "dataleaf",
+    "storageleaf",
+    "borderleaf",
+    "serviceleaf",
 ]
 
 # Initialize settings once at module level
