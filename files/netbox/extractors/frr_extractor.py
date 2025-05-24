@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from config import DEFAULT_FRR_SWITCH_ROLES
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
 
@@ -268,10 +269,10 @@ class FRRExtractor(BaseExtractor):
         Returns:
             True if device has a switch role
         """
-        if not hasattr(device, "device_role") or not device.device_role:
+        if not hasattr(device, "role") or not device.role:
             return False
 
-        return device.device_role.slug in switch_roles
+        return device.role.slug in switch_roles
 
     def extract(
         self,
@@ -329,7 +330,7 @@ class FRRExtractor(BaseExtractor):
 
         # Get FRR uplinks
         frr_uplinks = self._build_frr_uplinks(
-            device, switch_roles or ["leaf", "access-leaf"], local_as_prefix
+            device, switch_roles or DEFAULT_FRR_SWITCH_ROLES, local_as_prefix
         )
         if frr_uplinks:
             result["frr_uplinks"] = frr_uplinks
