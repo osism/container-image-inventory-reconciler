@@ -35,7 +35,12 @@ class InventoryManager:
             data_types = ["config_context", "primary_ip"]
 
         # Extract all requested data
-        all_data = self.data_extractor.extract_all_data(device, self.config.default_mtu)
+        all_data = self.data_extractor.extract_all_data(
+            device,
+            self.config.default_mtu,
+            self.config.default_local_as_prefix,
+            self.config.frr_switch_roles,
+        )
 
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
