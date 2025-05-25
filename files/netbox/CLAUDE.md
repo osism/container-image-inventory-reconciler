@@ -86,6 +86,7 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - All IPv4 and IPv6 addresses assigned to it are included
     - The interface is listed in `network_dummy_interfaces`
   - **VLAN interfaces**: Virtual interfaces (type=virtual) with the tag, untagged VLAN and parent interface
+    - Both the VLAN interface AND its parent interface must have the `managed-by-osism` tag
     - The label (or name if no label) becomes the VLAN interface name
     - The VLAN ID is extracted from the untagged VLAN
     - The parent interface's label (or name) is used as the link

@@ -33,6 +33,7 @@ class NetplanExtractor(BaseExtractor):
         - Must have "managed-by-osism" tag
         - Must have an untagged VLAN assigned
         - Must have a parent interface
+        - Parent interface must also have "managed-by-osism" tag
 
         Args:
             device: NetBox device object
@@ -87,6 +88,18 @@ class NetplanExtractor(BaseExtractor):
                 # Check if interface has untagged VLAN and parent interface
                 if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
                     if hasattr(interface, "parent") and interface.parent:
+                        # Check if parent interface also has managed-by-osism tag
+                        parent_has_tag = False
+                        if hasattr(interface.parent, "tags") and interface.parent.tags:
+                            parent_tag_slugs = [
+                                tag.slug for tag in interface.parent.tags
+                            ]
+                            parent_has_tag = "managed-by-osism" in parent_tag_slugs
+
+                        # Only include VLAN if parent also has the tag
+                        if not parent_has_tag:
+                            continue
+
                         vlan_name = (
                             interface.label if interface.label else interface.name
                         )
