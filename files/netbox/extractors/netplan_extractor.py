@@ -29,6 +29,11 @@ class NetplanExtractor(BaseExtractor):
         - A primary MAC address (for regular interfaces)
         - A label configured (for regular interfaces)
 
+        For VLAN interfaces (type=virtual):
+        - Must have "managed-by-osism" tag
+        - Must have an untagged VLAN assigned
+        - Must have a parent interface
+
         Args:
             device: NetBox device object
             default_mtu: Default MTU value for interfaces without explicit MTU
@@ -59,6 +64,7 @@ class NetplanExtractor(BaseExtractor):
 
         network_ethernets = {}
         network_dummy_interfaces = []
+        network_vlans = {}
         dummy0_interface = None
 
         for interface in interfaces:
@@ -74,6 +80,42 @@ class NetplanExtractor(BaseExtractor):
             if interface.name and interface.name.lower() == "dummy0":
                 dummy0_interface = interface
                 network_dummy_interfaces.append("dummy0")
+                continue
+
+            # Check if this is a virtual interface (VLAN)
+            if interface.type and interface.type.value == "virtual":
+                # Check if interface has untagged VLAN and parent interface
+                if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
+                    if hasattr(interface, "parent") and interface.parent:
+                        vlan_name = (
+                            interface.label if interface.label else interface.name
+                        )
+                        if vlan_name:
+                            vlan_config = {
+                                "id": interface.untagged_vlan.vid,
+                                "link": (
+                                    interface.parent.label
+                                    if interface.parent.label
+                                    else interface.parent.name
+                                ),
+                            }
+
+                            # Get IP addresses for this VLAN interface
+                            addresses = []
+                            try:
+                                ip_addresses = self.api.ipam.ip_addresses.filter(
+                                    interface_id=interface.id
+                                )
+                                for ip in ip_addresses:
+                                    if ip.address:
+                                        addresses.append(ip.address)
+                            except Exception:
+                                pass
+
+                            if addresses:
+                                vlan_config["addresses"] = addresses
+
+                            network_vlans[vlan_name] = vlan_config
                 continue
 
             # Skip interfaces without MAC address or label
@@ -116,7 +158,7 @@ class NetplanExtractor(BaseExtractor):
                 network_ethernets["dummy0"] = dummy0_config
 
         # Return None if no interfaces found
-        if not network_ethernets and not network_dummy_interfaces:
+        if not network_ethernets and not network_dummy_interfaces and not network_vlans:
             return None
 
         result = {}
@@ -124,5 +166,7 @@ class NetplanExtractor(BaseExtractor):
             result["network_ethernets"] = network_ethernets
         if network_dummy_interfaces:
             result["network_dummy_interfaces"] = network_dummy_interfaces
+        if network_vlans:
+            result["network_vlans"] = network_vlans
 
         return result
