@@ -9,6 +9,7 @@ from loguru import logger
 import yaml
 
 from config import Config
+from utils import get_inventory_hostname
 from netbox_client import NetBoxClient
 
 
@@ -44,11 +45,13 @@ class DnsmasqManager:
                 if ip_address and mac_address:
                     # Format MAC address properly (lowercase with colons)
                     mac_formatted = mac_address.lower()
+                    # Get inventory hostname for the device
+                    device_hostname = get_inventory_hostname(device)
                     # Create dnsmasq DHCP host entry: "mac,hostname,ip"
-                    host_entry = f"{mac_formatted},{device.name},{ip_address}"
+                    host_entry = f"{mac_formatted},{device_hostname},{ip_address}"
                     all_dhcp_hosts.append(host_entry)
                     logger.debug(
-                        f"Collected dnsmasq entry for {device.name}: {host_entry}"
+                        f"Collected dnsmasq entry for {device_hostname}: {host_entry}"
                     )
 
                     # Add dnsmasq_dhcp_macs using custom field or device type slug
