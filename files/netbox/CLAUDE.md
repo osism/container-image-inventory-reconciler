@@ -41,6 +41,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `INVENTORY_PATH` - Output path for inventory files (default: "/inventory.pre")
 - `DEFAULT_MTU` - Default MTU value for interfaces without explicit MTU (default: 9100)
 - `DEFAULT_LOCAL_AS_PREFIX` - Default local AS prefix for FRR configuration (default: 42)
+- `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager" or "metalbox" (default: "manager")
 
 ## Device Selection Logic
 

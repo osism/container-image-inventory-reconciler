@@ -26,6 +26,8 @@ DEFAULT_FRR_SWITCH_ROLES = [
     "borderleaf",
     "serviceleaf",
 ]
+DEFAULT_RECONCILER_MODE = "manager"
+ALLOWED_RECONCILER_MODES = ["manager", "metalbox"]
 
 # Initialize settings once at module level
 SETTINGS = Dynaconf(
@@ -52,6 +54,7 @@ class Config:
         filter_inventory: Filter(s) for device selection from NetBox
         default_local_as_prefix: Default local AS prefix for FRR configuration
         frr_switch_roles: Device roles considered as switches for FRR uplinks
+        reconciler_mode: Operating mode for the reconciler (manager or metalbox)
     """
 
     netbox_url: str
@@ -73,6 +76,7 @@ class Config:
     frr_switch_roles: List[str] = field(
         default_factory=lambda: DEFAULT_FRR_SWITCH_ROLES.copy()
     )
+    reconciler_mode: str = DEFAULT_RECONCILER_MODE
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -105,6 +109,16 @@ class Config:
             "NETBOX_FILTER_INVENTORY", DEFAULT_FILTER_INVENTORY
         )
 
+        # Get reconciler mode and validate it
+        reconciler_mode = SETTINGS.get(
+            "INVENTORY_RECONCILER_MODE", DEFAULT_RECONCILER_MODE
+        )
+        if reconciler_mode not in ALLOWED_RECONCILER_MODES:
+            raise ValueError(
+                f"INVENTORY_RECONCILER_MODE must be one of {ALLOWED_RECONCILER_MODES}, "
+                f"got '{reconciler_mode}'"
+            )
+
         return cls(
             netbox_url=netbox_url,
             netbox_token=netbox_token,
@@ -119,6 +133,7 @@ class Config:
                 "DEFAULT_LOCAL_AS_PREFIX", DEFAULT_LOCAL_AS_PREFIX
             ),
             frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
+            reconciler_mode=reconciler_mode,
         )
 
     @staticmethod
