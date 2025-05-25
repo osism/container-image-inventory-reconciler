@@ -26,10 +26,12 @@ def main() -> None:
     setup_logging()
 
     try:
-        logger.info("Generate the inventory from the Netbox")
-
         # Load configuration
         config = Config.from_environment()
+
+        logger.info(
+            f"Generate the inventory from the Netbox ({config.reconciler_mode} mode)"
+        )
 
         # Initialize components
         netbox_client = NetBoxClient(config)
