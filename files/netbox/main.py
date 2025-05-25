@@ -42,12 +42,42 @@ def main() -> None:
         all_devices = devices_with_both_tags + devices_osism_only
         logger.info(f"Found {len(all_devices)} total managed devices")
 
-        # Process devices and build role mapping
-        devices_to_roles = build_device_role_mapping(all_devices, config.ignored_roles)
-
-        # Write device data (config context and optionally other data types)
+        # Extract data for ALL devices (regardless of mode)
+        logger.info("Extracting data for all devices")
         for device in all_devices:
-            logger.info(f"Processing {device}")
+            logger.info(f"Extracting data for {device}")
+            if config.data_types:
+                inventory_manager.extract_device_data(
+                    device, data_types=config.data_types
+                )
+            else:
+                inventory_manager.extract_device_config_context(device)
+
+        # Filter devices based on reconciler mode for inventory writing
+        if config.reconciler_mode == "metalbox":
+            # In metalbox mode, only include devices with role "metalbox" in inventory
+            inventory_devices = [
+                device
+                for device in all_devices
+                if device.role
+                and device.role.slug
+                and device.role.slug.lower() == "metalbox"
+            ]
+            logger.info(
+                f"Metalbox mode: {len(inventory_devices)} devices with role 'metalbox' will be included in inventory"
+            )
+        else:
+            # In manager mode, include all devices
+            inventory_devices = all_devices
+
+        # Process devices and build role mapping (only for inventory devices)
+        devices_to_roles = build_device_role_mapping(
+            inventory_devices, config.ignored_roles
+        )
+
+        # Write device data files (only for inventory devices)
+        for device in inventory_devices:
+            logger.info(f"Writing files for {device}")
             if config.data_types:
                 inventory_manager.write_device_data(
                     device, data_types=config.data_types
@@ -61,7 +91,7 @@ def main() -> None:
 
         # Generate dnsmasq configuration
         logger.info("Generating dnsmasq configuration")
-        dnsmasq_manager.write_dnsmasq_config(netbox_client, all_devices)
+        dnsmasq_manager.write_dnsmasq_config(netbox_client, inventory_devices)
 
         # Generate dnsmasq DHCP ranges
         logger.info("Generating dnsmasq DHCP ranges")

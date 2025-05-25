@@ -22,6 +22,36 @@ class InventoryManager:
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )
+        # Cache for extracted device data
+        self._extracted_data_cache = {}
+
+    def extract_device_data(self, device: Any, data_types: List[str] = None) -> None:
+        """Extract various device data types and cache them.
+
+        Args:
+            device: The NetBox device object
+            data_types: List of data types to extract.
+                       If None, only config_context will be used.
+        """
+        if data_types is None:
+            data_types = ["config_context", "primary_ip"]
+
+        # Extract all requested data and cache it
+        all_data = self.data_extractor.extract_all_data(
+            device,
+            self.config.default_mtu,
+            self.config.default_local_as_prefix,
+            self.config.frr_switch_roles,
+        )
+
+        # Store in cache for later use
+        device_name = str(device)
+        self._extracted_data_cache[device_name] = all_data
+        logger.debug(f"Extracted and cached data for device {device_name}")
+
+    def extract_device_config_context(self, device: Any) -> None:
+        """Extract only config context and cache it."""
+        self.extract_device_data(device, data_types=["config_context"])
 
     def write_device_data(self, device: Any, data_types: List[str] = None) -> None:
         """Write various device data types to appropriate files.
@@ -34,13 +64,19 @@ class InventoryManager:
         if data_types is None:
             data_types = ["config_context", "primary_ip"]
 
-        # Extract all requested data
-        all_data = self.data_extractor.extract_all_data(
-            device,
-            self.config.default_mtu,
-            self.config.default_local_as_prefix,
-            self.config.frr_switch_roles,
-        )
+        # Get cached data if available, otherwise extract it
+        device_name = str(device)
+        if device_name in self._extracted_data_cache:
+            all_data = self._extracted_data_cache[device_name]
+            logger.debug(f"Using cached data for device {device_name}")
+        else:
+            # Extract all requested data if not cached
+            all_data = self.data_extractor.extract_all_data(
+                device,
+                self.config.default_mtu,
+                self.config.default_local_as_prefix,
+                self.config.frr_switch_roles,
+            )
 
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
