@@ -189,42 +189,44 @@ class DnsmasqManager:
                 # Parse the network prefix
                 net = ipaddress.ip_network(network.prefix)
 
-                # Get all hosts in the network
+                # Get all hosts in the network (excluding network and broadcast addresses)
                 all_hosts = list(net.hosts())
 
-                if len(all_hosts) < 4:
-                    logger.warning(f"Network {network.prefix} has fewer than 4 hosts")
+                if len(all_hosts) < 3:
+                    logger.warning(
+                        f"Network {network.prefix} has fewer than 3 usable hosts"
+                    )
                     continue
 
-                # Get the last 4 IP addresses
-                last_4_hosts = all_hosts[-4:]
-
-                # Create the DHCP range string
-                # Format: start_ip,end_ip,subnet_mask,lease_time
-                start_ip = str(last_4_hosts[0])
-                end_ip = str(last_4_hosts[-1])
+                # Reserve first and last host addresses
+                # Use the range from second host to second-to-last host
+                start_ip = str(all_hosts[1])  # Skip first host
+                end_ip = str(all_hosts[-2])  # Skip last host
                 subnet_mask = str(net.netmask)
-                lease_time = "3h"  # 3 hours as specified
 
-                dhcp_range = f"{start_ip},{end_ip},{subnet_mask},{lease_time}"
+                # Add 'static' mode to only allow static assignments
+                dhcp_range = f"{start_ip},{end_ip},{subnet_mask},static"
                 dhcp_ranges.append(dhcp_range)
 
-                logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")
+                logger.debug(
+                    f"Generated DHCP range for {network.prefix}: {dhcp_range} "
+                    f"(reserved: {all_hosts[0]} and {all_hosts[-1]})"
+                )
 
             except Exception as e:
                 logger.warning(f"Failed to process network {network.prefix}: {e}")
                 continue
 
         if dhcp_ranges:
-            # Write the dnsmasq DHCP ranges to group_vars/all
+            # Write the dnsmasq DHCP ranges to group_vars/manager
             dnsmasq_dhcp_data = {"dnsmasq_dhcp_ranges": dhcp_ranges}
 
-            # Ensure group_vars/all directory exists
-            group_vars_path = self.config.inventory_path / "group_vars" / "all"
+            # Ensure group_vars/manager directory exists
+            group_vars_path = self.config.inventory_path / "group_vars" / "manager"
             group_vars_path.mkdir(parents=True, exist_ok=True)
 
-            # Write to dnsmasq.yml
-            output_file = group_vars_path / "dnsmasq.yml"
+            # Write to 999-netbox-dnsmasq-dhcp-range.yml
+            output_file = group_vars_path / "999-netbox-dnsmasq-dhcp-range.yml"
             logger.debug(f"Writing DHCP ranges to {output_file}")
 
             with open(output_file, "w", encoding="utf-8") as fp:
