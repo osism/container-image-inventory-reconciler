@@ -18,7 +18,7 @@ from device_mapping import build_device_role_mapping
 from dnsmasq_manager import DnsmasqManager
 from inventory_manager import InventoryManager
 from netbox_client import NetBoxClient
-from utils import setup_logging
+from utils import setup_logging, get_inventory_hostname
 
 
 def main() -> None:
@@ -47,7 +47,7 @@ def main() -> None:
         # Extract data for ALL devices (regardless of mode)
         logger.info("Extracting data for all devices")
         for device in all_devices:
-            logger.info(f"Extracting data for {device}")
+            logger.info(f"Extracting data for {get_inventory_hostname(device)}")
             if config.data_types:
                 inventory_manager.extract_device_data(
                     device, data_types=config.data_types
@@ -79,7 +79,7 @@ def main() -> None:
 
         # Write device data files (only for inventory devices)
         for device in inventory_devices:
-            logger.info(f"Writing files for {device}")
+            logger.info(f"Writing files for {get_inventory_hostname(device)}")
             if config.data_types:
                 inventory_manager.write_device_data(
                     device, data_types=config.data_types

@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from loguru import logger
 
 from config import SETTINGS
+from utils import get_inventory_hostname
 
 
 def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
@@ -26,8 +27,8 @@ def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
 
 def build_device_role_mapping(
     devices: List[Any], ignored_roles: List[str] = None
-) -> Dict[str, List[Any]]:
-    """Build mapping of roles to devices.
+) -> Dict[str, List[str]]:
+    """Build mapping of roles to device hostnames.
 
     Only includes devices that have the managed-by-osism tag.
     Each device role can be mapped to multiple Ansible inventory groups.
@@ -39,6 +40,9 @@ def build_device_role_mapping(
     Args:
         devices: List of NetBox device objects
         ignored_roles: List of role slugs to skip (default: None)
+
+    Returns:
+        Dictionary mapping group names to lists of device hostnames
     """
     devices_to_groups = {}
 
@@ -81,11 +85,12 @@ def build_device_role_mapping(
             # Default behavior: add to group 'generic'
             groups = ["generic"]
 
-        # Add device to each of its groups
+        # Add device hostname to each of its groups
+        device_hostname = get_inventory_hostname(device)
         for group in groups:
             if group not in devices_to_groups:
                 devices_to_groups[group] = []
-            if device not in devices_to_groups[group]:
-                devices_to_groups[group].append(device)
+            if device_hostname not in devices_to_groups[group]:
+                devices_to_groups[group].append(device_hostname)
 
     return devices_to_groups

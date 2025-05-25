@@ -11,6 +11,7 @@ import yaml
 
 from config import Config
 from data_extractor import DeviceDataExtractor
+from utils import get_inventory_hostname
 
 
 class InventoryManager:
@@ -45,7 +46,7 @@ class InventoryManager:
         )
 
         # Store in cache for later use
-        device_name = str(device)
+        device_name = get_inventory_hostname(device)
         self._extracted_data_cache[device_name] = all_data
         logger.debug(f"Extracted and cached data for device {device_name}")
 
@@ -65,7 +66,7 @@ class InventoryManager:
             data_types = ["config_context", "primary_ip"]
 
         # Get cached data if available, otherwise extract it
-        device_name = str(device)
+        device_name = get_inventory_hostname(device)
         if device_name in self._extracted_data_cache:
             all_data = self._extracted_data_cache[device_name]
             logger.debug(f"Using cached data for device {device_name}")
@@ -80,12 +81,13 @@ class InventoryManager:
 
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
-        device_pattern = f"{device}*"
+        device_hostname = get_inventory_hostname(device)
+        device_pattern = f"{device_hostname}*"
         result = list(host_vars_path.glob(device_pattern))
 
         if len(result) > 1:
             logger.warning(
-                f"Multiple matches found for {device}, skipping data writing"
+                f"Multiple matches found for {device_hostname}, skipping data writing"
             )
             return
 
@@ -144,7 +146,8 @@ class InventoryManager:
                     fp.write(content)
         else:
             # Create new directory structure
-            device_dir = self.config.inventory_path / "host_vars" / str(device)
+            device_hostname = get_inventory_hostname(device)
+            device_dir = self.config.inventory_path / "host_vars" / device_hostname
             device_dir.mkdir(parents=True, exist_ok=True)
             output_file = device_dir / file_suffix
             logger.debug(f"Writing {data_type} of {device} to {output_file}")

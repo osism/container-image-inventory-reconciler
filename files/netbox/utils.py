@@ -3,6 +3,7 @@
 """Utility functions for NetBox integration."""
 
 import sys
+from typing import Any
 
 from loguru import logger
 
@@ -18,3 +19,24 @@ def setup_logging() -> None:
     )
     logger.remove()
     logger.add(sys.stdout, format=log_fmt, level=level, colorize=True)
+
+
+def get_inventory_hostname(device: Any) -> str:
+    """Get the inventory hostname for a device.
+
+    If the device has an 'inventory_hostname' custom field set, use that.
+    Otherwise, fall back to the device name.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        The hostname to use in the inventory
+    """
+    custom_fields = device.custom_fields or {}
+    inventory_hostname = custom_fields.get("inventory_hostname")
+
+    if inventory_hostname:
+        return str(inventory_hostname)
+
+    return str(device.name)
