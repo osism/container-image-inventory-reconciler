@@ -91,7 +91,13 @@ def main() -> None:
 
         # Generate dnsmasq configuration
         logger.info("Generating dnsmasq configuration")
-        dnsmasq_manager.write_dnsmasq_config(netbox_client, inventory_devices)
+        # In metalbox mode, pass all_devices to collect OOB configs from all devices
+        if config.reconciler_mode == "metalbox":
+            dnsmasq_manager.write_dnsmasq_config(
+                netbox_client, inventory_devices, all_devices
+            )
+        else:
+            dnsmasq_manager.write_dnsmasq_config(netbox_client, inventory_devices)
 
         # Generate dnsmasq DHCP ranges
         logger.info("Generating dnsmasq DHCP ranges")
