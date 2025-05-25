@@ -85,6 +85,11 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
   - **Dummy0 interface**: If an interface named "dummy0" exists with the tag
     - All IPv4 and IPv6 addresses assigned to it are included
     - The interface is listed in `network_dummy_interfaces`
+  - **VLAN interfaces**: Virtual interfaces (type=virtual) with the tag, untagged VLAN and parent interface
+    - The label (or name if no label) becomes the VLAN interface name
+    - The VLAN ID is extracted from the untagged VLAN
+    - The parent interface's label (or name) is used as the link
+    - All IPv4 and IPv6 addresses assigned to the VLAN interface are included
   - Example output:
     ```yaml
     network_dummy_interfaces:
@@ -99,6 +104,12 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
         addresses:
           - 192.168.45.123/32
           - 2001:db8:85a3::8a2e:370:7334/128
+    network_vlans:
+      vlan100:
+        id: 100
+        link: oob1
+        addresses:
+          - 172.16.10.5/20
     ```
 
 ### FRR Configuration
