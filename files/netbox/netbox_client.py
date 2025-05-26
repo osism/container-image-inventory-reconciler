@@ -86,8 +86,9 @@ class NetBoxClient:
             else:
                 ironic_filter["tag"] = ["managed-by-ironic"]
 
-            # Add provision state filter for ironic devices
-            ironic_filter["cf_provision_state"] = ["active"]
+            # Add provision state filter for ironic devices only if NOT in metalbox mode
+            if self.config.reconciler_mode != "metalbox":
+                ironic_filter["cf_provision_state"] = ["active"]
 
             devices_with_ironic = self.api.dcim.devices.filter(**ironic_filter)
 
