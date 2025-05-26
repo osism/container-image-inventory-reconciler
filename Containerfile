@@ -70,7 +70,6 @@ EOF
 # Copy application files after dependencies are installed
 COPY --link files/ansible /ansible
 COPY --link files/change.sh /change.sh
-COPY --link files/crontab /etc/crontabs/dragon
 COPY --link files/entrypoint.sh /entrypoint.sh
 COPY --link files/generate-clustershell-ansible-file.py /generate-clustershell-ansible-file.py
 COPY --link files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
@@ -120,7 +119,6 @@ set -x
 apk del .build-deps
 
 rm -f \
-  /etc/crontabs/root \
   /render-python-requirements.py \
   /templates/requirements.txt.j2 \
   /requirements.extra.txt \
