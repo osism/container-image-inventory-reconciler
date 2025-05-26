@@ -175,11 +175,12 @@ class DnsmasqManager:
                 # Format MAC address properly (lowercase with colons)
                 mac_formatted = mac_address.lower()
                 # Create dnsmasq DHCP host entry: "mac,hostname,ip"
-                entry = f"{mac_formatted},{device.name},{ip_address}"
-                logger.debug(f"Added dnsmasq entry for {device.name}: {entry}")
+                hostname = get_inventory_hostname(device)
+                entry = f"{mac_formatted},{hostname},{ip_address}"
+                logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
 
                 # Create the dnsmasq configuration data
-                dnsmasq_data = {f"dnsmasq_dhcp_hosts__{device.name}": [entry]}
+                dnsmasq_data = {f"dnsmasq_dhcp_hosts__{hostname}": [entry]}
 
                 # Prepare parameters for caching
                 cache_params = {"dnsmasq_dhcp_hosts": [entry], "dnsmasq_dhcp_macs": []}
