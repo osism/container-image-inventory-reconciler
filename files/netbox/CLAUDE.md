@@ -140,6 +140,16 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
 ### Dnsmasq Files
 - `/inventory.pre/group_vars/manager/999-netbox-dnsmasq.yml` - OOB device configurations
 - `/inventory.pre/group_vars/manager/999-netbox-dnsmasq-dhcp-range.yml` - DHCP ranges
+- `/inventory.pre/host_vars/{device}/999-netbox-dnsmasq.yml` - Cached dnsmasq parameters (if dnsmasq_parameters is in data types)
+
+### Dnsmasq Parameter Caching
+The dnsmasq manager automatically caches generated `dnsmasq_dhcp_hosts` and `dnsmasq_dhcp_macs` parameters in the `dnsmasq_parameters` custom field:
+- **Automatic caching**: When generating dnsmasq configurations, the parameters are cached to the device's custom field
+- **Cache usage**: On subsequent runs, if the `dnsmasq_parameters` custom field exists, its values are used instead of regenerating
+- **Cache format**: The custom field stores a dictionary with:
+  - `dnsmasq_dhcp_hosts`: List of DHCP host entries (format: "mac,hostname,ip")
+  - `dnsmasq_dhcp_macs`: List of MAC entries (format: "tag:tagname,mac")
+- **Data extraction**: Add "dnsmasq_parameters" to NETBOX_DATA_TYPES to extract cached parameters to inventory files
 
 ## Common Development Tasks
 
