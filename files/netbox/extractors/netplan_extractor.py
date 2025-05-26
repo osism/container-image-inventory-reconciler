@@ -2,10 +2,11 @@
 
 """Netplan parameters extractor."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from config import DEFAULT_FRR_SWITCH_ROLES
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
 
@@ -22,6 +23,48 @@ class NetplanExtractor(BaseExtractor):
         """
         self.api = api
         self.netbox_client = netbox_client
+
+    def _is_connected_to_switch(self, interface: Any, switch_roles: List[str]) -> bool:
+        """Check if interface is connected to a device with switch role.
+
+        Args:
+            interface: NetBox interface object
+            switch_roles: List of device role slugs considered as switches
+
+        Returns:
+            True if connected to a switch, False otherwise
+        """
+        if (
+            not hasattr(interface, "connected_endpoints")
+            or not interface.connected_endpoints
+        ):
+            return False
+
+        for endpoint in interface.connected_endpoints:
+            if hasattr(endpoint, "device") and endpoint.device:
+                remote_device = endpoint.device
+                if hasattr(remote_device, "role") and remote_device.role:
+                    if remote_device.role.slug in switch_roles:
+                        return True
+        return False
+
+    def _interface_has_ip_addresses(self, interface: Any) -> bool:
+        """Check if interface has any IP addresses assigned.
+
+        Args:
+            interface: NetBox interface object
+
+        Returns:
+            True if interface has IP addresses, False otherwise
+        """
+        if not self.api:
+            return False
+
+        try:
+            ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=interface.id)
+            return bool(ip_addresses)
+        except Exception:
+            return False
 
     def extract(
         self, device: Any, default_mtu: int = 9100, **kwargs
@@ -155,6 +198,16 @@ class NetplanExtractor(BaseExtractor):
                 interface_config["mtu"] = interface.mtu
             else:
                 interface_config["mtu"] = default_mtu
+
+            # Check if this is a leaf interface (connected to a switch AND no IP addresses)
+            switch_roles = kwargs.get("switch_roles", DEFAULT_FRR_SWITCH_ROLES)
+            if self._is_connected_to_switch(
+                interface, switch_roles
+            ) and not self._interface_has_ip_addresses(interface):
+                # Add leaf-specific parameters
+                interface_config["link-local"] = ["ipv6"]
+                interface_config["dhcp4"] = False
+                interface_config["dhcp6"] = False
 
             network_ethernets[label] = interface_config
 
