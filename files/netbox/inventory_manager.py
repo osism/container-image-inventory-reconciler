@@ -119,6 +119,9 @@ class InventoryManager:
         elif data_type == "netplan_parameters":
             # For netplan_parameters, write the content directly without wrapper
             content = yaml.dump(data, Dumper=yaml.Dumper)
+        elif data_type == "dnsmasq_parameters":
+            # For dnsmasq_parameters, write the content directly without wrapper
+            content = yaml.dump(data, Dumper=yaml.Dumper)
         else:
             content = yaml.dump(data, Dumper=yaml.Dumper)
 
@@ -128,6 +131,7 @@ class InventoryManager:
             "primary_ip": "999-netbox-ansible.yml",
             "netplan_parameters": "999-netbox-netplan.yml",
             "frr_parameters": "999-netbox-frr.yml",
+            "dnsmasq_parameters": "999-netbox-dnsmasq.yml",
         }
 
         file_suffix = file_suffixes.get(data_type, f"999-netbox-{data_type}.yml")

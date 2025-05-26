@@ -54,6 +54,12 @@ class DeviceDataExtractor:
             device, local_as_prefix=local_as_prefix, switch_roles=switch_roles
         )
 
+    def extract_dnsmasq_parameters(self, device: Any) -> Any:
+        """Extract dnsmasq parameters from custom field."""
+        return self.custom_field_extractor.extract(
+            device, field_name="dnsmasq_parameters"
+        )
+
     def extract_all_data(
         self,
         device: Any,
@@ -69,4 +75,5 @@ class DeviceDataExtractor:
             "frr_parameters": self.extract_frr_parameters(
                 device, local_as_prefix, switch_roles
             ),
+            "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
         }

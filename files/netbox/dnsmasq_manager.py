@@ -40,6 +40,26 @@ class DnsmasqManager:
 
             for device in all_devices:
                 logger.debug(f"Collecting OOB interface for device {device}")
+
+                # Check if dnsmasq_parameters custom field exists and use it
+                cached_params = device.custom_fields.get("dnsmasq_parameters")
+                if cached_params and isinstance(cached_params, dict):
+                    logger.info(
+                        f"Using cached dnsmasq parameters for device {device.name}"
+                    )
+                    if (
+                        "dnsmasq_dhcp_hosts" in cached_params
+                        and cached_params["dnsmasq_dhcp_hosts"]
+                    ):
+                        all_dhcp_hosts.extend(cached_params["dnsmasq_dhcp_hosts"])
+                    if (
+                        "dnsmasq_dhcp_macs" in cached_params
+                        and cached_params["dnsmasq_dhcp_macs"]
+                    ):
+                        all_dhcp_macs.extend(cached_params["dnsmasq_dhcp_macs"])
+                    continue
+
+                # Generate parameters if not cached
                 ip_address, mac_address = netbox_client.get_device_oob_interface(device)
 
                 if ip_address and mac_address:
@@ -54,6 +74,12 @@ class DnsmasqManager:
                         f"Collected dnsmasq entry for {device_hostname}: {host_entry}"
                     )
 
+                    # Prepare parameters for caching
+                    cache_params = {
+                        "dnsmasq_dhcp_hosts": [host_entry],
+                        "dnsmasq_dhcp_macs": [],
+                    }
+
                     # Add dnsmasq_dhcp_macs using custom field or device type slug
                     custom_dhcp_tag = device.custom_fields.get("dnsmasq_dhcp_tag")
 
@@ -61,6 +87,7 @@ class DnsmasqManager:
                         # Use custom field value if set
                         mac_entry = f"tag:{custom_dhcp_tag},{mac_formatted}"
                         all_dhcp_macs.append(mac_entry)
+                        cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                         logger.debug(
                             f"Collected dnsmasq MAC entry for {device.name} using custom tag: {mac_entry}"
                         )
@@ -70,8 +97,21 @@ class DnsmasqManager:
                         # Format: dhcp-mac=tag:device-type-slug,mac-address
                         mac_entry = f"tag:{device_type_slug},{mac_formatted}"
                         all_dhcp_macs.append(mac_entry)
+                        cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                         logger.debug(
                             f"Collected dnsmasq MAC entry for {device.name} using device type: {mac_entry}"
+                        )
+
+                    # Cache the generated parameters
+                    logger.info(
+                        f"Caching generated dnsmasq parameters for device {device.name}"
+                    )
+                    success = netbox_client.update_device_custom_field(
+                        device, "dnsmasq_parameters", cache_params
+                    )
+                    if not success:
+                        logger.warning(
+                            f"Failed to cache dnsmasq parameters for device {device.name}"
                         )
 
             # Write collected entries to metalbox device(s)
@@ -97,6 +137,32 @@ class DnsmasqManager:
         # Original behavior for manager mode
         for device in devices:
             logger.debug(f"Checking OOB interface for device {device}")
+
+            # Check if dnsmasq_parameters custom field exists and use it
+            cached_params = device.custom_fields.get("dnsmasq_parameters")
+            if cached_params and isinstance(cached_params, dict):
+                logger.info(f"Using cached dnsmasq parameters for device {device.name}")
+                # Extract the cached values
+                if (
+                    "dnsmasq_dhcp_hosts" in cached_params
+                    and "dnsmasq_dhcp_macs" in cached_params
+                ):
+                    # Create the dnsmasq configuration data from cached values
+                    dnsmasq_data = {}
+                    if cached_params["dnsmasq_dhcp_hosts"]:
+                        dnsmasq_data[f"dnsmasq_dhcp_hosts__{device.name}"] = (
+                            cached_params["dnsmasq_dhcp_hosts"]
+                        )
+                    if cached_params["dnsmasq_dhcp_macs"]:
+                        dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = (
+                            cached_params["dnsmasq_dhcp_macs"]
+                        )
+
+                    # Write to device-specific file
+                    self._write_dnsmasq_to_device(device, dnsmasq_data)
+                    continue
+
+            # Generate parameters if not cached
             ip_address, mac_address = netbox_client.get_device_oob_interface(device)
 
             if ip_address and mac_address:
@@ -109,6 +175,9 @@ class DnsmasqManager:
                 # Create the dnsmasq configuration data
                 dnsmasq_data = {f"dnsmasq_dhcp_hosts__{device.name}": [entry]}
 
+                # Prepare parameters for caching
+                cache_params = {"dnsmasq_dhcp_hosts": [entry], "dnsmasq_dhcp_macs": []}
+
                 # Add dnsmasq_dhcp_macs using custom field or device type slug
                 custom_dhcp_tag = device.custom_fields.get("dnsmasq_dhcp_tag")
 
@@ -116,6 +185,7 @@ class DnsmasqManager:
                     # Use custom field value if set
                     mac_entry = f"tag:{custom_dhcp_tag},{mac_formatted}"
                     dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = [mac_entry]
+                    cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                     logger.debug(
                         f"Added dnsmasq MAC entry for {device.name} using custom tag: {mac_entry}"
                     )
@@ -125,8 +195,21 @@ class DnsmasqManager:
                     # Format: dhcp-mac=tag:device-type-slug,mac-address
                     mac_entry = f"tag:{device_type_slug},{mac_formatted}"
                     dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = [mac_entry]
+                    cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                     logger.debug(
                         f"Added dnsmasq MAC entry for {device.name} using device type: {mac_entry}"
+                    )
+
+                # Cache the generated parameters
+                logger.info(
+                    f"Caching generated dnsmasq parameters for device {device.name}"
+                )
+                success = netbox_client.update_device_custom_field(
+                    device, "dnsmasq_parameters", cache_params
+                )
+                if not success:
+                    logger.warning(
+                        f"Failed to cache dnsmasq parameters for device {device.name}"
                     )
 
                 # Write to device-specific file
