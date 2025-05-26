@@ -174,12 +174,14 @@ class DnsmasqManager:
             if ip_address and mac_address:
                 # Format MAC address properly (lowercase with colons)
                 mac_formatted = mac_address.lower()
+                # Use inventory_hostname if set, otherwise use device name
+                hostname = get_inventory_hostname(device)
                 # Create dnsmasq DHCP host entry: "mac,hostname,ip"
-                entry = f"{mac_formatted},{device.name},{ip_address}"
-                logger.debug(f"Added dnsmasq entry for {device.name}: {entry}")
+                entry = f"{mac_formatted},{hostname},{ip_address}"
+                logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
 
                 # Create the dnsmasq configuration data
-                dnsmasq_data = {f"dnsmasq_dhcp_hosts__{device.name}": [entry]}
+                dnsmasq_data = {f"dnsmasq_dhcp_hosts__{hostname}": [entry]}
 
                 # Prepare parameters for caching
                 cache_params = {"dnsmasq_dhcp_hosts": [entry], "dnsmasq_dhcp_macs": []}
@@ -230,12 +232,14 @@ class DnsmasqManager:
         """
         # Determine base path for device files
         host_vars_path = self.config.inventory_path / "host_vars"
-        device_pattern = f"{device}*"
+        # Use inventory_hostname if set, otherwise use device name
+        hostname = get_inventory_hostname(device)
+        device_pattern = f"{hostname}*"
         result = list(host_vars_path.glob(device_pattern))
 
         if len(result) > 1:
             logger.warning(
-                f"Multiple matches found for {device}, skipping dnsmasq writing"
+                f"Multiple matches found for {hostname}, skipping dnsmasq writing"
             )
             return
 
@@ -245,21 +249,21 @@ class DnsmasqManager:
         if base_path:
             if base_path.is_dir():
                 output_file = base_path / "999-netbox-dnsmasq.yml"
-                logger.debug(f"Writing dnsmasq config for {device} to {output_file}")
+                logger.debug(f"Writing dnsmasq config for {hostname} to {output_file}")
                 with open(output_file, "w+", encoding="utf-8") as fp:
                     yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
             else:
                 # For existing single file, append with separator
-                logger.debug(f"Appending dnsmasq config for {device} to {base_path}")
+                logger.debug(f"Appending dnsmasq config for {hostname} to {base_path}")
                 with open(base_path, "a", encoding="utf-8") as fp:
                     fp.write("\n# NetBox dnsmasq\n")
                     yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
         else:
             # Create new directory structure
-            device_dir = self.config.inventory_path / "host_vars" / str(device)
+            device_dir = self.config.inventory_path / "host_vars" / hostname
             device_dir.mkdir(parents=True, exist_ok=True)
             output_file = device_dir / "999-netbox-dnsmasq.yml"
-            logger.debug(f"Writing dnsmasq config for {device} to {output_file}")
+            logger.debug(f"Writing dnsmasq config for {hostname} to {output_file}")
             with open(output_file, "w+", encoding="utf-8") as fp:
                 yaml.dump(dnsmasq_data, fp, Dumper=yaml.Dumper)
 
