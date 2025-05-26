@@ -98,10 +98,12 @@ def main() -> None:
         # In metalbox mode, pass all_devices to collect OOB configs from all devices
         if config.reconciler_mode == "metalbox":
             dnsmasq_manager.write_dnsmasq_config(
-                netbox_client, inventory_devices, all_devices
+                netbox_client, inventory_devices, all_devices, config.flush_cache
             )
         else:
-            dnsmasq_manager.write_dnsmasq_config(netbox_client, inventory_devices)
+            dnsmasq_manager.write_dnsmasq_config(
+                netbox_client, inventory_devices, flush_cache=config.flush_cache
+            )
 
         # Generate dnsmasq DHCP ranges
         logger.info("Generating dnsmasq DHCP ranges")

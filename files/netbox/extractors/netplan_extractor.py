@@ -47,13 +47,17 @@ class NetplanExtractor(BaseExtractor):
         Returns:
             Netplan parameters dictionary or None if no config found
         """
-        # Check if manual netplan_parameters is set
-        custom_field_extractor = CustomFieldExtractor()
-        manual_params = custom_field_extractor.extract(
-            device, field_name="netplan_parameters"
-        )
-        if manual_params:
-            return manual_params
+        # Check flush_cache flag
+        flush_cache = kwargs.get("flush_cache", False)
+
+        # Check if manual netplan_parameters is set (unless cache flush is requested)
+        if not flush_cache:
+            custom_field_extractor = CustomFieldExtractor()
+            manual_params = custom_field_extractor.extract(
+                device, field_name="netplan_parameters"
+            )
+            if manual_params:
+                return manual_params
 
         # Get interfaces from device using API filter
         if not self.api:

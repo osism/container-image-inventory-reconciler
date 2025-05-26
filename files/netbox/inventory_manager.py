@@ -43,6 +43,7 @@ class InventoryManager:
             self.config.default_mtu,
             self.config.default_local_as_prefix,
             self.config.frr_switch_roles,
+            self.config.flush_cache,
         )
 
         # Store in cache for later use

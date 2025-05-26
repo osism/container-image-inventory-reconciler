@@ -24,6 +24,7 @@ class DnsmasqManager:
         netbox_client: NetBoxClient,
         devices: List[Any],
         all_devices: List[Any] = None,
+        flush_cache: bool = False,
     ) -> None:
         """Write dnsmasq DHCP configuration for devices with OOB management interfaces.
 
@@ -31,6 +32,7 @@ class DnsmasqManager:
             netbox_client: NetBox API client
             devices: List of devices to write configurations for
             all_devices: List of all devices (used in metalbox mode to collect all OOB configs)
+            flush_cache: Force regeneration of cached parameters
         """
         # In metalbox mode, collect all dnsmasq entries to write to metalbox device
         if self.config.reconciler_mode == "metalbox" and all_devices:
@@ -41,9 +43,13 @@ class DnsmasqManager:
             for device in all_devices:
                 logger.debug(f"Collecting OOB interface for device {device}")
 
-                # Check if dnsmasq_parameters custom field exists and use it
+                # Check if dnsmasq_parameters custom field exists and use it (unless cache flush is requested)
                 cached_params = device.custom_fields.get("dnsmasq_parameters")
-                if cached_params and isinstance(cached_params, dict):
+                if (
+                    cached_params
+                    and isinstance(cached_params, dict)
+                    and not flush_cache
+                ):
                     logger.info(
                         f"Using cached dnsmasq parameters for device {device.name}"
                     )
@@ -138,9 +144,9 @@ class DnsmasqManager:
         for device in devices:
             logger.debug(f"Checking OOB interface for device {device}")
 
-            # Check if dnsmasq_parameters custom field exists and use it
+            # Check if dnsmasq_parameters custom field exists and use it (unless cache flush is requested)
             cached_params = device.custom_fields.get("dnsmasq_parameters")
-            if cached_params and isinstance(cached_params, dict):
+            if cached_params and isinstance(cached_params, dict) and not flush_cache:
                 logger.info(f"Using cached dnsmasq parameters for device {device.name}")
                 # Extract the cached values
                 if (

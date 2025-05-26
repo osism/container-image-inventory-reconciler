@@ -300,13 +300,17 @@ class FRRExtractor(BaseExtractor):
         Returns:
             FRR parameters dictionary or None if no config found
         """
-        # Check if manual frr_parameters is set
-        custom_field_extractor = CustomFieldExtractor()
-        manual_params = custom_field_extractor.extract(
-            device, field_name="frr_parameters"
-        )
-        if manual_params:
-            return manual_params
+        # Check flush_cache flag
+        flush_cache = kwargs.get("flush_cache", False)
+
+        # Check if manual frr_parameters is set (unless cache flush is requested)
+        if not flush_cache:
+            custom_field_extractor = CustomFieldExtractor()
+            manual_params = custom_field_extractor.extract(
+                device, field_name="frr_parameters"
+            )
+            if manual_params:
+                return manual_params
 
         if not self.api:
             return None
