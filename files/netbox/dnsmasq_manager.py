@@ -19,6 +19,62 @@ class DnsmasqManager:
     def __init__(self, config: Config):
         self.config = config
 
+    def _get_virtual_interfaces_for_dnsmasq(
+        self, device: Any, netbox_client: NetBoxClient
+    ) -> List[str]:
+        """Get virtual interfaces with untagged VLANs for dnsmasq configuration.
+
+        Returns a list of interface names (labels or names) that have:
+        - The "managed-by-osism" tag
+        - An untagged VLAN
+        - Type = virtual
+
+        Args:
+            device: NetBox device object
+            netbox_client: NetBox API client
+
+        Returns:
+            List of interface names for dnsmasq configuration
+        """
+        dnsmasq_interfaces = []
+
+        # Get interfaces from device
+        try:
+            interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+        except Exception as e:
+            logger.warning(f"Failed to get interfaces for device {device.name}: {e}")
+            return dnsmasq_interfaces
+
+        if not interfaces:
+            return dnsmasq_interfaces
+
+        for interface in interfaces:
+            # Check if this is a virtual interface
+            if not (interface.type and interface.type.value == "virtual"):
+                continue
+
+            # Check if interface has managed-by-osism tag
+            if not hasattr(interface, "tags") or not interface.tags:
+                continue
+
+            tag_slugs = [tag.slug for tag in interface.tags]
+            if "managed-by-osism" not in tag_slugs:
+                continue
+
+            # Check if interface has untagged VLAN
+            if not (hasattr(interface, "untagged_vlan") and interface.untagged_vlan):
+                continue
+
+            # Use label if set, otherwise use name
+            interface_name = interface.label if interface.label else interface.name
+            if interface_name:
+                dnsmasq_interfaces.append(interface_name)
+                logger.debug(
+                    f"Found virtual interface {interface_name} with VLAN {interface.untagged_vlan.vid} for dnsmasq"
+                )
+
+        return dnsmasq_interfaces
+
     def write_dnsmasq_config(
         self,
         netbox_client: NetBoxClient,
@@ -39,9 +95,17 @@ class DnsmasqManager:
             # Collect all dnsmasq entries from all devices
             all_dhcp_hosts = []
             all_dhcp_macs = []
+            all_dnsmasq_interfaces = []
 
             for device in all_devices:
                 logger.debug(f"Collecting OOB interface for device {device}")
+
+                # Check if device has metalbox role
+                is_metalbox = (
+                    device.role
+                    and device.role.slug
+                    and device.role.slug.lower() == "metalbox"
+                )
 
                 # Check if dnsmasq_parameters custom field exists and use it (unless cache flush is requested)
                 cached_params = device.custom_fields.get("dnsmasq_parameters")
@@ -63,6 +127,14 @@ class DnsmasqManager:
                         and cached_params["dnsmasq_dhcp_macs"]
                     ):
                         all_dhcp_macs.extend(cached_params["dnsmasq_dhcp_macs"])
+                    if (
+                        "dnsmasq_interfaces" in cached_params
+                        and cached_params["dnsmasq_interfaces"]
+                        and is_metalbox
+                    ):
+                        all_dnsmasq_interfaces.extend(
+                            cached_params["dnsmasq_interfaces"]
+                        )
                     continue
 
                 # Generate parameters if not cached
@@ -80,10 +152,19 @@ class DnsmasqManager:
                         f"Collected dnsmasq entry for {device_hostname}: {host_entry}"
                     )
 
+                    # Get virtual interfaces for this device (only for metalbox devices)
+                    device_interfaces = []
+                    if is_metalbox:
+                        device_interfaces = self._get_virtual_interfaces_for_dnsmasq(
+                            device, netbox_client
+                        )
+                        all_dnsmasq_interfaces.extend(device_interfaces)
+
                     # Prepare parameters for caching
                     cache_params = {
                         "dnsmasq_dhcp_hosts": [host_entry],
                         "dnsmasq_dhcp_macs": [],
+                        "dnsmasq_interfaces": device_interfaces,
                     }
 
                     # Add dnsmasq_dhcp_macs using custom field or device type slug
@@ -119,6 +200,26 @@ class DnsmasqManager:
                         logger.warning(
                             f"Failed to cache dnsmasq parameters for device {device.name}"
                         )
+                else:
+                    # No OOB interface found, but still check for virtual interfaces (only for metalbox devices)
+                    if is_metalbox:
+                        device_interfaces = self._get_virtual_interfaces_for_dnsmasq(
+                            device, netbox_client
+                        )
+                        if device_interfaces:
+                            all_dnsmasq_interfaces.extend(device_interfaces)
+                            # Cache just the interfaces
+                            cache_params = {
+                                "dnsmasq_dhcp_hosts": [],
+                                "dnsmasq_dhcp_macs": [],
+                                "dnsmasq_interfaces": device_interfaces,
+                            }
+                            logger.info(
+                                f"Caching dnsmasq interfaces for metalbox device {device.name}"
+                            )
+                            netbox_client.update_device_custom_field(
+                                device, "dnsmasq_parameters", cache_params
+                            )
 
             # Write collected entries to metalbox device(s)
             for device in devices:
@@ -131,6 +232,7 @@ class DnsmasqManager:
                     dnsmasq_data = {
                         "dnsmasq_dhcp_hosts": all_dhcp_hosts,
                         "dnsmasq_dhcp_macs": all_dhcp_macs,
+                        "dnsmasq_interfaces": all_dnsmasq_interfaces,
                     }
 
                     # Write to metalbox device's host vars
@@ -184,7 +286,10 @@ class DnsmasqManager:
                 dnsmasq_data = {f"dnsmasq_dhcp_hosts__{hostname}": [entry]}
 
                 # Prepare parameters for caching
-                cache_params = {"dnsmasq_dhcp_hosts": [entry], "dnsmasq_dhcp_macs": []}
+                cache_params = {
+                    "dnsmasq_dhcp_hosts": [entry],
+                    "dnsmasq_dhcp_macs": [],
+                }
 
                 # Add dnsmasq_dhcp_macs using custom field or device type slug
                 custom_dhcp_tag = device.custom_fields.get("dnsmasq_dhcp_tag")
