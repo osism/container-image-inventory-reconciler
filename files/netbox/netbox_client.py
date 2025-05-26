@@ -180,3 +180,35 @@ class NetBoxClient:
         except Exception as e:
             logger.warning(f"Failed to get OOB networks: {e}")
             return []
+
+    def update_device_custom_field(
+        self, device: Any, field_name: str, field_value: Any
+    ) -> bool:
+        """Update a custom field for a device.
+
+        Args:
+            device: NetBox device object
+            field_name: Name of the custom field to update
+            field_value: Value to set for the custom field
+
+        Returns:
+            True if update was successful, False otherwise
+        """
+        try:
+            # Update the custom field
+            if not hasattr(device, "custom_fields"):
+                device.custom_fields = {}
+
+            device.custom_fields[field_name] = field_value
+            device.save()
+
+            logger.debug(
+                f"Updated custom field '{field_name}' for device {device.name}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to update custom field '{field_name}' for device {device.name}: {e}"
+            )
+            return False
