@@ -42,16 +42,27 @@ class DeviceDataExtractor:
         """Extract primary IP address from device, prioritizing IPv4 over IPv6."""
         return self.primary_ip_extractor.extract(device)
 
-    def extract_netplan_parameters(self, device: Any, default_mtu: int = 9100) -> Any:
+    def extract_netplan_parameters(
+        self, device: Any, default_mtu: int = 9100, flush_cache: bool = False
+    ) -> Any:
         """Extract netplan parameters, combining manual and auto-generated config."""
-        return self.netplan_extractor.extract(device, default_mtu=default_mtu)
+        return self.netplan_extractor.extract(
+            device, default_mtu=default_mtu, flush_cache=flush_cache
+        )
 
     def extract_frr_parameters(
-        self, device: Any, local_as_prefix: int = 42, switch_roles: List[str] = None
+        self,
+        device: Any,
+        local_as_prefix: int = 42,
+        switch_roles: List[str] = None,
+        flush_cache: bool = False,
     ) -> Any:
         """Extract FRR parameters, combining manual and auto-generated config."""
         return self.frr_extractor.extract(
-            device, local_as_prefix=local_as_prefix, switch_roles=switch_roles
+            device,
+            local_as_prefix=local_as_prefix,
+            switch_roles=switch_roles,
+            flush_cache=flush_cache,
         )
 
     def extract_dnsmasq_parameters(self, device: Any) -> Any:
@@ -66,14 +77,17 @@ class DeviceDataExtractor:
         default_mtu: int = 9100,
         local_as_prefix: int = 42,
         switch_roles: List[str] = None,
+        flush_cache: bool = False,
     ) -> Dict[str, Any]:
         """Extract all configured data types from a device."""
         return {
             "config_context": self.extract_config_context(device),
             "primary_ip": self.extract_primary_ip(device),
-            "netplan_parameters": self.extract_netplan_parameters(device, default_mtu),
+            "netplan_parameters": self.extract_netplan_parameters(
+                device, default_mtu, flush_cache
+            ),
             "frr_parameters": self.extract_frr_parameters(
-                device, local_as_prefix, switch_roles
+                device, local_as_prefix, switch_roles, flush_cache
             ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
         }

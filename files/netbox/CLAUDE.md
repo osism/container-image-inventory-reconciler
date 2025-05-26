@@ -42,6 +42,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `DEFAULT_MTU` - Default MTU value for interfaces without explicit MTU (default: 9100)
 - `DEFAULT_LOCAL_AS_PREFIX` - Default local AS prefix for FRR configuration (default: 42)
 - `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager" or "metalbox" (default: "manager")
+- `FLUSH_CACHE` - Force regeneration of cached custom field values (default: false)
 
 ## Device Selection Logic
 
@@ -150,6 +151,15 @@ The dnsmasq manager automatically caches generated `dnsmasq_dhcp_hosts` and `dns
   - `dnsmasq_dhcp_hosts`: List of DHCP host entries (format: "mac,hostname,ip")
   - `dnsmasq_dhcp_macs`: List of MAC entries (format: "tag:tagname,mac")
 - **Data extraction**: Add "dnsmasq_parameters" to NETBOX_DATA_TYPES to extract cached parameters to inventory files
+
+### Cache Management
+The `FLUSH_CACHE` environment variable controls cache behavior for all auto-generated parameters:
+- **When `FLUSH_CACHE=true`**: Existing cached values in custom fields (`netplan_parameters`, `frr_parameters`, `dnsmasq_parameters`) are ignored and regenerated
+- **When `FLUSH_CACHE=false` (default)**: Cached values are used if they exist, avoiding regeneration
+- **Use cases**: Set `FLUSH_CACHE=true` when:
+  - Network topology has changed
+  - Interface configurations have been updated
+  - You need to force recalculation of all auto-generated parameters
 
 ## Common Development Tasks
 
