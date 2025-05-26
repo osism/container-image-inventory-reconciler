@@ -17,9 +17,9 @@ from utils import get_inventory_hostname
 class InventoryManager:
     """Manages inventory file operations."""
 
-    def __init__(self, config: Config, api=None):
+    def __init__(self, config: Config, api=None, netbox_client=None):
         self.config = config
-        self.data_extractor = DeviceDataExtractor(api=api)
+        self.data_extractor = DeviceDataExtractor(api=api, netbox_client=netbox_client)
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )

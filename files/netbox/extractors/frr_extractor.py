@@ -95,13 +95,15 @@ class InterfaceFilter:
 class FRRExtractor(BaseExtractor):
     """Extracts FRR parameters from NetBox devices."""
 
-    def __init__(self, api=None):
+    def __init__(self, api=None, netbox_client=None):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface and device fetching)
+            netbox_client: NetBox client instance for updating custom fields
         """
         self.api = api
+        self.netbox_client = netbox_client
         self.as_calculator = ASNumberCalculator()
         self.interface_filter = InterfaceFilter()
 
@@ -338,6 +340,17 @@ class FRRExtractor(BaseExtractor):
         # Return None if no FRR configuration found
         if not result:
             return None
+
+        # Cache the generated parameters in the custom field
+        if self.netbox_client:
+            logger.info(f"Caching generated FRR parameters for device {device.name}")
+            success = self.netbox_client.update_device_custom_field(
+                device, "frr_parameters", result
+            )
+            if not success:
+                logger.warning(
+                    f"Failed to cache FRR parameters for device {device.name}"
+                )
 
         return result
 

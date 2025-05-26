@@ -4,6 +4,8 @@
 
 from typing import Any, Dict, Optional
 
+from loguru import logger
+
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
 
@@ -11,13 +13,15 @@ from .custom_field_extractor import CustomFieldExtractor
 class NetplanExtractor(BaseExtractor):
     """Extracts netplan parameters from NetBox devices."""
 
-    def __init__(self, api=None):
+    def __init__(self, api=None, netbox_client=None):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface fetching)
+            netbox_client: NetBox client instance for updating custom fields
         """
         self.api = api
+        self.netbox_client = netbox_client
 
     def extract(
         self, device: Any, default_mtu: int = 9100, **kwargs
@@ -181,5 +185,18 @@ class NetplanExtractor(BaseExtractor):
             result["network_dummy_interfaces"] = network_dummy_interfaces
         if network_vlans:
             result["network_vlans"] = network_vlans
+
+        # Cache the generated parameters in the custom field
+        if self.netbox_client:
+            logger.info(
+                f"Caching generated Netplan parameters for device {device.name}"
+            )
+            success = self.netbox_client.update_device_custom_field(
+                device, "netplan_parameters", result
+            )
+            if not success:
+                logger.warning(
+                    f"Failed to cache Netplan parameters for device {device.name}"
+                )
 
         return result
