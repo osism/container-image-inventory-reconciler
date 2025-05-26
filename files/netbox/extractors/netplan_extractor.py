@@ -85,7 +85,7 @@ class NetplanExtractor(BaseExtractor):
         Args:
             device: NetBox device object
             default_mtu: Default MTU value for interfaces without explicit MTU
-            **kwargs: Additional parameters (unused)
+            **kwargs: Additional parameters including reconciler_mode
 
         Returns:
             Netplan parameters dictionary or None if no config found
@@ -231,8 +231,24 @@ class NetplanExtractor(BaseExtractor):
                 dummy0_config["addresses"] = addresses
                 network_ethernets["dummy0"] = dummy0_config
 
+        # Add metalbox dummy device if in metalbox mode and device has metalbox role
+        reconciler_mode = kwargs.get("reconciler_mode", "manager")
+        network_dummy_devices = {}
+        if reconciler_mode == "metalbox" and hasattr(device, "role") and device.role:
+            if device.role.slug == "metalbox":
+                logger.info(
+                    f"Adding metalbox dummy interface for device {device.name} in metalbox mode"
+                )
+                # Configure metalbox dummy device with IP
+                network_dummy_devices["metalbox"] = {"addresses": ["192.168.42.10/24"]}
+
         # Return None if no interfaces found
-        if not network_ethernets and not network_dummy_interfaces and not network_vlans:
+        if (
+            not network_ethernets
+            and not network_dummy_interfaces
+            and not network_vlans
+            and not network_dummy_devices
+        ):
             return None
 
         result = {}
@@ -242,6 +258,8 @@ class NetplanExtractor(BaseExtractor):
             result["network_dummy_interfaces"] = network_dummy_interfaces
         if network_vlans:
             result["network_vlans"] = network_vlans
+        if network_dummy_devices:
+            result["network_dummy_devices"] = network_dummy_devices
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:

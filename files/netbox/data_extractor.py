@@ -48,6 +48,7 @@ class DeviceDataExtractor:
         default_mtu: int = 9100,
         switch_roles: List[str] = None,
         flush_cache: bool = False,
+        reconciler_mode: str = "manager",
     ) -> Any:
         """Extract netplan parameters, combining manual and auto-generated config."""
         return self.netplan_extractor.extract(
@@ -55,6 +56,7 @@ class DeviceDataExtractor:
             default_mtu=default_mtu,
             switch_roles=switch_roles,
             flush_cache=flush_cache,
+            reconciler_mode=reconciler_mode,
         )
 
     def extract_frr_parameters(
@@ -85,13 +87,14 @@ class DeviceDataExtractor:
         local_as_prefix: int = 42,
         switch_roles: List[str] = None,
         flush_cache: bool = False,
+        reconciler_mode: str = "manager",
     ) -> Dict[str, Any]:
         """Extract all configured data types from a device."""
         return {
             "config_context": self.extract_config_context(device),
             "primary_ip": self.extract_primary_ip(device),
             "netplan_parameters": self.extract_netplan_parameters(
-                device, default_mtu, switch_roles, flush_cache
+                device, default_mtu, switch_roles, flush_cache, reconciler_mode
             ),
             "frr_parameters": self.extract_frr_parameters(
                 device, local_as_prefix, switch_roles, flush_cache

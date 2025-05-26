@@ -44,6 +44,7 @@ class InventoryManager:
             self.config.default_local_as_prefix,
             self.config.frr_switch_roles,
             self.config.flush_cache,
+            self.config.reconciler_mode,
         )
 
         # Store in cache for later use
@@ -78,6 +79,8 @@ class InventoryManager:
                 self.config.default_mtu,
                 self.config.default_local_as_prefix,
                 self.config.frr_switch_roles,
+                self.config.flush_cache,
+                self.config.reconciler_mode,
             )
 
         # Determine base path for device files
