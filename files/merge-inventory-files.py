@@ -10,7 +10,9 @@ content taking precedence.
 """
 
 import configparser
+from io import StringIO
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -19,7 +21,6 @@ from loguru import logger
 
 # Constants
 DEFAULT_INVENTORY_DIR = "/inventory.pre/"
-INVENTORY_DELIMITERS = "😈"
 
 # Logger configuration
 LOGGER_FORMAT = (
@@ -47,7 +48,7 @@ def read_config_file(filepath: Path) -> Optional[configparser.ConfigParser]:
     """
     try:
         config = configparser.ConfigParser(
-            allow_no_value=True, delimiters=INVENTORY_DELIMITERS
+            allow_no_value=True
         )
         config.read(filepath)
         return config
@@ -67,9 +68,15 @@ def write_config_file(config: configparser.ConfigParser, filepath: Path) -> bool
     Returns:
         True if successful, False otherwise
     """
+
+    output = StringIO()
+    config.write(output)
+    content = output.getvalue()
+    content = re.sub(r'^(\w+)\s*=\s*$', r'\1', content, flags=re.MULTILINE)
+
     try:
         with open(filepath, "w") as fp:
-            config.write(fp)
+            fp.write(content)
         return True
     except (IOError, OSError) as e:
         logger.error(f"Error writing file {filepath}: {e}")
