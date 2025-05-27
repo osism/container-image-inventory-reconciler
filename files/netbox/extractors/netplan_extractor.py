@@ -241,11 +241,7 @@ class NetplanExtractor(BaseExtractor):
                 network_dummy_devices["metalbox"] = {"addresses": ["192.168.42.10/24"]}
 
         # Return None if no interfaces found
-        if (
-            not network_ethernets
-            and not network_dummy_devices
-            and not network_vlans
-        ):
+        if not network_ethernets and not network_dummy_devices and not network_vlans:
             return None
 
         result = {}
