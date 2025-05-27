@@ -83,7 +83,7 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
   - **Regular interfaces**: Interfaces with the tag, a MAC address AND a label
     - The label becomes the interface name in Netplan
     - MTU is set from the interface's MTU value in NetBox, or uses the default (9100, configurable via DEFAULT_MTU)
-  - **Dummy0 interface**: If an interface named "dummy0" exists with the tag
+  - **Loopback0 interface**: If an interface named "loopback0" exists with the tag
     - All IPv4 and IPv6 addresses assigned to it are included
     - The interface is listed in `network_dummy_interfaces`
   - **VLAN interfaces**: Virtual interfaces (type=virtual) with the tag, untagged VLAN and parent interface
@@ -95,14 +95,14 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
   - Example output:
     ```yaml
     network_dummy_interfaces:
-      - dummy0
+      - loopback0
     network_ethernets:
       leaf1:
         match:
           macaddress: "aa:bb:cc:dd:ee:ff"
         set-name: leaf1
         mtu: 9100
-      dummy0:
+      loopback0:
         addresses:
           - 192.168.45.123/32
           - 2001:db8:85a3::8a2e:370:7334/128
@@ -118,13 +118,13 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
 The `999-netbox-frr.yml` file contains frr_parameters which can be:
 - **Manual configuration**: If the `frr_parameters` custom field is set on the device, its content is used directly
 - **Automatic generation**: If no manual configuration exists, frr_parameters are automatically generated from:
-  - **AS Number**: Calculated from dummy0 IPv4 address (prefix + 3rd octet padded + 4th octet padded)
+  - **AS Number**: Calculated from loopback0 IPv4 address (prefix + 3rd octet padded + 4th octet padded)
     - Example: 192.168.45.123 with prefix 4200 → 4200045123
     - Can be overridden with `frr_local_as` custom field
-  - **Loopback addresses**: IPv4 and IPv6 addresses from dummy0 interface
+  - **Loopback addresses**: IPv4 and IPv6 addresses from loopback0 interface
   - **Uplinks**: Interfaces with `managed-by-osism` tag and label connected to switches
     - Switch device roles are configurable via FRR_SWITCH_ROLES
-    - Remote AS calculated from connected switch's dummy0 IPv4 or `frr_local_as` field
+    - Remote AS calculated from connected switch's loopback0 IPv4 or `frr_local_as` field
   - Example output:
     ```yaml
     frr_parameters:

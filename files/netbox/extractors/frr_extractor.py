@@ -137,8 +137,8 @@ class FRRExtractor(BaseExtractor):
 
         return None
 
-    def _get_dummy0_addresses(self, device: Any) -> Dict[str, Optional[str]]:
-        """Get IPv4 and IPv6 addresses from dummy0 interface.
+    def _get_loopback0_addresses(self, device: Any) -> Dict[str, Optional[str]]:
+        """Get IPv4 and IPv6 addresses from loopback0 interface.
 
         Returns:
             Dictionary with 'ipv4' and 'ipv6' keys
@@ -146,25 +146,25 @@ class FRRExtractor(BaseExtractor):
         result = {"ipv4": None, "ipv6": None}
 
         if not self.api:
-            logger.warning("No API client available for dummy0 address lookup")
+            logger.warning("No API client available for loopback0 address lookup")
             return result
 
         try:
-            # Get all interfaces and find dummy0 (case-insensitive)
+            # Get all interfaces and find loopback0 (case-insensitive)
             interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
 
-            dummy0 = None
+            loopback0 = None
             for interface in interfaces:
-                if interface.name and interface.name.lower() == "dummy0":
-                    dummy0 = interface
+                if interface.name and interface.name.lower() == "loopback0":
+                    loopback0 = interface
                     break
 
-            if not dummy0:
-                logger.debug(f"No dummy0 interface found for device {device.name}")
+            if not loopback0:
+                logger.debug(f"No loopback0 interface found for device {device.name}")
                 return result
 
-            # Get IP addresses assigned to dummy0
-            ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=dummy0.id)
+            # Get IP addresses assigned to loopback0
+            ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=loopback0.id)
 
             for ip in ip_addresses:
                 if not ip.address:
@@ -179,11 +179,11 @@ class FRRExtractor(BaseExtractor):
                     result["ipv4"] = ip.address
 
             logger.debug(
-                f"Found dummy0 addresses for {device.name}: IPv4={result['ipv4']}, IPv6={result['ipv6']}"
+                f"Found loopback0 addresses for {device.name}: IPv4={result['ipv4']}, IPv6={result['ipv6']}"
             )
 
         except Exception as e:
-            logger.error(f"Error fetching dummy0 addresses for {device.name}: {e}")
+            logger.error(f"Error fetching loopback0 addresses for {device.name}: {e}")
 
         return result
 
@@ -287,8 +287,8 @@ class FRRExtractor(BaseExtractor):
 
         First checks for manual frr_parameters custom field.
         If not found, generates parameters based on:
-        - AS number from primary IPv4 of dummy0 (or frr_local_as custom field)
-        - Loopback addresses from dummy0 interface
+        - AS number from primary IPv4 of loopback0 (or frr_local_as custom field)
+        - Loopback addresses from loopback0 interface
         - Uplinks from interfaces connected to Leaf switches
 
         Args:
@@ -317,22 +317,22 @@ class FRRExtractor(BaseExtractor):
 
         result = {}
 
-        # Get dummy0 addresses
-        dummy0_addresses = self._get_dummy0_addresses(device)
+        # Get loopback0 addresses
+        loopback0_addresses = self._get_loopback0_addresses(device)
 
         # Set loopback addresses
-        if dummy0_addresses["ipv4"]:
-            result["frr_loopback_v4"] = dummy0_addresses["ipv4"].split("/")[0]
+        if loopback0_addresses["ipv4"]:
+            result["frr_loopback_v4"] = loopback0_addresses["ipv4"].split("/")[0]
 
             # Calculate or get local AS
             local_as = self._calculate_as_number(
-                device, dummy0_addresses["ipv4"], local_as_prefix
+                device, loopback0_addresses["ipv4"], local_as_prefix
             )
             if local_as:
                 result["frr_local_as"] = local_as
 
-        if dummy0_addresses["ipv6"]:
-            result["frr_loopback_v6"] = dummy0_addresses["ipv6"]
+        if loopback0_addresses["ipv6"]:
+            result["frr_loopback_v6"] = loopback0_addresses["ipv6"]
 
         # Get FRR uplinks
         frr_uplinks = self._build_frr_uplinks(
@@ -382,9 +382,9 @@ class FRRExtractor(BaseExtractor):
         for uplink in switch_uplinks:
             # Get remote AS number
             remote_device = uplink["remote_device"]
-            remote_dummy0 = self._get_dummy0_addresses(remote_device)
+            remote_loopback0 = self._get_loopback0_addresses(remote_device)
             remote_as = self._calculate_as_number(
-                remote_device, remote_dummy0.get("ipv4"), local_as_prefix
+                remote_device, remote_loopback0.get("ipv4"), local_as_prefix
             )
 
             if remote_as:
