@@ -75,6 +75,88 @@ class DnsmasqManager:
 
         return dnsmasq_interfaces
 
+    def _get_dynamic_hosts_for_metalbox(
+        self, device: Any, netbox_client: NetBoxClient
+    ) -> List[str]:
+        """Generate dnsmasq_dynamic_hosts entries for metalbox device.
+
+        For each OOB network with managed-by-osism tag, find the corresponding
+        VLAN interface on the metalbox device and create an entry.
+
+        Args:
+            device: NetBox device object (must have metalbox role)
+            netbox_client: NetBox API client
+
+        Returns:
+            List of dynamic host entries in format "metalbox,network,ip"
+        """
+        dynamic_hosts = []
+
+        # Get OOB networks
+        oob_networks = netbox_client.get_oob_networks()
+        if not oob_networks:
+            return dynamic_hosts
+
+        # Get all interfaces for this device
+        try:
+            interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+        except Exception as e:
+            logger.warning(f"Failed to get interfaces for device {device.name}: {e}")
+            return dynamic_hosts
+
+        # Build a map of VLAN ID to interface IP addresses
+        vlan_to_ips = {}
+        for interface in interfaces:
+            # Check if this is a virtual interface with untagged VLAN
+            if (
+                interface.type
+                and interface.type.value == "virtual"
+                and hasattr(interface, "untagged_vlan")
+                and interface.untagged_vlan
+            ):
+                vlan_id = interface.untagged_vlan.id
+
+                # Get IP addresses for this interface
+                try:
+                    ip_addresses = netbox_client.api.ipam.ip_addresses.filter(
+                        interface_id=interface.id
+                    )
+                    for ip in ip_addresses:
+                        if ip.address:
+                            if vlan_id not in vlan_to_ips:
+                                vlan_to_ips[vlan_id] = []
+                            vlan_to_ips[vlan_id].append(ip.address)
+                except Exception:
+                    pass
+
+        # Match OOB networks with VLAN interfaces
+        for network in oob_networks:
+            # Check if this network has an associated VLAN
+            if hasattr(network, "vlan") and network.vlan:
+                vlan_id = network.vlan.id
+
+                # Check if we have an interface for this VLAN
+                if vlan_id in vlan_to_ips:
+                    # Find the IP that belongs to this network
+                    network_obj = ipaddress.ip_network(network.prefix)
+                    for ip_str in vlan_to_ips[vlan_id]:
+                        try:
+                            # Remove the prefix length from IP if present
+                            ip_only = ip_str.split("/")[0]
+                            ip_addr = ipaddress.ip_address(ip_only)
+
+                            # Check if this IP belongs to the network
+                            if ip_addr in network_obj:
+                                # Create dynamic host entry
+                                entry = f"metalbox,{network.prefix},{ip_only}"
+                                dynamic_hosts.append(entry)
+                                logger.debug(f"Created dynamic host entry: {entry}")
+                                break  # Only use the first matching IP
+                        except Exception as e:
+                            logger.warning(f"Failed to process IP {ip_str}: {e}")
+
+        return dynamic_hosts
+
     def write_dnsmasq_config(
         self,
         netbox_client: NetBoxClient,
@@ -228,17 +310,23 @@ class DnsmasqManager:
                     and device.role.slug
                     and device.role.slug.lower() == "metalbox"
                 ):
+                    # Generate dynamic hosts for this metalbox device
+                    dynamic_hosts = self._get_dynamic_hosts_for_metalbox(
+                        device, netbox_client
+                    )
+
                     # Create the dnsmasq configuration data with all collected entries
                     dnsmasq_data = {
                         "dnsmasq_dhcp_hosts": all_dhcp_hosts,
                         "dnsmasq_dhcp_macs": all_dhcp_macs,
                         "dnsmasq_interfaces": all_dnsmasq_interfaces,
+                        "dnsmasq_dynamic_hosts": dynamic_hosts,
                     }
 
                     # Write to metalbox device's host vars
                     self._write_dnsmasq_to_device(device, dnsmasq_data)
                     logger.info(
-                        f"Wrote {len(all_dhcp_hosts)} dnsmasq entries to metalbox device {device.name}"
+                        f"Wrote {len(all_dhcp_hosts)} dnsmasq entries and {len(dynamic_hosts)} dynamic hosts to metalbox device {device.name}"
                     )
             return
 
