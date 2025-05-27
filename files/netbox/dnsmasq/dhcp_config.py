@@ -86,29 +86,15 @@ class DHCPConfigGenerator:
                 # Parse the network prefix
                 net = ipaddress.ip_network(network.prefix)
 
-                # Get all hosts in the network (excluding network and broadcast addresses)
-                all_hosts = list(net.hosts())
-
-                if len(all_hosts) < 3:
-                    logger.warning(
-                        f"Network {network.prefix} has fewer than 3 usable hosts"
-                    )
-                    continue
-
-                # Reserve first and last host addresses
-                # Use the range from second host to second-to-last host
-                start_ip = str(all_hosts[1])  # Skip first host
-                end_ip = str(all_hosts[-2])  # Skip last host
+                # Use network address as start IP
+                start_ip = str(net.network_address)  # Use network address itself
                 subnet_mask = str(net.netmask)
 
                 # Add 'static' mode to only allow static assignments
-                dhcp_range = f"{start_ip},{end_ip},{subnet_mask},static"
+                dhcp_range = f"{start_ip},static,{subnet_mask},12h"
                 dhcp_ranges.append(dhcp_range)
 
-                logger.debug(
-                    f"Generated DHCP range for {network.prefix}: {dhcp_range} "
-                    f"(reserved: {all_hosts[0]} and {all_hosts[-1]})"
-                )
+                logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")
 
             except Exception as e:
                 logger.warning(f"Failed to process network {network.prefix}: {e}")
