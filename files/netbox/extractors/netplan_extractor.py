@@ -117,7 +117,7 @@ class NetplanExtractor(BaseExtractor):
         network_ethernets = {}
         network_dummy_interfaces = []
         network_vlans = {}
-        dummy0_interface = None
+        loopback0_interface = None
 
         for interface in interfaces:
             # Check if interface has managed-by-osism tag
@@ -128,10 +128,10 @@ class NetplanExtractor(BaseExtractor):
             if "managed-by-osism" not in tag_slugs:
                 continue
 
-            # Check for dummy0 interface
-            if interface.name and interface.name.lower() == "dummy0":
-                dummy0_interface = interface
-                network_dummy_interfaces.append("dummy0")
+            # Check for loopback0 interface
+            if interface.name and interface.name.lower() == "loopback0":
+                loopback0_interface = interface
+                network_dummy_interfaces.append("loopback0")
                 continue
 
             # Check if this is a virtual interface (VLAN)
@@ -211,15 +211,15 @@ class NetplanExtractor(BaseExtractor):
 
             network_ethernets[label] = interface_config
 
-        # Add dummy0 configuration if found
-        if dummy0_interface:
-            dummy0_config = {}
+        # Add loopback0 configuration if found
+        if loopback0_interface:
+            loopback0_config = {}
 
-            # Get all IP addresses assigned to dummy0 using API filter
+            # Get all IP addresses assigned to loopback0 using API filter
             addresses = []
             try:
                 ip_addresses = self.api.ipam.ip_addresses.filter(
-                    interface_id=dummy0_interface.id
+                    interface_id=loopback0_interface.id
                 )
                 for ip in ip_addresses:
                     if ip.address:
@@ -228,8 +228,8 @@ class NetplanExtractor(BaseExtractor):
                 pass
 
             if addresses:
-                dummy0_config["addresses"] = addresses
-                network_ethernets["dummy0"] = dummy0_config
+                loopback0_config["addresses"] = addresses
+                network_ethernets["loopback0"] = loopback0_config
 
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
         reconciler_mode = kwargs.get("reconciler_mode", "manager")
