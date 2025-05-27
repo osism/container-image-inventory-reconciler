@@ -15,16 +15,16 @@ class ASNumberCalculator:
     """Handles AS number calculation from IP addresses."""
 
     @staticmethod
-    def from_ipv4(ipv4_address: str, prefix: int = 42) -> int:
+    def from_ipv4(ipv4_address: str, prefix: int = 4200) -> int:
         """Calculate AS number from IPv4 address.
 
         Args:
             ipv4_address: IPv4 address in format "192.168.45.123/32" or "192.168.45.123"
-            prefix: Two-digit prefix for AS number (default: 42)
+            prefix: Four-digit prefix for AS number (default: 4200)
 
         Returns:
             AS number calculated as prefix + 3rd octet (padded) + 4th octet (padded)
-            Example: 192.168.45.123 with prefix 42 -> 42045123
+            Example: 192.168.45.123 with prefix 4200 -> 4200045123
 
         Raises:
             ValueError: If IP address format is invalid
@@ -38,7 +38,7 @@ class ASNumberCalculator:
                 raise ValueError(f"Invalid IPv4 address format: {ipv4_address}")
 
             # AS = prefix + third octet (3 digits) + fourth octet (3 digits)
-            # Example: 192.168.45.123 -> 42 + 045 + 123 = 42045123
+            # Example: 192.168.45.123 -> 4200 + 045 + 123 = 4200045123
             third_octet = int(octets[2])
             fourth_octet = int(octets[3])
 
@@ -279,7 +279,7 @@ class FRRExtractor(BaseExtractor):
     def extract(
         self,
         device: Any,
-        local_as_prefix: int = 42,
+        local_as_prefix: int = 4200,
         switch_roles: List[str] = None,
         **kwargs,
     ) -> Optional[Dict[str, Any]]:
@@ -293,7 +293,7 @@ class FRRExtractor(BaseExtractor):
 
         Args:
             device: NetBox device object
-            local_as_prefix: Two-digit prefix for AS number calculation (default: 42)
+            local_as_prefix: Four-digit prefix for AS number calculation (default: 4200)
             switch_roles: List of device role slugs to consider as switches for uplinks
             **kwargs: Additional parameters (unused)
 
