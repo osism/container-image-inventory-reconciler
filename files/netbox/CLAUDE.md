@@ -85,7 +85,7 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - MTU is set from the interface's MTU value in NetBox, or uses the default (9100, configurable via DEFAULT_MTU)
   - **Loopback0 interface**: If an interface named "loopback0" exists with the tag
     - All IPv4 and IPv6 addresses assigned to it are included
-    - The interface is listed in `network_dummy_interfaces`
+    - The interface is configured in `network_dummy_devices`
   - **VLAN interfaces**: Virtual interfaces (type=virtual) with the tag, untagged VLAN and parent interface
     - Both the VLAN interface AND its parent interface must have the `managed-by-osism` tag
     - The label (or name if no label) becomes the VLAN interface name
@@ -94,8 +94,11 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - All IPv4 and IPv6 addresses assigned to the VLAN interface are included
   - Example output:
     ```yaml
-    network_dummy_interfaces:
-      - loopback0
+    network_dummy_devices:
+      loopback0:
+        addresses:
+          - 192.168.45.123/32
+          - 2001:db8:85a3::8a2e:370:7334/128
     network_ethernets:
       leaf1:
         match:

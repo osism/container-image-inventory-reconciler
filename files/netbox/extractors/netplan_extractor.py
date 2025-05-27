@@ -115,7 +115,7 @@ class NetplanExtractor(BaseExtractor):
             return None
 
         network_ethernets = {}
-        network_dummy_interfaces = []
+        network_dummy_devices = {}
         network_vlans = {}
         loopback0_interface = None
 
@@ -131,7 +131,6 @@ class NetplanExtractor(BaseExtractor):
             # Check for loopback0 interface
             if interface.name and interface.name.lower() == "loopback0":
                 loopback0_interface = interface
-                network_dummy_interfaces.append("loopback0")
                 continue
 
             # Check if this is a virtual interface (VLAN)
@@ -229,11 +228,10 @@ class NetplanExtractor(BaseExtractor):
 
             if addresses:
                 loopback0_config["addresses"] = addresses
-                network_ethernets["loopback0"] = loopback0_config
+                network_dummy_devices["loopback0"] = loopback0_config
 
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
         reconciler_mode = kwargs.get("reconciler_mode", "manager")
-        network_dummy_devices = {}
         if reconciler_mode == "metalbox" and hasattr(device, "role") and device.role:
             if device.role.slug == "metalbox":
                 logger.info(
@@ -245,21 +243,18 @@ class NetplanExtractor(BaseExtractor):
         # Return None if no interfaces found
         if (
             not network_ethernets
-            and not network_dummy_interfaces
-            and not network_vlans
             and not network_dummy_devices
+            and not network_vlans
         ):
             return None
 
         result = {}
         if network_ethernets:
             result["network_ethernets"] = network_ethernets
-        if network_dummy_interfaces:
-            result["network_dummy_interfaces"] = network_dummy_interfaces
-        if network_vlans:
-            result["network_vlans"] = network_vlans
         if network_dummy_devices:
             result["network_dummy_devices"] = network_dummy_devices
+        if network_vlans:
+            result["network_vlans"] = network_vlans
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:
