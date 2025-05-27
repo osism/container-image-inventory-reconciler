@@ -138,15 +138,20 @@ class DnsmasqManager:
                     continue
 
                 # Generate parameters if not cached
-                ip_address, mac_address = netbox_client.get_device_oob_interface(device)
+                ip_address, mac_address, vlan_id = (
+                    netbox_client.get_device_oob_interface(device)
+                )
 
                 if ip_address and mac_address:
                     # Format MAC address properly (lowercase with colons)
                     mac_formatted = mac_address.lower()
                     # Get inventory hostname for the device
                     device_hostname = get_inventory_hostname(device)
-                    # Create dnsmasq DHCP host entry: "mac,hostname,ip"
-                    host_entry = f"{mac_formatted},{device_hostname},{ip_address}"
+                    # Create dnsmasq DHCP host entry: "mac,hostname,ip[,set:vlanXXX]"
+                    if vlan_id:
+                        host_entry = f"{mac_formatted},{device_hostname},{ip_address},set:vlan{vlan_id}"
+                    else:
+                        host_entry = f"{mac_formatted},{device_hostname},{ip_address}"
                     all_dhcp_hosts.append(host_entry)
                     logger.debug(
                         f"Collected dnsmasq entry for {device_hostname}: {host_entry}"
@@ -271,7 +276,9 @@ class DnsmasqManager:
                     continue
 
             # Generate parameters if not cached
-            ip_address, mac_address = netbox_client.get_device_oob_interface(device)
+            ip_address, mac_address, vlan_id = netbox_client.get_device_oob_interface(
+                device
+            )
 
             if ip_address and mac_address:
                 # Format MAC address properly (lowercase with colons)
@@ -279,6 +286,7 @@ class DnsmasqManager:
                 # Use inventory_hostname if set, otherwise use device name
                 hostname = get_inventory_hostname(device)
                 # Create dnsmasq DHCP host entry: "mac,hostname,ip"
+                # Note: In manager mode, we don't add VLAN tags
                 entry = f"{mac_formatted},{hostname},{ip_address}"
                 logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
 

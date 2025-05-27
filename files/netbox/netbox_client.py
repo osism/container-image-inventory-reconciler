@@ -124,11 +124,11 @@ class NetBoxClient:
 
     def get_device_oob_interface(
         self, device: Any
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> Tuple[Optional[str], Optional[str], Optional[int]]:
         """Get OOB management interface with IP and MAC address for a device.
 
         Returns:
-            A tuple of (ip_address, mac_address) or (None, None) if not found.
+            A tuple of (ip_address, mac_address, vlan_id) or (None, None, None) if not found.
         """
         try:
             # Get all interfaces for the device
@@ -150,6 +150,11 @@ class NetBoxClient:
                 if not mac_address:
                     continue
 
+                # Get VLAN ID if untagged VLAN is assigned
+                vlan_id = None
+                if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
+                    vlan_id = interface.untagged_vlan.vid
+
                 # Get IP addresses for this interface
                 ip_addresses = self.api.ipam.ip_addresses.filter(
                     interface_id=interface.id
@@ -158,13 +163,13 @@ class NetBoxClient:
                 for ip in ip_addresses:
                     # Return the first IP address found
                     ip_without_mask = ip.address.split("/")[0]
-                    return ip_without_mask, mac_address
+                    return ip_without_mask, mac_address, vlan_id
 
-            return None, None
+            return None, None, None
 
         except Exception as e:
             logger.warning(f"Failed to get OOB interface for device {device}: {e}")
-            return None, None
+            return None, None, None
 
     def get_oob_networks(self) -> List[Any]:
         """Get networks with managed-by-osism tag and OOB role.
