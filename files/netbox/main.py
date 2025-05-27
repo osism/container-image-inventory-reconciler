@@ -15,7 +15,7 @@ from loguru import logger
 
 from config import Config
 from device_mapping import build_device_role_mapping
-from dnsmasq_manager import DnsmasqManager
+from dnsmasq import DnsmasqManager
 from inventory_manager import InventoryManager
 from netbox_client import NetBoxClient
 from utils import setup_logging, get_inventory_hostname
