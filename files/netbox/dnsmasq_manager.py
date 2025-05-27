@@ -157,6 +157,72 @@ class DnsmasqManager:
 
         return dynamic_hosts
 
+    def _get_dhcp_options_for_metalbox(
+        self, device: Any, netbox_client: NetBoxClient
+    ) -> List[str]:
+        """Generate dnsmasq DHCP options for metalbox virtual interfaces.
+
+        For each virtual interface with IP address and managed-by-osism tag,
+        create a DHCP option entry.
+
+        Args:
+            device: NetBox device object (must have metalbox role)
+            netbox_client: NetBox API client
+
+        Returns:
+            List of DHCP option entries in format "tag:vlanXXX,6,ip"
+        """
+        dhcp_options = []
+
+        # Get interfaces from device
+        try:
+            interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+        except Exception as e:
+            logger.warning(f"Failed to get interfaces for device {device.name}: {e}")
+            return dhcp_options
+
+        if not interfaces:
+            return dhcp_options
+
+        for interface in interfaces:
+            # Check if this is a virtual interface
+            if not (interface.type and interface.type.value == "virtual"):
+                continue
+
+            # Check if interface has managed-by-osism tag
+            if not hasattr(interface, "tags") or not interface.tags:
+                continue
+
+            tag_slugs = [tag.slug for tag in interface.tags]
+            if "managed-by-osism" not in tag_slugs:
+                continue
+
+            # Check if interface has untagged VLAN
+            if not (hasattr(interface, "untagged_vlan") and interface.untagged_vlan):
+                continue
+
+            vlan_id = interface.untagged_vlan.vid
+
+            # Get IP addresses for this interface
+            try:
+                ip_addresses = netbox_client.api.ipam.ip_addresses.filter(
+                    interface_id=interface.id
+                )
+                for ip in ip_addresses:
+                    if ip.address:
+                        # Extract IP without prefix
+                        ip_only = ip.address.split("/")[0]
+                        # Create DHCP option entry: tag:vlanXXX,6,ip
+                        option_entry = f"tag:vlan{vlan_id},6,{ip_only}"
+                        dhcp_options.append(option_entry)
+                        logger.debug(f"Created DHCP option entry: {option_entry}")
+                        # Only use the first IP address per interface
+                        break
+            except Exception as e:
+                logger.warning(f"Failed to get IPs for interface {interface.name}: {e}")
+
+        return dhcp_options
+
     def write_dnsmasq_config(
         self,
         netbox_client: NetBoxClient,
@@ -320,18 +386,24 @@ class DnsmasqManager:
                         device, netbox_client
                     )
 
+                    # Generate DHCP options for this metalbox device
+                    dhcp_options = self._get_dhcp_options_for_metalbox(
+                        device, netbox_client
+                    )
+
                     # Create the dnsmasq configuration data with all collected entries
                     dnsmasq_data = {
                         "dnsmasq_dhcp_hosts": all_dhcp_hosts,
                         "dnsmasq_dhcp_macs": all_dhcp_macs,
                         "dnsmasq_interfaces": all_dnsmasq_interfaces,
                         "dnsmasq_dynamic_hosts": dynamic_hosts,
+                        "dnsmasq_dhcp_options": dhcp_options,
                     }
 
                     # Write to metalbox device's host vars
                     self._write_dnsmasq_to_device(device, dnsmasq_data)
                     logger.info(
-                        f"Wrote {len(all_dhcp_hosts)} dnsmasq entries and {len(dynamic_hosts)} dynamic hosts to metalbox device {device.name}"
+                        f"Wrote {len(all_dhcp_hosts)} dnsmasq entries, {len(dynamic_hosts)} dynamic hosts and {len(dhcp_options)} DHCP options to metalbox device {device.name}"
                     )
             return
 
