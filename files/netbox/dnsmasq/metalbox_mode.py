@@ -34,7 +34,7 @@ class MetalboxModeHandler(DnsmasqBase):
             netbox_client: NetBox API client
 
         Returns:
-            List of dynamic host entries in format "metalbox,network,ip"
+            List of dynamic host entries in format "metalbox,ip,vlanVLAN_ID"
         """
         dynamic_hosts = []
 
@@ -50,8 +50,8 @@ class MetalboxModeHandler(DnsmasqBase):
             logger.warning(f"Failed to get interfaces for device {device.name}: {e}")
             return dynamic_hosts
 
-        # Build a map of VLAN ID to interface IP addresses
-        vlan_to_ips = {}
+        # Build a map of VLAN ID to interface label/name and IP addresses
+        vlan_to_interface_info = {}
         for interface in interfaces:
             # Check if this is a virtual interface with untagged VLAN
             if (
@@ -60,7 +60,11 @@ class MetalboxModeHandler(DnsmasqBase):
                 and hasattr(interface, "untagged_vlan")
                 and interface.untagged_vlan
             ):
-                vlan_id = interface.untagged_vlan.id
+                vlan_id = interface.untagged_vlan.vid
+                # Use label if available, otherwise use name
+                interface_identifier = (
+                    interface.label if interface.label else interface.name
+                )
 
                 # Get IP addresses for this interface
                 try:
@@ -69,9 +73,12 @@ class MetalboxModeHandler(DnsmasqBase):
                     )
                     for ip in ip_addresses:
                         if ip.address:
-                            if vlan_id not in vlan_to_ips:
-                                vlan_to_ips[vlan_id] = []
-                            vlan_to_ips[vlan_id].append(ip.address)
+                            if vlan_id not in vlan_to_interface_info:
+                                vlan_to_interface_info[vlan_id] = {
+                                    "ips": [],
+                                    "interface_identifier": interface_identifier,
+                                }
+                            vlan_to_interface_info[vlan_id]["ips"].append(ip.address)
                 except Exception:
                     pass
 
@@ -79,13 +86,14 @@ class MetalboxModeHandler(DnsmasqBase):
         for network in oob_networks:
             # Check if this network has an associated VLAN
             if hasattr(network, "vlan") and network.vlan:
-                vlan_id = network.vlan.id
+                vlan_id = network.vlan.vid
 
                 # Check if we have an interface for this VLAN
-                if vlan_id in vlan_to_ips:
+                if vlan_id in vlan_to_interface_info:
+                    interface_info = vlan_to_interface_info[vlan_id]
                     # Find the IP that belongs to this network
                     network_obj = ipaddress.ip_network(network.prefix)
-                    for ip_str in vlan_to_ips[vlan_id]:
+                    for ip_str in interface_info["ips"]:
                         try:
                             # Remove the prefix length from IP if present
                             ip_only = ip_str.split("/")[0]
@@ -93,8 +101,8 @@ class MetalboxModeHandler(DnsmasqBase):
 
                             # Check if this IP belongs to the network
                             if ip_addr in network_obj:
-                                # Create dynamic host entry
-                                entry = f"metalbox,{network.prefix},{ip_only}"
+                                # Create dynamic host entry using interface label/name
+                                entry = f"metalbox,{ip_only},vlan{interface_info['interface_identifier']}"
                                 dynamic_hosts.append(entry)
                                 logger.debug(f"Created dynamic host entry: {entry}")
                                 break  # Only use the first matching IP
