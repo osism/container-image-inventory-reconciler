@@ -2,7 +2,7 @@
 
 """Base classes for inventory management."""
 
-import ABC
+from abc import ABC
 
 from config import Config
 
