@@ -48,12 +48,13 @@ class ManagerModeHandler(DnsmasqBase):
                 ):
                     # Create the dnsmasq configuration data from cached values
                     dnsmasq_data = {}
+                    hostname = get_inventory_hostname(device)
                     if cached_params["dnsmasq_dhcp_hosts"]:
-                        dnsmasq_data[f"dnsmasq_dhcp_hosts__{device.name}"] = (
+                        dnsmasq_data[f"dnsmasq_dhcp_hosts__{hostname}"] = (
                             cached_params["dnsmasq_dhcp_hosts"]
                         )
                     if cached_params["dnsmasq_dhcp_macs"]:
-                        dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = (
+                        dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = (
                             cached_params["dnsmasq_dhcp_macs"]
                         )
 
@@ -90,10 +91,10 @@ class ManagerModeHandler(DnsmasqBase):
                     device, mac_address
                 )
                 if mac_entry:
-                    dnsmasq_data[f"dnsmasq_dhcp_macs__{device.name}"] = [mac_entry]
+                    dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = [mac_entry]
                     cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                     logger.debug(
-                        f"Added dnsmasq MAC entry for {device.name}: {mac_entry}"
+                        f"Added dnsmasq MAC entry for {hostname}: {mac_entry}"
                     )
 
                 # Cache the generated parameters
