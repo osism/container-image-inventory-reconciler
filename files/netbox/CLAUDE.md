@@ -83,6 +83,7 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
   - **Regular interfaces**: Interfaces with the tag, a MAC address AND a label
     - The label becomes the interface name in Netplan
     - MTU is set from the interface's MTU value in NetBox, or uses the default (9100, configurable via DEFAULT_MTU)
+    - All IPv4 and IPv6 addresses assigned to the interface are included
   - **Loopback0 interface**: If an interface named "loopback0" exists with the tag
     - All IPv4 and IPv6 addresses assigned to it are included
     - The interface is configured in `network_dummy_devices`
@@ -105,10 +106,9 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
           macaddress: "aa:bb:cc:dd:ee:ff"
         set-name: leaf1
         mtu: 9100
-      loopback0:
         addresses:
-          - 192.168.45.123/32
-          - 2001:db8:85a3::8a2e:370:7334/128
+          - 10.0.0.5/24
+          - 2001:db8::5/64
     network_vlans:
       vlan100:
         id: 100

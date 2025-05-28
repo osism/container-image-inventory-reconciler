@@ -207,6 +207,21 @@ class NetplanExtractor(BaseExtractor):
             else:
                 interface_config["mtu"] = default_mtu
 
+            # Get IP addresses for this interface
+            addresses = []
+            try:
+                ip_addresses = self.api.ipam.ip_addresses.filter(
+                    interface_id=interface.id
+                )
+                for ip in ip_addresses:
+                    if ip.address:
+                        addresses.append(ip.address)
+            except Exception:
+                pass
+
+            if addresses:
+                interface_config["addresses"] = addresses
+
             # Check if this is a leaf interface (connected to a switch AND no IP addresses)
             switch_roles = kwargs.get("switch_roles", DEFAULT_FRR_SWITCH_ROLES)
             if self._is_connected_to_switch(
