@@ -16,19 +16,25 @@ from extractors import (
 class DeviceDataExtractor:
     """Extracts various data fields from NetBox devices."""
 
-    def __init__(self, api=None, netbox_client=None):
+    def __init__(self, api=None, netbox_client=None, file_cache=None):
         """Initialize extractors.
 
         Args:
             api: NetBox API instance (required for NetplanExtractor and FRRExtractor)
             netbox_client: NetBox client instance for updating custom fields
+            file_cache: FileCache instance for persistent caching
         """
         self.config_context_extractor = ConfigContextExtractor()
         self.primary_ip_extractor = PrimaryIPExtractor()
-        self.custom_field_extractor = CustomFieldExtractor()
-        self.netplan_extractor = NetplanExtractor(api=api, netbox_client=netbox_client)
-        self.frr_extractor = FRRExtractor(api=api, netbox_client=netbox_client)
+        self.custom_field_extractor = CustomFieldExtractor(file_cache=file_cache)
+        self.netplan_extractor = NetplanExtractor(
+            api=api, netbox_client=netbox_client, file_cache=file_cache
+        )
+        self.frr_extractor = FRRExtractor(
+            api=api, netbox_client=netbox_client, file_cache=file_cache
+        )
         self.netbox_client = netbox_client
+        self.file_cache = file_cache
 
     def extract_config_context(self, device: Any) -> Dict[str, Any]:
         """Extract config context from device."""

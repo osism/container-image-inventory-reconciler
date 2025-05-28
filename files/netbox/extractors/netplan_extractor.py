@@ -14,15 +14,17 @@ from .custom_field_extractor import CustomFieldExtractor
 class NetplanExtractor(BaseExtractor):
     """Extracts netplan parameters from NetBox devices."""
 
-    def __init__(self, api=None, netbox_client=None):
+    def __init__(self, api=None, netbox_client=None, file_cache=None):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface fetching)
             netbox_client: NetBox client instance for updating custom fields
+            file_cache: FileCache instance for persistent caching
         """
         self.api = api
         self.netbox_client = netbox_client
+        self.file_cache = file_cache
 
     def _is_connected_to_switch(self, interface: Any, switch_roles: List[str]) -> bool:
         """Check if interface is connected to a device with switch role.
@@ -95,7 +97,16 @@ class NetplanExtractor(BaseExtractor):
 
         # Check if manual netplan_parameters is set (unless cache flush is requested)
         if not flush_cache:
-            custom_field_extractor = CustomFieldExtractor()
+            # First check file cache if available
+            if self.file_cache:
+                cached_value = self.file_cache.get_custom_field(
+                    device.name, "netplan_parameters"
+                )
+                if cached_value is not None:
+                    return cached_value
+
+            # Then check device custom fields
+            custom_field_extractor = CustomFieldExtractor(file_cache=self.file_cache)
             manual_params = custom_field_extractor.extract(
                 device, field_name="netplan_parameters"
             )

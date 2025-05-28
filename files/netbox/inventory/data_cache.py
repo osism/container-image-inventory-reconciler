@@ -15,10 +15,13 @@ from .base import BaseInventoryComponent
 class DataCache(BaseInventoryComponent):
     """Manages caching of extracted device data."""
 
-    def __init__(self, config: Config, api=None, netbox_client=None):
+    def __init__(self, config: Config, api=None, netbox_client=None, file_cache=None):
         super().__init__(config)
-        self.data_extractor = DeviceDataExtractor(api=api, netbox_client=netbox_client)
+        self.data_extractor = DeviceDataExtractor(
+            api=api, netbox_client=netbox_client, file_cache=file_cache
+        )
         self._cache: Dict[str, Dict[str, Any]] = {}
+        self._file_cache = file_cache
 
     def extract_and_cache(
         self, device: Any, data_types: List[str] = None

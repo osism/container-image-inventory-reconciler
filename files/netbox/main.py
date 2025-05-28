@@ -16,6 +16,7 @@ from loguru import logger
 from config import Config
 from device_mapping import build_device_role_mapping
 from dnsmasq import DnsmasqManager
+from file_cache import FileCache
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
 from utils import setup_logging, get_inventory_hostname
@@ -33,12 +34,21 @@ def main() -> None:
             f"Generate the inventory from the Netbox ({config.reconciler_mode} mode)"
         )
 
+        # Initialize file cache if enabled
+        file_cache = None
+        if config.write_cache:
+            file_cache = FileCache()
+            file_cache.load(flush_cache=config.flush_cache)
+
         # Initialize components
-        netbox_client = NetBoxClient(config)
+        netbox_client = NetBoxClient(config, file_cache=file_cache)
         inventory_manager = InventoryManager(
-            config, api=netbox_client.api, netbox_client=netbox_client
+            config,
+            api=netbox_client.api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
         )
-        dnsmasq_manager = DnsmasqManager(config)
+        dnsmasq_manager = DnsmasqManager(config, file_cache=file_cache)
 
         # Fetch devices
         logger.info("Getting managed devices from NetBox. This could take some time.")
@@ -110,6 +120,10 @@ def main() -> None:
         dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
 
         logger.info("NetBox inventory generation completed successfully")
+
+        # Save file cache if enabled
+        if config.write_cache and file_cache:
+            file_cache.save()
 
     except Exception as e:
         logger.error(f"Failed to generate inventory from NetBox: {e}")

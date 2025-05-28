@@ -43,6 +43,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `DEFAULT_LOCAL_AS_PREFIX` - Default local AS prefix for FRR configuration (default: 4200)
 - `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager" or "metalbox" (default: "manager")
 - `FLUSH_CACHE` - Force regeneration of cached custom field values (default: false)
+- `WRITE_CACHE` - Write cache to local file for persistence across runs (default: false)
 
 ## Device Selection Logic
 
@@ -156,13 +157,29 @@ The dnsmasq manager automatically caches generated `dnsmasq_dhcp_hosts` and `dns
 - **Data extraction**: Add "dnsmasq_parameters" to NETBOX_DATA_TYPES to extract cached parameters to inventory files
 
 ### Cache Management
-The `FLUSH_CACHE` environment variable controls cache behavior for all auto-generated parameters:
+The cache system has two environment variables:
+
+#### `FLUSH_CACHE` - Controls cache behavior for all auto-generated parameters:
 - **When `FLUSH_CACHE=true`**: Existing cached values in custom fields (`netplan_parameters`, `frr_parameters`, `dnsmasq_parameters`) are ignored and regenerated
 - **When `FLUSH_CACHE=false` (default)**: Cached values are used if they exist, avoiding regeneration
 - **Use cases**: Set `FLUSH_CACHE=true` when:
   - Network topology has changed
   - Interface configurations have been updated
   - You need to force recalculation of all auto-generated parameters
+
+#### `WRITE_CACHE` - Controls file-based cache persistence
+- **When `WRITE_CACHE=true`**:
+  - At startup: Load cached custom field values from `/tmp/netbox_cache.json`
+  - During operation: Cache updates are tracked in memory
+  - At completion: Save all cached values to the file
+- **When `WRITE_CACHE=false` (default)**: No file-based caching is used
+- **Cache interaction with `FLUSH_CACHE`**:
+  - If both `WRITE_CACHE=true` and `FLUSH_CACHE=true`: File cache is ignored at startup, regenerated values are saved at the end
+  - If `WRITE_CACHE=true` and `FLUSH_CACHE=false`: File cache is loaded and used, avoiding NetBox API calls for cached values
+- **Use cases**: Set `WRITE_CACHE=true` when:
+  - Running multiple reconciler instances to reduce NetBox API load
+  - You want to persist cache across container restarts
+  - You need offline access to cached parameter values
 
 ## Common Development Tasks
 

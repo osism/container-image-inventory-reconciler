@@ -56,6 +56,7 @@ class Config:
         frr_switch_roles: Device roles considered as switches for FRR uplinks
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
         flush_cache: Force regeneration of cached custom field values
+        write_cache: Write cache to local file for persistence across runs
     """
 
     netbox_url: str
@@ -79,6 +80,7 @@ class Config:
     )
     reconciler_mode: str = DEFAULT_RECONCILER_MODE
     flush_cache: bool = False
+    write_cache: bool = False
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -137,6 +139,7 @@ class Config:
             frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
             reconciler_mode=reconciler_mode,
             flush_cache=SETTINGS.get("FLUSH_CACHE", False),
+            write_cache=SETTINGS.get("WRITE_CACHE", False),
         )
 
     @staticmethod
