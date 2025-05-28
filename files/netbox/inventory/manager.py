@@ -16,9 +16,11 @@ from .host_group_writer import HostGroupWriter
 class InventoryManager:
     """Manages inventory file operations."""
 
-    def __init__(self, config: Config, api=None, netbox_client=None):
+    def __init__(self, config: Config, api=None, netbox_client=None, file_cache=None):
         self.config = config
-        self.data_cache = DataCache(config, api=api, netbox_client=netbox_client)
+        self.data_cache = DataCache(
+            config, api=api, netbox_client=netbox_client, file_cache=file_cache
+        )
         self.file_writer = FileWriter(config)
         self.host_group_writer = HostGroupWriter(config)
 

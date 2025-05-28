@@ -19,12 +19,13 @@ from interfaces import InterfaceHandler
 class NetBoxClient(BaseNetBoxClient):
     """Client for NetBox API operations with improved architecture."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, file_cache=None):
         super().__init__(config)
         self._connection_manager = ConnectionManager(config)
         self._device_filter = DeviceFilter(config)
         self._cache_manager = CacheManager(ttl=600)  # 10 minute cache
         self._interface_handler: Optional[InterfaceHandler] = None
+        self._file_cache = file_cache
         self._connected = False
         self.connect()
 
@@ -168,6 +169,10 @@ class NetBoxClient(BaseNetBoxClient):
 
             device.custom_fields[field_name] = field_value
             device.save()
+
+            # Also update file cache if enabled
+            if self._file_cache:
+                self._file_cache.set_custom_field(device.name, field_name, field_value)
 
             logger.debug(
                 f"Updated custom field '{field_name}' for device {device.name}"
