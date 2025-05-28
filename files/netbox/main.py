@@ -34,11 +34,11 @@ def main() -> None:
             f"Generate the inventory from the Netbox ({config.reconciler_mode} mode)"
         )
 
-        # Initialize file cache if enabled
-        file_cache = None
-        if config.write_cache:
-            file_cache = FileCache()
-            file_cache.load(flush_cache=config.flush_cache)
+        # Initialize file cache (always initialize to allow reading from existing cache)
+        file_cache = FileCache()
+        # Load cache from file if it exists, unless FLUSH_CACHE is true
+        if not config.flush_cache:
+            file_cache.load(flush_cache=False)
 
         # Initialize components
         netbox_client = NetBoxClient(config, file_cache=file_cache)
