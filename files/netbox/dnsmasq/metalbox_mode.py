@@ -102,7 +102,7 @@ class MetalboxModeHandler(DnsmasqBase):
                             # Check if this IP belongs to the network
                             if ip_addr in network_obj:
                                 # Create dynamic host entry using interface label/name
-                                entry = f"metalbox,{ip_only},vlan{interface_info['interface_identifier']}"
+                                entry = f"metalbox,{ip_only},{interface_info['interface_identifier']}"
                                 dynamic_hosts.append(entry)
                                 logger.debug(f"Created dynamic host entry: {entry}")
                                 break  # Only use the first matching IP
