@@ -2,55 +2,69 @@
 
 """NetBox API client implementation."""
 
-import time
+from contextlib import contextmanager
 from typing import Any, List, Optional, Tuple
 
 from loguru import logger
-import pynetbox
 
 from config import Config
+from .base import BaseNetBoxClient
+from .cache import CacheManager
+from .connection import ConnectionManager
+from .exceptions import NetBoxAPIError
+from .filters import DeviceFilter
+from .interfaces import InterfaceHandler
 
 
-class NetBoxClient:
-    """Client for NetBox API operations."""
+class NetBoxClient(BaseNetBoxClient):
+    """Client for NetBox API operations with improved architecture."""
 
     def __init__(self, config: Config):
-        self.config = config
+        super().__init__(config)
+        self._connection_manager = ConnectionManager(config)
+        self._device_filter = DeviceFilter(config)
+        self._cache_manager = CacheManager(ttl=600)  # 10 minute cache
+        self._interface_handler: Optional[InterfaceHandler] = None
+        self._connected = False
+        self.connect()
+
+    def connect(self) -> None:
+        """Establish connection to NetBox."""
+        self.api = self._connection_manager.connect()
+        self._interface_handler = InterfaceHandler(self.api, self._cache_manager)
+        self._connected = True
+
+    def disconnect(self) -> None:
+        """Close connection to NetBox."""
+        self._connection_manager.disconnect()
+        self._interface_handler = None
+        self._connected = False
         self.api = None
-        self._connect()
+        self._cache_manager.clear()
 
-    def _connect(self) -> None:
-        """Establish connection to NetBox with retry logic."""
-        logger.info(f"Connecting to NetBox {self.config.netbox_url}")
+    @contextmanager
+    def api_operation(self, operation_name: str):
+        """Context manager for API operations with error handling.
 
-        for attempt in range(self.config.retry_attempts):
-            try:
-                self.api = pynetbox.api(
-                    self.config.netbox_url, self.config.netbox_token
-                )
+        Args:
+            operation_name: Name of the operation for logging
 
-                if self.config.ignore_ssl_errors:
-                    self._configure_ssl_ignore()
+        Yields:
+            None
 
-                # Test connection
-                self.api.dcim.sites.count()
-                logger.debug("Successfully connected to NetBox")
-                return
+        Raises:
+            NetBoxAPIError: If API operation fails
+        """
+        if not self._connected:
+            raise NetBoxAPIError("Not connected to NetBox")
 
-            except Exception as e:
-                logger.warning(f"NetBox connection attempt {attempt + 1} failed: {e}")
-                time.sleep(self.config.retry_delay)
-
-        raise ConnectionError("Failed to connect to NetBox after all retry attempts")
-
-    def _configure_ssl_ignore(self) -> None:
-        """Configure SSL certificate verification ignoring."""
-        import requests
-
-        requests.packages.urllib3.disable_warnings()
-        session = requests.Session()
-        session.verify = False
-        self.api.http_session = session
+        try:
+            logger.debug(f"Starting {operation_name}")
+            yield
+            logger.debug(f"Completed {operation_name}")
+        except Exception as e:
+            logger.error(f"Failed {operation_name}: {e}")
+            raise NetBoxAPIError(f"Failed {operation_name}: {e}") from e
 
     def get_managed_devices(self) -> Tuple[List[Any], List[Any]]:
         """Retrieve managed devices from NetBox using configured filter(s).
@@ -59,133 +73,79 @@ class NetBoxClient:
             A tuple containing:
             - Devices with both base filter and managed-by-ironic tag
             - Devices with only base filter (not managed-by-ironic)
+
+        Raises:
+            NetBoxAPIError: If device retrieval fails
         """
-        # Normalize filter_inventory to always be a list
-        if isinstance(self.config.filter_inventory, dict):
-            filter_list = [self.config.filter_inventory]
-        else:
-            filter_list = self.config.filter_inventory
+        with self.api_operation("get_managed_devices"):
+            filter_list = self._device_filter.normalize_filters()
 
-        # Collect all devices from all filters
-        all_devices_with_ironic = []
-        all_devices_non_ironic = []
+            all_devices_with_ironic = []
+            all_devices_non_ironic = []
 
-        for base_filter in filter_list:
-            # First set: Nodes with base filter AND managed-by-ironic
-            # For ironic-managed devices, we need to check provision_state
-            ironic_filter = base_filter.copy()
+            for base_filter in filter_list:
+                # Get Ironic-managed devices
+                ironic_filter = self._device_filter.build_ironic_filter(base_filter)
+                devices_with_ironic = self.api.dcim.devices.filter(**ironic_filter)
+                devices_with_ironic_filtered = (
+                    self._device_filter.filter_by_maintenance(devices_with_ironic)
+                )
 
-            # Handle tag parameter specially - it can be a string or list
-            if "tag" in ironic_filter:
-                existing_tags = ironic_filter["tag"]
-                if isinstance(existing_tags, str):
-                    ironic_filter["tag"] = [existing_tags, "managed-by-ironic"]
-                elif isinstance(existing_tags, list):
-                    if "managed-by-ironic" not in existing_tags:
-                        ironic_filter["tag"] = existing_tags + ["managed-by-ironic"]
-            else:
-                ironic_filter["tag"] = ["managed-by-ironic"]
+                # Get non-Ironic devices
+                devices_all = self.api.dcim.devices.filter(**base_filter)
+                devices_non_ironic_filtered = (
+                    self._device_filter.filter_non_ironic_devices(devices_all)
+                )
 
-            # Add provision state filter for ironic devices only if NOT in metalbox mode
-            if self.config.reconciler_mode != "metalbox":
-                ironic_filter["cf_provision_state"] = ["active"]
+                all_devices_with_ironic.extend(devices_with_ironic_filtered)
+                all_devices_non_ironic.extend(devices_non_ironic_filtered)
 
-            devices_with_ironic = self.api.dcim.devices.filter(**ironic_filter)
+            # Remove duplicates
+            unique_devices_with_ironic = self._device_filter.deduplicate_devices(
+                all_devices_with_ironic
+            )
+            unique_devices_non_ironic = self._device_filter.deduplicate_devices(
+                all_devices_non_ironic
+            )
 
-            # Filter out devices where cf_maintenance is True
-            devices_with_ironic_filtered = [
-                device
-                for device in devices_with_ironic
-                if device.custom_fields.get("maintenance") is not True
-            ]
-
-            # Second set: Nodes with base filter but NOT managed-by-ironic
-            # For these, cf_provision_state is not evaluated
-            devices_all = self.api.dcim.devices.filter(**base_filter)
-
-            # Filter out devices that also have managed-by-ironic tag and where cf_maintenance is True
-            devices_non_ironic_filtered = [
-                device
-                for device in devices_all
-                if "managed-by-ironic" not in [tag.slug for tag in device.tags]
-                and device.custom_fields.get("maintenance") is not True
-            ]
-
-            all_devices_with_ironic.extend(devices_with_ironic_filtered)
-            all_devices_non_ironic.extend(devices_non_ironic_filtered)
-
-        # Remove duplicates by device ID
-        unique_devices_with_ironic = {dev.id: dev for dev in all_devices_with_ironic}
-        unique_devices_non_ironic = {dev.id: dev for dev in all_devices_non_ironic}
-
-        return list(unique_devices_with_ironic.values()), list(
-            unique_devices_non_ironic.values()
-        )
+            return unique_devices_with_ironic, unique_devices_non_ironic
 
     def get_device_oob_interface(
         self, device: Any
     ) -> Tuple[Optional[str], Optional[str], Optional[int]]:
         """Get OOB management interface with IP and MAC address for a device.
 
+        Args:
+            device: NetBox device object
+
         Returns:
-            A tuple of (ip_address, mac_address, vlan_id) or (None, None, None) if not found.
+            A tuple of (ip_address, mac_address, vlan_id) or (None, None, None)
         """
-        try:
-            # Get all interfaces for the device
-            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+        if not self._interface_handler:
+            raise NetBoxAPIError("Interface handler not initialized")
 
-            for interface in interfaces:
-                # Check if interface has 'managed-by-osism' tag and is management only
-                if not interface.tags or not interface.mgmt_only:
-                    continue
-
-                has_managed_tag = any(
-                    tag.slug == "managed-by-osism" for tag in interface.tags
-                )
-                if not has_managed_tag:
-                    continue
-
-                # Get MAC address
-                mac_address = interface.mac_address
-                if not mac_address:
-                    continue
-
-                # Get VLAN ID if untagged VLAN is assigned
-                vlan_id = None
-                if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
-                    vlan_id = interface.untagged_vlan.vid
-
-                # Get IP addresses for this interface
-                ip_addresses = self.api.ipam.ip_addresses.filter(
-                    interface_id=interface.id
-                )
-
-                for ip in ip_addresses:
-                    # Return the first IP address found
-                    ip_without_mask = ip.address.split("/")[0]
-                    return ip_without_mask, mac_address, vlan_id
-
-            return None, None, None
-
-        except Exception as e:
-            logger.warning(f"Failed to get OOB interface for device {device}: {e}")
-            return None, None, None
+        with self.api_operation(f"get_device_oob_interface for {device.name}"):
+            return self._interface_handler.get_oob_interface(device)
 
     def get_oob_networks(self) -> List[Any]:
         """Get networks with managed-by-osism tag and OOB role.
 
         Returns:
-            List of prefix objects that have managed-by-osism tag and OOB role.
+            List of prefix objects that have managed-by-osism tag and OOB role
         """
-        try:
-            # Get all prefixes with managed-by-osism tag and OOB role
+        # Check cache first
+        cache_key = "oob_networks"
+        cached_result = self._cache_manager.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        with self.api_operation("get_oob_networks"):
             prefixes = self.api.ipam.prefixes.filter(
                 tag=["managed-by-osism"], role="oob"
             )
-            return list(prefixes)
-        except Exception as e:
-            logger.warning(f"Failed to get OOB networks: {e}")
-            return []
+            result = list(prefixes)
+            self._cache_manager.set(cache_key, result)
+            return result
 
     def update_device_custom_field(
         self, device: Any, field_name: str, field_value: Any
@@ -200,8 +160,9 @@ class NetBoxClient:
         Returns:
             True if update was successful, False otherwise
         """
-        try:
-            # Update the custom field
+        with self.api_operation(
+            f"update_device_custom_field '{field_name}' for {device.name}"
+        ):
             if not hasattr(device, "custom_fields"):
                 device.custom_fields = {}
 
@@ -213,8 +174,24 @@ class NetBoxClient:
             )
             return True
 
-        except Exception as e:
-            logger.error(
-                f"Failed to update custom field '{field_name}' for device {device.name}: {e}"
-            )
-            return False
+    def __enter__(self) -> "NetBoxClient":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager and cleanup resources."""
+        self.disconnect()
+
+    def clear_cache(self) -> None:
+        """Clear all cached data."""
+        self._cache_manager.clear()
+        logger.info("Cache cleared")
+
+    def invalidate_cache(self, pattern: str) -> None:
+        """Invalidate cache entries matching a pattern.
+
+        Args:
+            pattern: Pattern to match cache keys
+        """
+        self._cache_manager.invalidate(pattern)
+        logger.info(f"Cache invalidated for pattern: {pattern}")
