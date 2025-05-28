@@ -187,6 +187,20 @@ class NetplanExtractor(BaseExtractor):
                             if addresses:
                                 vlan_config["addresses"] = addresses
 
+                            # Check for interface-specific netplan_parameters custom field
+                            if (
+                                hasattr(interface, "custom_fields")
+                                and interface.custom_fields
+                            ):
+                                interface_netplan_params = interface.custom_fields.get(
+                                    "netplan_parameters"
+                                )
+                                if interface_netplan_params and isinstance(
+                                    interface_netplan_params, dict
+                                ):
+                                    # Merge interface-specific parameters into the VLAN config
+                                    vlan_config.update(interface_netplan_params)
+
                             network_vlans[vlan_name] = vlan_config
                 continue
 
@@ -231,6 +245,17 @@ class NetplanExtractor(BaseExtractor):
                 interface_config["link-local"] = ["ipv6"]
                 interface_config["dhcp4"] = False
                 interface_config["dhcp6"] = False
+
+            # Check for interface-specific netplan_parameters custom field
+            if hasattr(interface, "custom_fields") and interface.custom_fields:
+                interface_netplan_params = interface.custom_fields.get(
+                    "netplan_parameters"
+                )
+                if interface_netplan_params and isinstance(
+                    interface_netplan_params, dict
+                ):
+                    # Merge interface-specific parameters into the interface config
+                    interface_config.update(interface_netplan_params)
 
             network_ethernets[label] = interface_config
 
