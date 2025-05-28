@@ -117,7 +117,8 @@ class MetalboxModeHandler(DnsmasqBase):
         """Generate dnsmasq DHCP options for metalbox virtual interfaces.
 
         For each virtual interface with IP address and managed-by-osism tag,
-        create a DHCP option entry.
+        create a DHCP option entry. Additionally, the VLAN's associated prefix
+        must also have the managed-by-osism tag.
 
         Args:
             device: NetBox device object (must have metalbox role)
@@ -138,6 +139,21 @@ class MetalboxModeHandler(DnsmasqBase):
         if not interfaces:
             return dhcp_options
 
+        # Get all prefixes with managed-by-osism tag to check VLAN associations
+        try:
+            managed_prefixes = netbox_client.api.ipam.prefixes.filter(
+                tag=["managed-by-osism"]
+            )
+            # Build a set of VLAN IDs that have managed prefixes
+            managed_vlan_ids = set()
+            for prefix in managed_prefixes:
+                if hasattr(prefix, "vlan") and prefix.vlan:
+                    managed_vlan_ids.add(prefix.vlan.vid)
+        except Exception as e:
+            logger.warning(f"Failed to get managed prefixes: {e}")
+            # If we can't get prefixes, fall back to no filtering
+            managed_vlan_ids = None
+
         for interface in interfaces:
             # Check if this is a virtual interface
             if not (interface.type and interface.type.value == "virtual"):
@@ -156,6 +172,13 @@ class MetalboxModeHandler(DnsmasqBase):
                 continue
 
             vlan_id = interface.untagged_vlan.vid
+
+            # Check if the VLAN's prefix has managed-by-osism tag
+            if managed_vlan_ids is not None and vlan_id not in managed_vlan_ids:
+                logger.debug(
+                    f"Skipping interface {interface.name} - VLAN {vlan_id} prefix does not have managed-by-osism tag"
+                )
+                continue
 
             # Get IP addresses for this interface
             try:
