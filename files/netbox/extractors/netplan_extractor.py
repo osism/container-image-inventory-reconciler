@@ -163,6 +163,15 @@ class NetplanExtractor(BaseExtractor):
                                 ),
                             }
 
+                            # Use parent interface's MTU if available, otherwise use default
+                            if (
+                                hasattr(interface.parent, "mtu")
+                                and interface.parent.mtu
+                            ):
+                                vlan_config["mtu"] = interface.parent.mtu
+                            else:
+                                vlan_config["mtu"] = default_mtu
+
                             # Get IP addresses for this VLAN interface
                             addresses = []
                             try:
