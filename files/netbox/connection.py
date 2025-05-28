@@ -10,7 +10,7 @@ import pynetbox
 import requests
 
 from config import Config
-from .exceptions import NetBoxConnectionError
+from exceptions import NetBoxConnectionError
 
 
 class ConnectionManager:

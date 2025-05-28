@@ -8,12 +8,12 @@ from typing import Any, List, Optional, Tuple
 from loguru import logger
 
 from config import Config
-from .base import BaseNetBoxClient
-from .cache import CacheManager
-from .connection import ConnectionManager
-from .exceptions import NetBoxAPIError
-from .filters import DeviceFilter
-from .interfaces import InterfaceHandler
+from base import BaseNetBoxClient
+from cache import CacheManager
+from connection import ConnectionManager
+from exceptions import NetBoxAPIError
+from filters import DeviceFilter
+from interfaces import InterfaceHandler
 
 
 class NetBoxClient(BaseNetBoxClient):

@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple
 from loguru import logger
 import pynetbox
 
-from .cache import CacheManager
+from cache import CacheManager
 
 
 class InterfaceHandler:
