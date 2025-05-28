@@ -49,7 +49,7 @@ def main() -> None:
         # Extract data for ALL devices (regardless of mode)
         logger.info("Extracting data for all devices")
         for device in all_devices:
-            logger.info(f"Extracting data for {get_inventory_hostname(device)}")
+            logger.info(f"Extracting data for {device.name}")
             if config.data_types:
                 inventory_manager.extract_device_data(
                     device, data_types=config.data_types
