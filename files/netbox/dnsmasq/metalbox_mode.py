@@ -268,8 +268,15 @@ class MetalboxModeHandler(DnsmasqBase):
                 all_dhcp_hosts.append(host_entry)
                 logger.debug(f"Collected dnsmasq entry for {device.name}: {host_entry}")
 
-                # Note: We'll collect interfaces later after we have all DHCP entries
+                # Get virtual interfaces for this device (only for metalbox devices)
                 device_interfaces = []
+                if is_metalbox:
+                    device_interfaces = (
+                        self.interface_handler.get_virtual_interfaces_for_dnsmasq(
+                            device, netbox_client
+                        )
+                    )
+                    all_dnsmasq_interfaces.extend(device_interfaces)
 
                 # Prepare parameters for caching
                 cache_params = {
@@ -301,10 +308,27 @@ class MetalboxModeHandler(DnsmasqBase):
                         f"Failed to cache dnsmasq parameters for device {device.name}"
                     )
             else:
-                # No OOB interface found
-                logger.debug(
-                    f"No OOB interface found for device {device.name} - interfaces will be collected later"
-                )
+                # No OOB interface found, but still check for virtual interfaces (only for metalbox devices)
+                if is_metalbox:
+                    device_interfaces = (
+                        self.interface_handler.get_virtual_interfaces_for_dnsmasq(
+                            device, netbox_client
+                        )
+                    )
+                    if device_interfaces:
+                        all_dnsmasq_interfaces.extend(device_interfaces)
+                        # Cache just the interfaces
+                        cache_params = {
+                            "dnsmasq_dhcp_hosts": [],
+                            "dnsmasq_dhcp_macs": [],
+                            "dnsmasq_interfaces": device_interfaces,
+                        }
+                        logger.info(
+                            f"Caching dnsmasq interfaces for metalbox device {device.name}"
+                        )
+                        netbox_client.update_device_custom_field(
+                            device, "dnsmasq_parameters", cache_params
+                        )
 
         # Write collected entries to metalbox device(s)
         for device in devices:
@@ -321,26 +345,11 @@ class MetalboxModeHandler(DnsmasqBase):
                 # Generate DHCP options for this metalbox device
                 dhcp_options = self.get_dhcp_options_for_metalbox(device, netbox_client)
 
-                # Now filter interfaces based on DHCP entries
-                filtered_interfaces = []
-                if all_dnsmasq_interfaces:
-                    # Get interfaces again with filtering based on collected DHCP entries
-                    device_interfaces = (
-                        self.interface_handler.get_virtual_interfaces_for_dnsmasq(
-                            device,
-                            netbox_client,
-                            dhcp_hosts=all_dhcp_hosts,
-                            dhcp_options=dhcp_options,
-                            dynamic_hosts=dynamic_hosts,
-                        )
-                    )
-                    filtered_interfaces.extend(device_interfaces)
-
-                # Create the dnsmasq configuration data with filtered interfaces
+                # Create the dnsmasq configuration data with all collected entries
                 dnsmasq_data = {
                     "dnsmasq_dhcp_hosts": all_dhcp_hosts,
                     "dnsmasq_dhcp_macs": all_dhcp_macs,
-                    "dnsmasq_interfaces": filtered_interfaces,
+                    "dnsmasq_interfaces": all_dnsmasq_interfaces,
                     "dnsmasq_dynamic_hosts": dynamic_hosts,
                     "dnsmasq_dhcp_options": dhcp_options,
                 }
@@ -348,9 +357,5 @@ class MetalboxModeHandler(DnsmasqBase):
                 # Write to metalbox device's host vars
                 self.write_dnsmasq_to_device(device, dnsmasq_data)
                 logger.info(
-                    f"Wrote {len(all_dhcp_hosts)} dnsmasq entries, "
-                    f"{len(dynamic_hosts)} dynamic hosts, "
-                    f"{len(dhcp_options)} DHCP options, "
-                    f"and {len(filtered_interfaces)} interfaces "
-                    f"to metalbox device {device.name}"
+                    f"Wrote {len(all_dhcp_hosts)} dnsmasq entries, {len(dynamic_hosts)} dynamic hosts and {len(dhcp_options)} DHCP options to metalbox device {device.name}"
                 )
