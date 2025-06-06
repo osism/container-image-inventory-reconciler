@@ -66,8 +66,8 @@ class DHCPConfigGenerator:
         elif device.device_type and device.device_type.slug:
             # Fallback to device type slug
             device_type_slug = device.device_type.slug
-            # Format: dhcp-mac=tag:device-type-slug,mac-address
-            return f"tag:{device_type_slug},{mac_formatted}"
+            # Format: dhcp-mac=set:device-type-slug,mac-address
+            return f"set:{device_type_slug},{mac_formatted}"
 
         return None
 
