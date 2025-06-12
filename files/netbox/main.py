@@ -102,35 +102,39 @@ def main() -> None:
             inventory_devices, config.ignored_roles
         )
 
-        # Write device data files (only for inventory devices)
-        for device in inventory_devices:
-            logger.info(f"Writing files for {get_inventory_hostname(device)}")
-            if config.data_types:
-                inventory_manager.write_device_data(
-                    device, data_types=config.data_types
+        # Write inventory files only if INVENTORY_FROM_NETBOX is True
+        if config.inventory_from_netbox:
+            # Write device data files (only for inventory devices)
+            for device in inventory_devices:
+                logger.info(f"Writing files for {get_inventory_hostname(device)}")
+                if config.data_types:
+                    inventory_manager.write_device_data(
+                        device, data_types=config.data_types
+                    )
+                else:
+                    inventory_manager.write_device_config_context(device)
+
+            # Write host groups based on device roles
+            logger.info("Generating host groups based on device roles")
+            inventory_manager.write_host_groups(devices_to_roles)
+
+            # Generate dnsmasq configuration
+            logger.info("Generating dnsmasq configuration")
+            # In metalbox mode, pass all_devices to collect OOB configs from all devices
+            if config.reconciler_mode == "metalbox":
+                dnsmasq_manager.write_dnsmasq_config(
+                    netbox_client, inventory_devices, all_devices, config.flush_cache
                 )
             else:
-                inventory_manager.write_device_config_context(device)
+                dnsmasq_manager.write_dnsmasq_config(
+                    netbox_client, inventory_devices, flush_cache=config.flush_cache
+                )
 
-        # Write host groups based on device roles
-        logger.info("Generating host groups based on device roles")
-        inventory_manager.write_host_groups(devices_to_roles)
-
-        # Generate dnsmasq configuration
-        logger.info("Generating dnsmasq configuration")
-        # In metalbox mode, pass all_devices to collect OOB configs from all devices
-        if config.reconciler_mode == "metalbox":
-            dnsmasq_manager.write_dnsmasq_config(
-                netbox_client, inventory_devices, all_devices, config.flush_cache
-            )
+            # Generate dnsmasq DHCP ranges
+            logger.info("Generating dnsmasq DHCP ranges")
+            dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
         else:
-            dnsmasq_manager.write_dnsmasq_config(
-                netbox_client, inventory_devices, flush_cache=config.flush_cache
-            )
-
-        # Generate dnsmasq DHCP ranges
-        logger.info("Generating dnsmasq DHCP ranges")
-        dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
+            logger.info("INVENTORY_FROM_NETBOX is False - skipping inventory file writing")
 
         logger.info("NetBox inventory generation completed successfully")
 
