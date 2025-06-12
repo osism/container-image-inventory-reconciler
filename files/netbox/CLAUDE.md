@@ -44,6 +44,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager" or "metalbox" (default: "manager")
 - `FLUSH_CACHE` - Force regeneration of cached custom field values (default: false)
 - `WRITE_CACHE` - Write cache to local file for persistence across runs (default: false)
+- `INVENTORY_FROM_NETBOX` - Whether to write inventory files to DEFAULT_INVENTORY_PATH (default: true)
 
 ## Device Selection Logic
 

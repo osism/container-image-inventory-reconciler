@@ -57,6 +57,7 @@ class Config:
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
         flush_cache: Force regeneration of cached custom field values
         write_cache: Write cache to local file for persistence across runs
+        inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
     """
 
     netbox_url: str
@@ -81,6 +82,7 @@ class Config:
     reconciler_mode: str = DEFAULT_RECONCILER_MODE
     flush_cache: bool = False
     write_cache: bool = False
+    inventory_from_netbox: bool = True
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -140,6 +142,7 @@ class Config:
             reconciler_mode=reconciler_mode,
             flush_cache=SETTINGS.get("FLUSH_CACHE", False),
             write_cache=SETTINGS.get("WRITE_CACHE", False),
+            inventory_from_netbox=SETTINGS.get("INVENTORY_FROM_NETBOX", True),
         )
 
     @staticmethod
