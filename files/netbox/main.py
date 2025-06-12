@@ -57,23 +57,28 @@ def main() -> None:
         logger.info(f"Found {len(all_devices)} total managed devices")
 
         # Extract data for ALL devices (regardless of mode)
+        # Always ensure FRR and Netplan parameters are generated and written to NetBox
         logger.info("Extracting data for all devices")
         for device in all_devices:
             logger.info(f"Extracting data for {device.name}")
             if config.data_types:
-                # In metalbox mode, ensure FRR and Netplan parameters are always extracted
-                # to generate and cache them in NetBox
-                if config.reconciler_mode == "metalbox":
-                    data_types = list(
-                        set(
-                            config.data_types + ["frr_parameters", "netplan_parameters"]
-                        )
-                    )
-                else:
-                    data_types = config.data_types
-                inventory_manager.extract_device_data(device, data_types=data_types)
+                # Always include FRR and Netplan parameters for generation
+                # They will be written to NetBox but only included in inventory if specified
+                data_types_for_extraction = list(
+                    set(config.data_types + ["frr_parameters", "netplan_parameters"])
+                )
+                inventory_manager.extract_device_data(
+                    device, data_types=data_types_for_extraction
+                )
             else:
-                inventory_manager.extract_device_config_context(device)
+                # Even without data_types, ensure FRR and Netplan are generated
+                inventory_manager.extract_device_data(
+                    device,
+                    data_types=[
+                        "frr_parameters",
+                        "netplan_parameters",
+                    ],
+                )
 
         # Filter devices based on reconciler mode for inventory writing
         if config.reconciler_mode == "metalbox":
@@ -101,16 +106,9 @@ def main() -> None:
         for device in inventory_devices:
             logger.info(f"Writing files for {get_inventory_hostname(device)}")
             if config.data_types:
-                # In metalbox mode, exclude FRR and Netplan parameters from being written to files
-                if config.reconciler_mode == "metalbox":
-                    data_types = [
-                        dt
-                        for dt in config.data_types
-                        if dt not in ["frr_parameters", "netplan_parameters"]
-                    ]
-                else:
-                    data_types = config.data_types
-                inventory_manager.write_device_data(device, data_types=data_types)
+                inventory_manager.write_device_data(
+                    device, data_types=config.data_types
+                )
             else:
                 inventory_manager.write_device_config_context(device)
 
