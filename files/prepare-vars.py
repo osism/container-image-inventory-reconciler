@@ -225,7 +225,7 @@ def main() -> None:
         f"{total_files_written} file(s) written, "
         f"{total_hosts_processed} host(s) processed"
     )
-    logger.info("Variable preparation completed:")
+    logger.info("Variable preparation completed")
 
 
 if __name__ == "__main__":
