@@ -62,7 +62,7 @@ class DHCPConfigGenerator:
 
         if custom_dhcp_tag:
             # Use custom field value if set
-            return f"tag:{custom_dhcp_tag},{mac_formatted}"
+            return f"set:{custom_dhcp_tag},{mac_formatted}"
         elif device.device_type and device.device_type.slug:
             # Fallback to device type slug
             device_type_slug = device.device_type.slug
