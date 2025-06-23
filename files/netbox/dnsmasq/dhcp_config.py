@@ -63,7 +63,7 @@ class DHCPConfigGenerator:
         if custom_dhcp_tag:
             # Use custom field value if set
             return f"set:{custom_dhcp_tag},{mac_formatted}"
-        elif any(tag.name == "managed-by-ironic" for tag in device.tags):
+        elif any(tag.slug == "managed-by-ironic" for tag in device.tags):
             # Set default tag to 'ironic' for devices with managed-by-ironic tag
             return f"set:ironic,{mac_formatted}"
         elif device.device_type and device.device_type.slug:
