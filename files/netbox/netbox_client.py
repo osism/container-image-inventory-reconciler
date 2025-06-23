@@ -111,6 +111,35 @@ class NetBoxClient(BaseNetBoxClient):
 
             return unique_devices_with_ironic, unique_devices_non_ironic
 
+    def get_conductor_ironic_devices(self) -> List[Any]:
+        """Retrieve conductor ironic devices from NetBox using configured filter(s).
+
+        Returns:
+            List of devices matching the conductor ironic filter
+
+        Raises:
+            NetBoxAPIError: If device retrieval fails
+        """
+        with self.api_operation("get_conductor_ironic_devices"):
+            conductor_filters = self._device_filter.normalize_conductor_ironic_filters()
+
+            if not conductor_filters:
+                return []
+
+            all_conductor_devices = []
+
+            for conductor_filter in conductor_filters:
+                devices = self.api.dcim.devices.filter(**conductor_filter)
+                devices_filtered = self._device_filter.filter_by_maintenance(devices)
+                all_conductor_devices.extend(devices_filtered)
+
+            # Remove duplicates
+            unique_conductor_devices = self._device_filter.deduplicate_devices(
+                all_conductor_devices
+            )
+
+            return unique_conductor_devices
+
     def get_device_oob_interface(
         self, device: Any
     ) -> Tuple[Optional[str], Optional[str], Optional[int]]:

@@ -23,6 +23,18 @@ class DeviceFilter:
             return [self.config.filter_inventory]
         return self.config.filter_inventory
 
+    def normalize_conductor_ironic_filters(self) -> List[Dict[str, Any]]:
+        """Normalize filter_conductor_ironic to always be a list.
+
+        Returns:
+            List of filter dictionaries for conductor ironic devices
+        """
+        if not self.config.filter_conductor_ironic:
+            return []
+        if isinstance(self.config.filter_conductor_ironic, dict):
+            return [self.config.filter_conductor_ironic]
+        return self.config.filter_conductor_ironic
+
     def build_ironic_filter(self, base_filter: Dict[str, Any]) -> Dict[str, Any]:
         """Build filter for devices managed by Ironic.
 

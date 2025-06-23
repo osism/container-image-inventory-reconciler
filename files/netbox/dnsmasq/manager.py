@@ -36,14 +36,28 @@ class DnsmasqManager:
             all_devices: List of all devices (used in metalbox mode to collect all OOB configs)
             flush_cache: Force regeneration of cached parameters
         """
+        # Get conductor ironic devices if filter is configured
+        conductor_devices = netbox_client.get_conductor_ironic_devices()
+
         # In metalbox mode, collect all dnsmasq entries to write to metalbox device
         if self.config.reconciler_mode == "metalbox" and all_devices:
+            # Include conductor devices in all_devices for metalbox mode
+            all_devices_with_conductor = all_devices + conductor_devices
             self.metalbox_handler.process_devices(
-                netbox_client, devices, all_devices, flush_cache
+                netbox_client, devices, all_devices_with_conductor, flush_cache
             )
         else:
             # Original behavior for manager mode
             self.manager_handler.process_devices(netbox_client, devices, flush_cache)
+
+            # Also process conductor ironic devices in manager mode
+            if conductor_devices:
+                self.manager_handler.process_devices(
+                    netbox_client,
+                    conductor_devices,
+                    flush_cache,
+                    is_conductor_ironic=True,
+                )
 
     def write_dnsmasq_dhcp_ranges(self, netbox_client: NetBoxClient) -> None:
         """Generate and write dnsmasq DHCP ranges for OOB networks.

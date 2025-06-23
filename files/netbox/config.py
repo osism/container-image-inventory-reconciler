@@ -14,6 +14,7 @@ DEFAULT_TEMPLATE_PATH = "/netbox/templates/"
 DEFAULT_DATA_TYPES = ["primary_ip", "config_context", "netplan_parameters"]
 DEFAULT_IGNORED_ROLES = ["housing", "pdu", "other", "oob"]
 DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
+DEFAULT_FILTER_CONDUCTOR_IRONIC = {"status": "active", "tag": "managed-by-ironic"}
 DEFAULT_RETRY_ATTEMPTS = 10
 DEFAULT_RETRY_DELAY = 1
 DEFAULT_MTU = 9100
@@ -52,6 +53,7 @@ class Config:
         data_types: List of data types to extract from devices
         ignored_roles: Device roles to exclude from inventory
         filter_inventory: Filter(s) for device selection from NetBox
+        filter_conductor_ironic: Filter(s) for conductor ironic device selection from NetBox
         default_local_as_prefix: Default local AS prefix for FRR configuration
         frr_switch_roles: Device roles considered as switches for FRR uplinks
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
@@ -73,6 +75,9 @@ class Config:
     )
     filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = field(
         default_factory=lambda: DEFAULT_FILTER_INVENTORY.copy()
+    )
+    filter_conductor_ironic: Union[Dict[str, Any], List[Dict[str, Any]]] = field(
+        default_factory=lambda: DEFAULT_FILTER_CONDUCTOR_IRONIC.copy()
     )
     default_mtu: int = DEFAULT_MTU
     default_local_as_prefix: int = DEFAULT_LOCAL_AS_PREFIX
@@ -115,6 +120,10 @@ class Config:
             "NETBOX_FILTER_INVENTORY", DEFAULT_FILTER_INVENTORY
         )
 
+        filter_conductor_ironic = SETTINGS.get(
+            "NETBOX_FILTER_CONDUCTOR_IRONIC", DEFAULT_FILTER_CONDUCTOR_IRONIC
+        )
+
         # Get reconciler mode and validate it
         reconciler_mode = SETTINGS.get(
             "INVENTORY_RECONCILER_MODE", DEFAULT_RECONCILER_MODE
@@ -134,6 +143,7 @@ class Config:
             data_types=data_types,
             ignored_roles=ignored_roles,
             filter_inventory=filter_inventory,
+            filter_conductor_ironic=filter_conductor_ironic,
             default_mtu=SETTINGS.get("DEFAULT_MTU", DEFAULT_MTU),
             default_local_as_prefix=SETTINGS.get(
                 "DEFAULT_LOCAL_AS_PREFIX", DEFAULT_LOCAL_AS_PREFIX

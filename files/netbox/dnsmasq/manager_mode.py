@@ -25,6 +25,7 @@ class ManagerModeHandler(DnsmasqBase):
         netbox_client: NetBoxClient,
         devices: List[Any],
         flush_cache: bool = False,
+        is_conductor_ironic: bool = False,
     ) -> None:
         """Process devices in manager mode.
 
@@ -34,6 +35,7 @@ class ManagerModeHandler(DnsmasqBase):
             netbox_client: NetBox API client
             devices: List of devices to write configurations for
             flush_cache: Force regeneration of cached parameters
+            is_conductor_ironic: Whether these devices are from conductor ironic filter
         """
         for device in devices:
             logger.debug(f"Checking OOB interface for device {device}")
@@ -64,7 +66,8 @@ class ManagerModeHandler(DnsmasqBase):
                         dnsmasq_data[f"dnsmasq_dhcp_hosts__{hostname}"] = cached_params[
                             "dnsmasq_dhcp_hosts"
                         ]
-                    if cached_params["dnsmasq_dhcp_macs"]:
+                    # Skip dhcp_macs for conductor ironic devices
+                    if cached_params["dnsmasq_dhcp_macs"] and not is_conductor_ironic:
                         dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = cached_params[
                             "dnsmasq_dhcp_macs"
                         ]
@@ -97,14 +100,17 @@ class ManagerModeHandler(DnsmasqBase):
                     "dnsmasq_dhcp_macs": [],
                 }
 
-                # Generate DHCP MAC entry
-                mac_entry = self.dhcp_generator.generate_dhcp_mac_entry(
-                    device, mac_address
-                )
-                if mac_entry:
-                    dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = [mac_entry]
-                    cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
-                    logger.debug(f"Added dnsmasq MAC entry for {hostname}: {mac_entry}")
+                # Generate DHCP MAC entry (skip for conductor ironic devices)
+                if not is_conductor_ironic:
+                    mac_entry = self.dhcp_generator.generate_dhcp_mac_entry(
+                        device, mac_address
+                    )
+                    if mac_entry:
+                        dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = [mac_entry]
+                        cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
+                        logger.debug(
+                            f"Added dnsmasq MAC entry for {hostname}: {mac_entry}"
+                        )
 
                 # Cache the generated parameters
                 logger.info(
