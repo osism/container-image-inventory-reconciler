@@ -121,12 +121,14 @@ class MetalboxModeHandler(DnsmasqBase):
         create a DHCP option entry. Additionally, the VLAN's associated prefix
         must also have the managed-by-osism tag.
 
+        If the VLAN is in a VLAN group with name "routed", also add DHCP option 3 (Gateway).
+
         Args:
             device: NetBox device object (must have metalbox role)
             netbox_client: NetBox API client
 
         Returns:
-            List of DHCP option entries in format "tag:vlanXXX,6,ip"
+            List of DHCP option entries in format "tag:vlanXXX,6,ip" and "tag:vlanXXX,3,ip"
         """
         dhcp_options = []
 
@@ -181,6 +183,21 @@ class MetalboxModeHandler(DnsmasqBase):
                 )
                 continue
 
+            # Check if VLAN is in a routed VLAN group
+            is_routed_vlan = False
+            try:
+                vlan_obj = interface.untagged_vlan
+                if (
+                    hasattr(vlan_obj, "group")
+                    and vlan_obj.group
+                    and hasattr(vlan_obj.group, "name")
+                ):
+                    if vlan_obj.group.name.lower() == "routed":
+                        is_routed_vlan = True
+                        logger.debug(f"VLAN {vlan_id} is in routed VLAN group")
+            except Exception as e:
+                logger.debug(f"Failed to check VLAN group for VLAN {vlan_id}: {e}")
+
             # Get IP addresses for this interface
             try:
                 ip_addresses = netbox_client.api.ipam.ip_addresses.filter(
@@ -194,6 +211,27 @@ class MetalboxModeHandler(DnsmasqBase):
                         option_entry = f"tag:vlan{vlan_id},6,{ip_only}"
                         dhcp_options.append(option_entry)
                         logger.debug(f"Created DHCP option entry: {option_entry}")
+
+                        # If VLAN is in routed group, also add DHCP option 3 (Gateway)
+                        if is_routed_vlan:
+                            # Calculate gateway IP as first address of the network
+                            try:
+                                ip_with_prefix = ip.address
+                                network = ipaddress.ip_network(
+                                    ip_with_prefix, strict=False
+                                )
+                                # Use the first usable IP address as gateway (network address + 1)
+                                gateway_ip = str(network.network_address + 1)
+                                gateway_entry = f"tag:vlan{vlan_id},3,{gateway_ip}"
+                                dhcp_options.append(gateway_entry)
+                                logger.debug(
+                                    f"Created DHCP gateway option entry: {gateway_entry} (network: {network})"
+                                )
+                            except Exception as gw_e:
+                                logger.warning(
+                                    f"Failed to calculate gateway for {ip.address}: {gw_e}"
+                                )
+
                         # Only use the first IP address per interface
                         break
             except Exception as e:
