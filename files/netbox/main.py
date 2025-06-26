@@ -134,7 +134,9 @@ def main() -> None:
             logger.info("Generating dnsmasq DHCP ranges")
             dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
         else:
-            logger.info("INVENTORY_FROM_NETBOX is False - skipping inventory file writing")
+            logger.info(
+                "INVENTORY_FROM_NETBOX is False - skipping inventory file writing"
+            )
 
         logger.info("NetBox inventory generation completed successfully")
 
