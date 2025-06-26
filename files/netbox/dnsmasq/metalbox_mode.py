@@ -192,7 +192,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     and vlan_obj.group
                     and hasattr(vlan_obj.group, "name")
                 ):
-                    if vlan_obj.group.name.lower() == "routed":
+                    if "routed" in vlan_obj.group.name.lower():
                         is_routed_vlan = True
                         logger.debug(f"VLAN {vlan_id} is in routed VLAN group")
             except Exception as e:
