@@ -385,11 +385,11 @@ class MetalboxModeHandler(DnsmasqBase):
 
                 # Create the dnsmasq configuration data with all collected entries
                 dnsmasq_data = {
-                    "dnsmasq_dhcp_hosts": all_dhcp_hosts,
-                    "dnsmasq_dhcp_macs": all_dhcp_macs,
-                    "dnsmasq_interfaces": all_dnsmasq_interfaces,
-                    "dnsmasq_dynamic_hosts": dynamic_hosts,
-                    "dnsmasq_dhcp_options": dhcp_options,
+                    "dnsmasq_dhcp_hosts__metalbox": all_dhcp_hosts,
+                    "dnsmasq_dhcp_macs__metalbox": all_dhcp_macs,
+                    "dnsmasq_interfaces__metalbox": all_dnsmasq_interfaces,
+                    "dnsmasq_dynamic_hosts__metalbox": dynamic_hosts,
+                    "dnsmasq_dhcp_options__metalbox": dhcp_options,
                 }
 
                 # Write to metalbox device's host vars
