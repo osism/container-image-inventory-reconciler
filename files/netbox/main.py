@@ -108,8 +108,18 @@ def main() -> None:
             for device in inventory_devices:
                 logger.info(f"Writing files for {get_inventory_hostname(device)}")
                 if config.data_types:
+                    # In metalbox mode, always ensure config_context is written for metalbox devices
+                    data_types_for_writing = config.data_types.copy()
+                    if (
+                        config.reconciler_mode == "metalbox"
+                        and device.role
+                        and device.role.slug == "metalbox"
+                        and "config_context" not in data_types_for_writing
+                    ):
+                        data_types_for_writing.append("config_context")
+
                     inventory_manager.write_device_data(
-                        device, data_types=config.data_types
+                        device, data_types=data_types_for_writing
                     )
                 else:
                     inventory_manager.write_device_config_context(device)
