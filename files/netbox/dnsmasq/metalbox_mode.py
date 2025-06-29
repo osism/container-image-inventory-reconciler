@@ -128,7 +128,7 @@ class MetalboxModeHandler(DnsmasqBase):
             netbox_client: NetBox API client
 
         Returns:
-            List of DHCP option entries in format "tag:vlanXXX,6,ip" and "tag:vlanXXX,3,ip"
+            List of DHCP option entries in format "tag:vlanXXX,6,ip", "tag:vlanXXX,42,ip" and "tag:vlanXXX,3,ip"
         """
         dhcp_options = []
 
@@ -210,7 +210,14 @@ class MetalboxModeHandler(DnsmasqBase):
                         # Create DHCP option entry: tag:vlanXXX,6,ip
                         option_entry = f"tag:vlan{vlan_id},6,{ip_only}"
                         dhcp_options.append(option_entry)
-                        logger.debug(f"Created DHCP option entry: {option_entry}")
+                        logger.debug(f"Created DHCP DNS option entry: {option_entry}")
+
+                        # Create DHCP option 42 entry: tag:vlanXXX,42,ip
+                        ntp_option_entry = f"tag:vlan{vlan_id},42,{ip_only}"
+                        dhcp_options.append(ntp_option_entry)
+                        logger.debug(
+                            f"Created DHCP NTP option entry: {ntp_option_entry}"
+                        )
 
                         # If VLAN is in routed group, also add DHCP option 3 (Gateway)
                         if is_routed_vlan:
