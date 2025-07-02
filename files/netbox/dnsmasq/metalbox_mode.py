@@ -11,6 +11,7 @@ from netbox_client import NetBoxClient
 from .base import DnsmasqBase
 from .dhcp_config import DHCPConfigGenerator
 from .interface_handler import InterfaceHandler
+from .config_processor import DnsmasqConfigProcessor
 
 
 class MetalboxModeHandler(DnsmasqBase):
@@ -21,6 +22,7 @@ class MetalboxModeHandler(DnsmasqBase):
         self.file_cache = file_cache
         self.dhcp_generator = DHCPConfigGenerator(config)
         self.interface_handler = InterfaceHandler()
+        self.config_processor = DnsmasqConfigProcessor()
 
     def get_dynamic_hosts_for_metalbox(
         self, device: Any, netbox_client: NetBoxClient
@@ -390,6 +392,11 @@ class MetalboxModeHandler(DnsmasqBase):
                 # Generate DHCP options for this metalbox device
                 dhcp_options = self.get_dhcp_options_for_metalbox(device, netbox_client)
 
+                # Process special parameters from configuration file
+                special_params = self.config_processor.process_special_parameters(
+                    netbox_client
+                )
+
                 # Create the dnsmasq configuration data with all collected entries
                 dnsmasq_data = {
                     "dnsmasq_dhcp_hosts__metalbox": all_dhcp_hosts,
@@ -399,8 +406,45 @@ class MetalboxModeHandler(DnsmasqBase):
                     "dnsmasq_dhcp_options__metalbox": dhcp_options,
                 }
 
+                # Add special processed parameters if they exist
+                if "dnsmasq_dhcp_options" in special_params:
+                    # Combine with existing dhcp_options
+                    combined_options = (
+                        dhcp_options + special_params["dnsmasq_dhcp_options"]
+                    )
+                    dnsmasq_data["dnsmasq_dhcp_options__metalbox"] = combined_options
+                    logger.info(
+                        f"Added {len(special_params['dnsmasq_dhcp_options'])} processed DHCP options"
+                    )
+
+                if "dnsmasq_dhcp_boot" in special_params:
+                    dnsmasq_data["dnsmasq_dhcp_boot__metalbox"] = special_params[
+                        "dnsmasq_dhcp_boot"
+                    ]
+                    logger.info(
+                        f"Added {len(special_params['dnsmasq_dhcp_boot'])} processed DHCP boot entries"
+                    )
+
                 # Write to metalbox device's host vars
                 self.write_dnsmasq_to_device(device, dnsmasq_data)
+
+                # Build log message with counts
+                log_parts = [
+                    f"{len(all_dhcp_hosts)} dnsmasq entries",
+                    f"{len(dynamic_hosts)} dynamic hosts",
+                    f"{len(dhcp_options)} base DHCP options",
+                ]
+
+                if "dnsmasq_dhcp_options" in special_params:
+                    log_parts.append(
+                        f"{len(special_params['dnsmasq_dhcp_options'])} processed DHCP options"
+                    )
+
+                if "dnsmasq_dhcp_boot" in special_params:
+                    log_parts.append(
+                        f"{len(special_params['dnsmasq_dhcp_boot'])} processed DHCP boot entries"
+                    )
+
                 logger.info(
-                    f"Wrote {len(all_dhcp_hosts)} dnsmasq entries, {len(dynamic_hosts)} dynamic hosts and {len(dhcp_options)} DHCP options to metalbox device {device.name}"
+                    f"Wrote {', '.join(log_parts)} to metalbox device {device.name}"
                 )
