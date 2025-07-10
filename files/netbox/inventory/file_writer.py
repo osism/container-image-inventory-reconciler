@@ -22,7 +22,7 @@ class FileWriter(BaseInventoryComponent):
         "netplan_parameters": "999-netbox-netplan.yml",
         "frr_parameters": "999-netbox-frr.yml",
         "dnsmasq_parameters": "999-netbox-dnsmasq.yml",
-        "gnmi_parameters": "999-netbox-gnmi.yml",
+        "gnmic_parameters": "999-netbox-gnmic.yml",
     }
 
     def write_device_data(self, device: Any, data_type: str, data: Any) -> None:
@@ -84,7 +84,7 @@ class FileWriter(BaseInventoryComponent):
             "frr_parameters",
             "netplan_parameters",
             "dnsmasq_parameters",
-            "gnmi_parameters",
+            "gnmic_parameters",
         ]:
             # Write these parameters directly without wrapper
             return yaml.dump(data, Dumper=yaml.Dumper)

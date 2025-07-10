@@ -8,7 +8,7 @@ from extractors import (
     ConfigContextExtractor,
     CustomFieldExtractor,
     FRRExtractor,
-    GNMIExtractor,
+    GnmicExtractor,
     NetplanExtractor,
     PrimaryIPExtractor,
 )
@@ -21,7 +21,7 @@ class DeviceDataExtractor:
         """Initialize extractors.
 
         Args:
-            api: NetBox API instance (required for NetplanExtractor, FRRExtractor, and GNMIExtractor)
+            api: NetBox API instance (required for NetplanExtractor, FRRExtractor, and GnmicExtractor)
             netbox_client: NetBox client instance for updating custom fields
             file_cache: FileCache instance for persistent caching
         """
@@ -34,7 +34,7 @@ class DeviceDataExtractor:
         self.frr_extractor = FRRExtractor(
             api=api, netbox_client=netbox_client, file_cache=file_cache
         )
-        self.gnmi_extractor = GNMIExtractor(
+        self.gnmic_extractor = GnmicExtractor(
             api=api, netbox_client=netbox_client, file_cache=file_cache
         )
         self.netbox_client = netbox_client
@@ -90,9 +90,9 @@ class DeviceDataExtractor:
             device, field_name="dnsmasq_parameters"
         )
 
-    def extract_gnmi_parameters(self, device: Any) -> Any:
-        """Extract GNMI parameters for metalbox-managed switches."""
-        return self.gnmi_extractor.extract(device)
+    def extract_gnmic_parameters(self, device: Any) -> Any:
+        """Extract gnmicparameters for metalbox-managed switches."""
+        return self.gnmic_extractor.extract(device)
 
     def extract_all_data(
         self,
@@ -114,5 +114,5 @@ class DeviceDataExtractor:
                 device, local_as_prefix, switch_roles, flush_cache
             ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
-            "gnmi_parameters": self.extract_gnmi_parameters(device),
+            "gnmic_parameters": self.extract_gnmic_parameters(device),
         }
