@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""GNMI parameters extractor for metalbox switches."""
+"""Gnmic parameters extractor for metalbox switches."""
 
 from typing import Any, Dict, Optional
 
@@ -9,8 +9,8 @@ from loguru import logger
 from .base_extractor import BaseExtractor
 
 
-class GNMIExtractor(BaseExtractor):
-    """Extracts GNMI parameters for switches managed by metalbox."""
+class GnmicExtractor(BaseExtractor):
+    """Extracts Gnmic parameters for switches managed by metalbox."""
 
     def __init__(self, api=None, netbox_client=None, file_cache=None):
         """Initialize the extractor.
@@ -25,14 +25,14 @@ class GNMIExtractor(BaseExtractor):
         self.file_cache = file_cache
 
     def extract(self, device: Any, **kwargs) -> Optional[Dict[str, Any]]:
-        """Extract GNMI parameters for metalbox-managed switches.
+        """Extract Gnmic parameters for metalbox-managed switches.
 
         Args:
             device: NetBox device object
             **kwargs: Additional parameters
 
         Returns:
-            Dictionary containing GNMI configuration for the switch, or None if not applicable
+            Dictionary containing Gnmic configuration for the switch, or None if not applicable
         """
 
         # Check if device has managed-by-metalbox tag
@@ -49,8 +49,8 @@ class GNMIExtractor(BaseExtractor):
             logger.warning(f"No OOB IP address found for device {device.name}")
             return None
 
-        # Generate GNMI configuration
-        gnmi_config = {
+        # Generate Gnmic configuration
+        gnmic_config = {
             f"gnmic_targets__{hostname}": {
                 f"{oob_ip}:8080": {
                     "username": "admin",
@@ -61,8 +61,8 @@ class GNMIExtractor(BaseExtractor):
             }
         }
 
-        logger.debug(f"Generated GNMI config for {device.name}: {gnmi_config}")
-        return gnmi_config
+        logger.debug(f"Generated Gnmic config for {device.name}: {gnmic_config}")
+        return gnmic_config
 
     def _has_metalbox_tag(self, device: Any) -> bool:
         """Check if device has managed-by-metalbox tag.
