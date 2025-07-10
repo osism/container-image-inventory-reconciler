@@ -21,7 +21,7 @@ class DeviceDataExtractor:
         """Initialize extractors.
 
         Args:
-            api: NetBox API instance (required for NetplanExtractor and FRRExtractor)
+            api: NetBox API instance (required for NetplanExtractor, FRRExtractor, and GNMIExtractor)
             netbox_client: NetBox client instance for updating custom fields
             file_cache: FileCache instance for persistent caching
         """
@@ -34,7 +34,9 @@ class DeviceDataExtractor:
         self.frr_extractor = FRRExtractor(
             api=api, netbox_client=netbox_client, file_cache=file_cache
         )
-        self.gnmi_extractor = GNMIExtractor()
+        self.gnmi_extractor = GNMIExtractor(
+            api=api, netbox_client=netbox_client, file_cache=file_cache
+        )
         self.netbox_client = netbox_client
         self.file_cache = file_cache
 
