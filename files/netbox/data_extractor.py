@@ -8,6 +8,7 @@ from extractors import (
     ConfigContextExtractor,
     CustomFieldExtractor,
     FRRExtractor,
+    GNMIExtractor,
     NetplanExtractor,
     PrimaryIPExtractor,
 )
@@ -33,6 +34,7 @@ class DeviceDataExtractor:
         self.frr_extractor = FRRExtractor(
             api=api, netbox_client=netbox_client, file_cache=file_cache
         )
+        self.gnmi_extractor = GNMIExtractor()
         self.netbox_client = netbox_client
         self.file_cache = file_cache
 
@@ -86,6 +88,10 @@ class DeviceDataExtractor:
             device, field_name="dnsmasq_parameters"
         )
 
+    def extract_gnmi_parameters(self, device: Any) -> Any:
+        """Extract GNMI parameters for metalbox-managed switches."""
+        return self.gnmi_extractor.extract(device)
+
     def extract_all_data(
         self,
         device: Any,
@@ -106,4 +112,5 @@ class DeviceDataExtractor:
                 device, local_as_prefix, switch_roles, flush_cache
             ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
+            "gnmi_parameters": self.extract_gnmi_parameters(device),
         }
