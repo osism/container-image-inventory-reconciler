@@ -17,11 +17,17 @@ class GNMIExtractor(BaseExtractor):
 
         Args:
             device: NetBox device object
-            **kwargs: Additional parameters (unused)
+            **kwargs: Additional parameters - expects 'netbox_client' parameter
 
         Returns:
             Dictionary containing GNMI configuration for the switch, or None if not applicable
         """
+        # Get NetBox client from kwargs
+        self.netbox_client = kwargs.get("netbox_client")
+        if not self.netbox_client:
+            logger.error("NetBox client not provided in kwargs")
+            return None
+
         # Check if device has managed-by-metalbox tag
         if not self._has_metalbox_tag(device):
             logger.debug(f"Device {device.name} does not have managed-by-metalbox tag")
@@ -87,7 +93,7 @@ class GNMIExtractor(BaseExtractor):
         return device.name
 
     def _get_oob_ip(self, device: Any) -> Optional[str]:
-        """Get OOB IP address for the device.
+        """Get OOB IP address for the device using the same approach as interfaces.py.
 
         Args:
             device: NetBox device object
@@ -95,40 +101,45 @@ class GNMIExtractor(BaseExtractor):
         Returns:
             OOB IP address string (without subnet mask), or None if not found
         """
-        # Look for OOB interface by checking all interfaces
-        if not hasattr(device, "interfaces"):
-            return None
-
         try:
-            interfaces = device.interfaces.all()
-            for interface in interfaces:
-                # Check if this is an OOB interface (common naming patterns)
-                if (
-                    hasattr(interface, "name")
-                    and interface.name
-                    and (
-                        "oob" in interface.name.lower()
-                        or "mgmt" in interface.name.lower()
-                        or "management" in interface.name.lower()
-                    )
-                ):
+            # Get device ID for interface filtering
+            device_id = device.id
 
-                    # Get IP addresses assigned to this interface
-                    if hasattr(interface, "ip_addresses"):
-                        ip_addresses = interface.ip_addresses.all()
-                        for ip in ip_addresses:
-                            if hasattr(ip, "address") and ip.address:
-                                # Return the first IP address found (without subnet mask)
-                                return ip.address.split("/")[0]
+            # Filter interfaces for this device
+            interfaces = self.netbox_client.api.dcim.interfaces.filter(
+                device_id=device_id
+            )
+
+            for interface in interfaces:
+                # Check if this is a managed OOB interface
+                if not self._is_managed_oob_interface(interface):
+                    continue
+
+                # Get IP addresses assigned to this interface
+                ip_addresses = self.netbox_client.api.ipam.ip_addresses.filter(
+                    interface_id=interface.id
+                )
+
+                for ip in ip_addresses:
+                    if hasattr(ip, "address") and ip.address:
+                        # Return the first IP address found (without subnet mask)
+                        return ip.address.split("/")[0]
+
         except Exception as e:
             logger.warning(f"Error getting OOB IP for device {device.name}: {e}")
 
-        # Fallback to primary IP if no OOB interface found
-        if hasattr(device, "primary_ip4") and device.primary_ip4:
-            return device.primary_ip4.address.split("/")[0]
-        elif hasattr(device, "primary_ip6") and device.primary_ip6:
-            return device.primary_ip6.address.split("/")[0]
-        elif hasattr(device, "primary_ip") and device.primary_ip:
-            return device.primary_ip.address.split("/")[0]
-
         return None
+
+    def _is_managed_oob_interface(self, interface: Any) -> bool:
+        """Check if interface is a managed OOB interface.
+
+        Args:
+            interface: NetBox interface object
+
+        Returns:
+            True if interface is managed OOB, False otherwise
+        """
+        if not interface.tags or not interface.mgmt_only:
+            return False
+
+        return any(tag.slug == "managed-by-osism" for tag in interface.tags)
