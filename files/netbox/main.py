@@ -17,6 +17,7 @@ from config import Config
 from device_mapping import build_device_role_mapping
 from dnsmasq import DnsmasqManager
 from file_cache import FileCache
+from gnmic import GnmicManager
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
 from utils import setup_logging, get_inventory_hostname
@@ -49,6 +50,12 @@ def main() -> None:
             file_cache=file_cache,
         )
         dnsmasq_manager = DnsmasqManager(config, file_cache=file_cache)
+        gnmic_manager = GnmicManager(
+            config,
+            api=netbox_client.api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+        )
 
         # Fetch devices
         logger.info("Getting managed devices from NetBox. This could take some time.")
@@ -67,17 +74,23 @@ def main() -> None:
                 data_types_for_extraction = list(
                     set(config.data_types + ["frr_parameters", "netplan_parameters"])
                 )
+                # In metalbox mode, also ensure gnmic_parameters are generated
+                if config.reconciler_mode == "metalbox":
+                    data_types_for_extraction.append("gnmic_parameters")
                 inventory_manager.extract_device_data(
                     device, data_types=data_types_for_extraction
                 )
             else:
                 # Even without data_types, ensure FRR and Netplan are generated
+                data_types_for_extraction = [
+                    "frr_parameters",
+                    "netplan_parameters",
+                ]
+                # In metalbox mode, also ensure gnmic_parameters are generated
+                if config.reconciler_mode == "metalbox":
+                    data_types_for_extraction.append("gnmic_parameters")
                 inventory_manager.extract_device_data(
-                    device,
-                    data_types=[
-                        "frr_parameters",
-                        "netplan_parameters",
-                    ],
+                    device, data_types=data_types_for_extraction
                 )
 
         # Filter devices based on reconciler mode for inventory writing
@@ -143,6 +156,13 @@ def main() -> None:
             # Generate dnsmasq DHCP ranges
             logger.info("Generating dnsmasq DHCP ranges")
             dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
+
+            # Generate gnmic configuration (metalbox mode only)
+            if config.reconciler_mode == "metalbox":
+                logger.info("Generating gnmic configuration for metalbox mode")
+                gnmic_manager.write_gnmic_config(
+                    netbox_client, inventory_devices, all_devices
+                )
         else:
             logger.info(
                 "INVENTORY_FROM_NETBOX is False - skipping inventory file writing"
