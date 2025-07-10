@@ -24,6 +24,11 @@ class InventoryManager:
         self.file_writer = FileWriter(config)
         self.host_group_writer = HostGroupWriter(config)
 
+    @property
+    def data_extractor(self):
+        """Get the data extractor from the data cache."""
+        return self.data_cache.data_extractor
+
     def extract_device_data(self, device: Any, data_types: List[str] = None) -> None:
         """Extract various device data types and cache them.
 
@@ -105,3 +110,13 @@ class InventoryManager:
             return False
 
         return True
+
+    def write_device_data_to_file(self, device: Any, data_type: str, data: Any) -> None:
+        """Write specific data type directly to device file.
+
+        Args:
+            device: The NetBox device object
+            data_type: Type of data being written
+            data: The data to write
+        """
+        self.file_writer.write_device_data(device, data_type, data)
