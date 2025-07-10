@@ -47,9 +47,7 @@ def read_config_file(filepath: Path) -> Optional[configparser.ConfigParser]:
         Configured ConfigParser object or None if error occurs
     """
     try:
-        config = configparser.ConfigParser(
-            allow_no_value=True
-        )
+        config = configparser.ConfigParser(allow_no_value=True)
         config.read(filepath)
         return config
     except (UnicodeDecodeError, configparser.Error) as e:
@@ -72,7 +70,7 @@ def write_config_file(config: configparser.ConfigParser, filepath: Path) -> bool
     output = StringIO()
     config.write(output)
     content = output.getvalue()
-    content = re.sub(r'^(\w+)\s*=\s*$', r'\1', content, flags=re.MULTILINE)
+    content = re.sub(r"^(\w+)\s*=\s*$", r"\1", content, flags=re.MULTILINE)
 
     try:
         with open(filepath, "w") as fp:

@@ -12,21 +12,28 @@ from .base_extractor import BaseExtractor
 class GNMIExtractor(BaseExtractor):
     """Extracts GNMI parameters for switches managed by metalbox."""
 
+    def __init__(self, api=None, netbox_client=None, file_cache=None):
+        """Initialize the extractor.
+
+        Args:
+            api: NetBox API instance (required for interface fetching)
+            netbox_client: NetBox client instance for updating custom fields
+            file_cache: FileCache instance for persistent caching
+        """
+        self.api = api
+        self.netbox_client = netbox_client
+        self.file_cache = file_cache
+
     def extract(self, device: Any, **kwargs) -> Optional[Dict[str, Any]]:
         """Extract GNMI parameters for metalbox-managed switches.
 
         Args:
             device: NetBox device object
-            **kwargs: Additional parameters - expects 'netbox_client' parameter
+            **kwargs: Additional parameters
 
         Returns:
             Dictionary containing GNMI configuration for the switch, or None if not applicable
         """
-        # Get NetBox client from kwargs
-        self.netbox_client = kwargs.get("netbox_client")
-        if not self.netbox_client:
-            logger.error("NetBox client not provided in kwargs")
-            return None
 
         # Check if device has managed-by-metalbox tag
         if not self._has_metalbox_tag(device):
@@ -101,14 +108,16 @@ class GNMIExtractor(BaseExtractor):
         Returns:
             OOB IP address string (without subnet mask), or None if not found
         """
+        if not self.api:
+            logger.warning("No API client available for interface lookup")
+            return None
+
         try:
             # Get device ID for interface filtering
             device_id = device.id
 
             # Filter interfaces for this device
-            interfaces = self.netbox_client.api.dcim.interfaces.filter(
-                device_id=device_id
-            )
+            interfaces = self.api.dcim.interfaces.filter(device_id=device_id)
 
             for interface in interfaces:
                 # Check if this is a managed OOB interface
@@ -116,7 +125,7 @@ class GNMIExtractor(BaseExtractor):
                     continue
 
                 # Get IP addresses assigned to this interface
-                ip_addresses = self.netbox_client.api.ipam.ip_addresses.filter(
+                ip_addresses = self.api.ipam.ip_addresses.filter(
                     interface_id=interface.id
                 )
 
