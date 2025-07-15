@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from config import DEFAULT_FRR_SWITCH_ROLES
+from config import DEFAULT_FRR_SWITCH_ROLES, DEFAULT_METALBOX_IPV6
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
 
@@ -285,6 +285,20 @@ class NetplanExtractor(BaseExtractor):
                         addresses.append(ip.address)
             except Exception:
                 pass
+
+            # In metalbox mode, always add the default metalbox IPv6 address to loopback0
+            reconciler_mode = kwargs.get("reconciler_mode", "manager")
+            if (
+                reconciler_mode == "metalbox"
+                and hasattr(device, "role")
+                and device.role
+            ):
+                if device.role.slug == "metalbox":
+                    if DEFAULT_METALBOX_IPV6 not in addresses:
+                        addresses.append(DEFAULT_METALBOX_IPV6)
+                        logger.info(
+                            f"Added IPv6 address {DEFAULT_METALBOX_IPV6} to loopback0 for metalbox device {device.name}"
+                        )
 
             if addresses:
                 loopback0_config["addresses"] = addresses
