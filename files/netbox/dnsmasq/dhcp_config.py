@@ -89,6 +89,10 @@ class DHCPConfigGenerator:
                 # Parse the network prefix
                 net = ipaddress.ip_network(network.prefix)
 
+                # Skip IPv6 networks
+                if net.version == 6:
+                    continue
+
                 # Use network address as start IP
                 start_ip = str(net.network_address)  # Use network address itself
                 subnet_mask = str(net.netmask)
