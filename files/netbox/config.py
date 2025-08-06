@@ -99,10 +99,14 @@ class Config:
         netbox_url = SETTINGS.get("NETBOX_API")
         if not netbox_url:
             raise ValueError("NETBOX_API environment variable is required")
+        # Ensure URL is always treated as a string and strip whitespace
+        netbox_url = str(netbox_url).strip()
 
         netbox_token = SETTINGS.get("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
+        # Ensure token is always treated as a string and strip whitespace
+        netbox_token = str(netbox_token).strip()
 
         # Optional settings with defaults
         data_types = SETTINGS.get("NETBOX_DATA_TYPES", DEFAULT_DATA_TYPES)
@@ -120,6 +124,8 @@ class Config:
         reconciler_mode = SETTINGS.get(
             "INVENTORY_RECONCILER_MODE", DEFAULT_RECONCILER_MODE
         )
+        # Ensure reconciler mode is always treated as a string and strip whitespace
+        reconciler_mode = str(reconciler_mode).strip()
         if reconciler_mode not in ALLOWED_RECONCILER_MODES:
             raise ValueError(
                 f"INVENTORY_RECONCILER_MODE must be one of {ALLOWED_RECONCILER_MODES}, "
