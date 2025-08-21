@@ -45,8 +45,11 @@ class DeviceFilter:
         else:
             ironic_filter["tag"] = ["managed-by-ironic"]
 
-        # Add provision state filter for ironic devices only if NOT in metalbox mode
-        if self.config.reconciler_mode != "metalbox":
+        # Add provision state filter for ironic devices only if NOT in metalbox mode and NOT ignoring provision state
+        if (
+            self.config.reconciler_mode != "metalbox"
+            and not self.config.ignore_provision_state
+        ):
             ironic_filter["cf_provision_state"] = ["active"]
 
         return ironic_filter

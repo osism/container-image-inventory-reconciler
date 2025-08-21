@@ -59,6 +59,7 @@ class Config:
         flush_cache: Force regeneration of cached custom field values
         write_cache: Write cache to local file for persistence across runs
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
+        ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
     """
 
     netbox_url: str
@@ -84,6 +85,7 @@ class Config:
     flush_cache: bool = False
     write_cache: bool = False
     inventory_from_netbox: bool = True
+    ignore_provision_state: bool = False
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -150,6 +152,9 @@ class Config:
             flush_cache=SETTINGS.get("FLUSH_CACHE", False),
             write_cache=SETTINGS.get("WRITE_CACHE", False),
             inventory_from_netbox=SETTINGS.get("INVENTORY_FROM_NETBOX", True),
+            ignore_provision_state=SETTINGS.get(
+                "INVENTORY_IGNORE_PROVISION_STATE", False
+            ),
         )
 
     @staticmethod
