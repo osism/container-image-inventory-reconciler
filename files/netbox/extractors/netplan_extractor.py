@@ -226,6 +226,14 @@ class NetplanExtractor(BaseExtractor):
                 "set-name": label,
             }
 
+            # Check if interface is disabled
+            is_enabled = getattr(interface, "enabled", True)
+            if not is_enabled:
+                # For disabled interfaces, only set basic config and mark as down
+                interface_config["activation-mode"] = "off"
+                network_ethernets[label] = interface_config
+                continue
+
             # Add MTU - use interface MTU if set, otherwise use default
             if hasattr(interface, "mtu") and interface.mtu:
                 interface_config["mtu"] = interface.mtu
