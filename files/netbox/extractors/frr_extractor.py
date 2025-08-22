@@ -77,6 +77,7 @@ class InterfaceFilter:
         - managed-by-osism tag
         - a label
         - connected endpoints
+        - enabled status
 
         Args:
             interface: NetBox interface object
@@ -89,6 +90,7 @@ class InterfaceFilter:
             and bool(interface.label)
             and hasattr(interface, "connected_endpoints")
             and bool(interface.connected_endpoints)
+            and getattr(interface, "enabled", True)
         )
 
 
