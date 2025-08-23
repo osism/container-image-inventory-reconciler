@@ -11,6 +11,7 @@ from utils import get_inventory_hostname
 from .data_cache import DataCache
 from .file_writer import FileWriter
 from .host_group_writer import HostGroupWriter
+from .group_vars_writer import GroupVarsWriter
 
 
 class InventoryManager:
@@ -23,6 +24,7 @@ class InventoryManager:
         )
         self.file_writer = FileWriter(config)
         self.host_group_writer = HostGroupWriter(config)
+        self.group_vars_writer = GroupVarsWriter(config)
 
     @property
     def data_extractor(self):
@@ -81,13 +83,28 @@ class InventoryManager:
         """Legacy method for backward compatibility - writes only config context."""
         self.write_device_data(device, data_types=["config_context"])
 
-    def write_host_groups(self, devices_to_roles: Dict[str, List[Any]]) -> None:
-        """Write host groups to inventory file based on device roles.
+    def write_host_groups(
+        self,
+        devices_to_roles: Dict[str, List[Any]],
+        cluster_groups: Dict[str, List[str]] = None,
+    ) -> None:
+        """Write host groups to inventory file based on device roles and clusters.
 
         Args:
             devices_to_roles: Dictionary mapping role slugs to lists of devices
+            cluster_groups: Dictionary mapping cluster/cluster group names to hosts/children
         """
-        self.host_group_writer.write_host_groups(devices_to_roles)
+        self.host_group_writer.write_host_groups(devices_to_roles, cluster_groups)
+
+    def write_cluster_group_vars(
+        self, cluster_config_contexts: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """Write group_vars files for clusters and cluster groups with config contexts.
+
+        Args:
+            cluster_config_contexts: Dictionary mapping group names to config contexts
+        """
+        self.group_vars_writer.write_cluster_group_vars(cluster_config_contexts)
 
     def _should_write_device_data(self, device: Any) -> bool:
         """Check if device data should be written.
