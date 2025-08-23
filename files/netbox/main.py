@@ -15,6 +15,11 @@ from loguru import logger
 
 from config import Config
 from device_mapping import build_device_role_mapping
+from cluster_mapping import (
+    build_cluster_mapping,
+    build_cluster_inventory_groups,
+    extract_cluster_config_contexts,
+)
 from dnsmasq import DnsmasqManager
 from file_cache import FileCache
 from gnmic import GnmicManager
@@ -115,6 +120,17 @@ def main() -> None:
             inventory_devices, config.ignored_roles
         )
 
+        # Build cluster mapping for inventory devices
+        logger.info("Getting cluster and cluster group information from NetBox")
+        clusters = netbox_client.get_clusters()
+        cluster_groups = netbox_client.get_cluster_groups()
+
+        cluster_mapping = build_cluster_mapping(
+            inventory_devices, clusters, cluster_groups
+        )
+        cluster_inventory_groups = build_cluster_inventory_groups(cluster_mapping)
+        cluster_config_contexts = extract_cluster_config_contexts(cluster_mapping)
+
         # Write inventory files only if INVENTORY_FROM_NETBOX is True
         if config.inventory_from_netbox:
             # Write device data files (only for inventory devices)
@@ -137,9 +153,16 @@ def main() -> None:
                 else:
                     inventory_manager.write_device_config_context(device)
 
-            # Write host groups based on device roles
-            logger.info("Generating host groups based on device roles")
-            inventory_manager.write_host_groups(devices_to_roles)
+            # Write host groups based on device roles and clusters
+            logger.info("Generating host groups based on device roles and clusters")
+            inventory_manager.write_host_groups(
+                devices_to_roles, cluster_inventory_groups
+            )
+
+            # Write cluster group_vars files for config contexts
+            if cluster_config_contexts:
+                logger.info("Writing cluster group_vars files for config contexts")
+                inventory_manager.write_cluster_group_vars(cluster_config_contexts)
 
             # Generate dnsmasq configuration
             logger.info("Generating dnsmasq configuration")
