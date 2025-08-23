@@ -92,6 +92,21 @@ class NetplanExtractor(BaseExtractor):
         Returns:
             Netplan parameters dictionary or None if no config found
         """
+        # Check if device config context has _segment_default_mtu override
+        effective_default_mtu = default_mtu
+        if hasattr(device, "config_context") and device.config_context:
+            segment_mtu = device.config_context.get("_segment_default_mtu")
+            if segment_mtu is not None:
+                try:
+                    effective_default_mtu = int(segment_mtu)
+                    logger.debug(
+                        f"Using _segment_default_mtu={effective_default_mtu} from config context for device {device.name}"
+                    )
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Invalid _segment_default_mtu value '{segment_mtu}' in config context for device {device.name}, using default {default_mtu}"
+                    )
+                    effective_default_mtu = default_mtu
         # Check flush_cache flag
         flush_cache = kwargs.get("flush_cache", False)
 
@@ -174,14 +189,14 @@ class NetplanExtractor(BaseExtractor):
                                 ),
                             }
 
-                            # Use parent interface's MTU if available, otherwise use default
+                            # Use parent interface's MTU if available, otherwise use effective default
                             if (
                                 hasattr(interface.parent, "mtu")
                                 and interface.parent.mtu
                             ):
                                 vlan_config["mtu"] = interface.parent.mtu
                             else:
-                                vlan_config["mtu"] = default_mtu
+                                vlan_config["mtu"] = effective_default_mtu
 
                             # Get IP addresses for this VLAN interface
                             addresses = []
@@ -234,11 +249,11 @@ class NetplanExtractor(BaseExtractor):
                 network_ethernets[label] = interface_config
                 continue
 
-            # Add MTU - use interface MTU if set, otherwise use default
+            # Add MTU - use interface MTU if set, otherwise use effective default
             if hasattr(interface, "mtu") and interface.mtu:
                 interface_config["mtu"] = interface.mtu
             else:
-                interface_config["mtu"] = default_mtu
+                interface_config["mtu"] = effective_default_mtu
 
             # Get IP addresses for this interface
             addresses = []
