@@ -1,14 +1,3 @@
-{% if cluster_groups %}
-{# Cluster groups and clusters #}
-{% for group_name, hosts_or_children in cluster_groups.items() %}
-[{{ group_name }}]
-{% for host_or_child in hosts_or_children %}
-{{ host_or_child }}
-{% endfor %}
-{% endfor %}
-
-{% endif %}
-{# Role-based groups #}
 {% for group, devices in devices_to_roles.items() %}
 [{{ group }}]
 {% for device in devices %}

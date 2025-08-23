@@ -20,24 +20,14 @@ class HostGroupWriter(BaseInventoryComponent):
             loader=jinja2.FileSystemLoader(searchpath=str(config.template_path))
         )
 
-    def write_host_groups(
-        self,
-        devices_to_roles: Dict[str, List[Any]],
-        cluster_groups: Dict[str, List[str]] = None,
-    ) -> None:
-        """Write host groups to inventory file based on device roles and clusters.
+    def write_host_groups(self, devices_to_roles: Dict[str, List[Any]]) -> None:
+        """Write host groups to inventory file based on device roles.
 
         Args:
             devices_to_roles: Dictionary mapping role slugs to lists of devices
-            cluster_groups: Dictionary mapping cluster/cluster group names to hosts/children
         """
         template = self.jinja_env.get_template("netbox.hosts.j2")
-
-        template_data = {"devices_to_roles": devices_to_roles}
-        if cluster_groups:
-            template_data["cluster_groups"] = cluster_groups
-
-        result = template.render(template_data)
+        result = template.render({"devices_to_roles": devices_to_roles})
 
         output_file = self.config.inventory_path / "20-netbox"
         logger.debug(f"Writing host groups from NetBox to {output_file}")
