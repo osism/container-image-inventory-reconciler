@@ -63,6 +63,9 @@ class DeviceFilter:
         Returns:
             List of devices not in maintenance
         """
+        if self.config.ignore_maintenance_state:
+            return devices
+
         return [
             device
             for device in devices
@@ -78,11 +81,19 @@ class DeviceFilter:
         Returns:
             List of devices not managed by Ironic
         """
-        return [
+        filtered_devices = [
             device
             for device in devices
             if "managed-by-ironic" not in [tag.slug for tag in device.tags]
-            and device.custom_fields.get("maintenance") is not True
+        ]
+
+        if self.config.ignore_maintenance_state:
+            return filtered_devices
+
+        return [
+            device
+            for device in filtered_devices
+            if device.custom_fields.get("maintenance") is not True
         ]
 
     def deduplicate_devices(self, devices: List[Any]) -> List[Any]:
