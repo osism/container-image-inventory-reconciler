@@ -60,6 +60,7 @@ class Config:
         write_cache: Write cache to local file for persistence across runs
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
         ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
+        ignore_maintenance_state: Ignore maintenance state filter for devices
     """
 
     netbox_url: str
@@ -86,6 +87,7 @@ class Config:
     write_cache: bool = False
     inventory_from_netbox: bool = True
     ignore_provision_state: bool = False
+    ignore_maintenance_state: bool = False
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -154,6 +156,9 @@ class Config:
             inventory_from_netbox=SETTINGS.get("INVENTORY_FROM_NETBOX", True),
             ignore_provision_state=SETTINGS.get(
                 "INVENTORY_IGNORE_PROVISION_STATE", False
+            ),
+            ignore_maintenance_state=SETTINGS.get(
+                "INVENTORY_IGNORE_MAINTENANCE_STATE", False
             ),
         )
 

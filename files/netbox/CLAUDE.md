@@ -46,12 +46,13 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `WRITE_CACHE` - Write cache to local file for persistence across runs (default: false)
 - `INVENTORY_FROM_NETBOX` - Whether to write inventory files to DEFAULT_INVENTORY_PATH (default: true)
 - `INVENTORY_IGNORE_PROVISION_STATE` - Ignore cf_provision_state filter for Ironic devices (default: false)
+- `INVENTORY_IGNORE_MAINTENANCE_STATE` - Ignore maintenance state filter for devices (default: false)
 
 ## Device Selection Logic
 
 ### Devices are selected if:
 - They match the filter criteria specified in `NETBOX_FILTER_INVENTORY` (default: status="active" AND tag="managed-by-osism")
-- NOT in maintenance mode (custom field)
+- NOT in maintenance mode (custom field) - unless INVENTORY_IGNORE_MAINTENANCE_STATE is true
 - For devices also tagged with "managed-by-ironic": provision_state must be "active" (unless INVENTORY_IGNORE_PROVISION_STATE is true)
 
 ### Custom Filter Examples
