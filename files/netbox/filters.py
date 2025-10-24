@@ -23,6 +23,53 @@ class DeviceFilter:
             return [self.config.filter_inventory]
         return self.config.filter_inventory
 
+    def _apply_metalbox_filter_modifications(
+        self, filters: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Apply metalbox-specific modifications to filter dictionaries.
+
+        Modifies filters to:
+        - Remove managed-by-ironic from tag parameter (handles string and list formats)
+        - Add role=metalbox to each filter
+
+        Args:
+            filters: List of filter dictionaries
+
+        Returns:
+            List of modified filter dictionaries
+        """
+        modified_filters = []
+
+        for filter_dict in filters:
+            # Create a copy to avoid modifying the original
+            modified_filter = filter_dict.copy()
+
+            # Remove managed-by-ironic from tag parameter
+            if "tag" in modified_filter:
+                tag_value = modified_filter["tag"]
+
+                if isinstance(tag_value, str):
+                    # If tag is a string and equals managed-by-ironic, remove it
+                    if tag_value == "managed-by-ironic":
+                        del modified_filter["tag"]
+                elif isinstance(tag_value, list):
+                    # If tag is a list, filter out managed-by-ironic
+                    filtered_tags = [
+                        tag for tag in tag_value if tag != "managed-by-ironic"
+                    ]
+                    # If no tags remain, remove the tag parameter
+                    if filtered_tags:
+                        modified_filter["tag"] = filtered_tags
+                    else:
+                        del modified_filter["tag"]
+
+            # Add role=metalbox to the filter
+            modified_filter["role"] = "metalbox"
+
+            modified_filters.append(modified_filter)
+
+        return modified_filters
+
     def build_ironic_filter(self, base_filter: Dict[str, Any]) -> Dict[str, Any]:
         """Build filter for devices managed by Ironic.
 

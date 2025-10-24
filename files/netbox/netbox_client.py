@@ -70,6 +70,8 @@ class NetBoxClient(BaseNetBoxClient):
     def get_managed_devices(self) -> Tuple[List[Any], List[Any]]:
         """Retrieve managed devices from NetBox using configured filter(s).
 
+        In metalbox mode, additionally fetches devices with role=metalbox.
+
         Returns:
             A tuple containing:
             - Devices with both base filter and managed-by-ironic tag
@@ -84,6 +86,7 @@ class NetBoxClient(BaseNetBoxClient):
             all_devices_with_ironic = []
             all_devices_non_ironic = []
 
+            # Normal filter logic
             for base_filter in filter_list:
                 # Get Ironic-managed devices
                 ironic_filter = self._device_filter.build_ironic_filter(base_filter)
@@ -101,12 +104,38 @@ class NetBoxClient(BaseNetBoxClient):
                 all_devices_with_ironic.extend(devices_with_ironic_filtered)
                 all_devices_non_ironic.extend(devices_non_ironic_filtered)
 
+            # In metalbox mode, additionally fetch metalbox devices
+            if self.config.reconciler_mode == "metalbox":
+                logger.debug("Metalbox mode: fetching additional metalbox devices")
+                metalbox_filters = self._device_filter._apply_metalbox_filter_modifications(
+                    filter_list
+                )
+
+                for metalbox_filter in metalbox_filters:
+                    logger.debug(f"Fetching metalbox devices with filter: {metalbox_filter}")
+                    metalbox_devices = self.api.dcim.devices.filter(**metalbox_filter)
+                    metalbox_devices_filtered = self._device_filter.filter_by_maintenance(
+                        metalbox_devices
+                    )
+
+                    # Metalbox devices could be ironic or non-ironic, categorize them
+                    for device in metalbox_devices_filtered:
+                        if "managed-by-ironic" in [tag.slug for tag in device.tags]:
+                            all_devices_with_ironic.append(device)
+                        else:
+                            all_devices_non_ironic.append(device)
+
             # Remove duplicates
             unique_devices_with_ironic = self._device_filter.deduplicate_devices(
                 all_devices_with_ironic
             )
             unique_devices_non_ironic = self._device_filter.deduplicate_devices(
                 all_devices_non_ironic
+            )
+
+            logger.info(
+                f"Retrieved {len(unique_devices_with_ironic)} devices with ironic tag, "
+                f"{len(unique_devices_non_ironic)} devices without ironic tag"
             )
 
             return unique_devices_with_ironic, unique_devices_non_ironic
