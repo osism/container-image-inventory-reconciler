@@ -65,33 +65,69 @@ def main() -> None:
 
         # Extract data for ALL devices (regardless of mode)
         # Always ensure FRR and Netplan parameters are generated and written to NetBox
+        # BUT: Switches should only get dnsmasq_parameters (generated during dnsmasq config generation)
         logger.info("Extracting data for all devices")
         for device in all_devices:
             logger.info(f"Extracting data for {device.name}")
-            if config.data_types:
-                # Always include FRR and Netplan parameters for generation
-                # They will be written to NetBox but only included in inventory if specified
-                data_types_for_extraction = list(
-                    set(config.data_types + ["frr_parameters", "netplan_parameters"])
+
+            # Check if this device is a switch
+            is_switch = (
+                device.role
+                and device.role.slug
+                and device.role.slug.lower() in config.dnsmasq_switch_roles
+            )
+
+            if is_switch:
+                # Switches only need dnsmasq_parameters (generated during dnsmasq config generation)
+                # Extract only other data types if specified, excluding frr_parameters, netplan_parameters, gnmic_parameters
+                logger.info(
+                    f"Device {device.name} is a switch - skipping FRR/Netplan/gnmic parameter generation"
                 )
-                # In metalbox mode, also ensure gnmic_parameters are generated
-                if config.reconciler_mode == "metalbox":
-                    data_types_for_extraction.append("gnmic_parameters")
-                inventory_manager.extract_device_data(
-                    device, data_types=data_types_for_extraction
-                )
+                if config.data_types:
+                    data_types_for_extraction = [
+                        dt
+                        for dt in config.data_types
+                        if dt
+                        not in [
+                            "frr_parameters",
+                            "netplan_parameters",
+                            "gnmic_parameters",
+                        ]
+                    ]
+                    if data_types_for_extraction:
+                        inventory_manager.extract_device_data(
+                            device, data_types=data_types_for_extraction
+                        )
+                # If no data types remain after filtering, don't extract anything
+                # dnsmasq_parameters will be generated later during dnsmasq config generation
             else:
-                # Even without data_types, ensure FRR and Netplan are generated
-                data_types_for_extraction = [
-                    "frr_parameters",
-                    "netplan_parameters",
-                ]
-                # In metalbox mode, also ensure gnmic_parameters are generated
-                if config.reconciler_mode == "metalbox":
-                    data_types_for_extraction.append("gnmic_parameters")
-                inventory_manager.extract_device_data(
-                    device, data_types=data_types_for_extraction
-                )
+                # Non-switch devices: current behavior (FRR + Netplan + gnmic for metalbox)
+                if config.data_types:
+                    # Always include FRR and Netplan parameters for generation
+                    # They will be written to NetBox but only included in inventory if specified
+                    data_types_for_extraction = list(
+                        set(
+                            config.data_types + ["frr_parameters", "netplan_parameters"]
+                        )
+                    )
+                    # In metalbox mode, also ensure gnmic_parameters are generated
+                    if config.reconciler_mode == "metalbox":
+                        data_types_for_extraction.append("gnmic_parameters")
+                    inventory_manager.extract_device_data(
+                        device, data_types=data_types_for_extraction
+                    )
+                else:
+                    # Even without data_types, ensure FRR and Netplan are generated
+                    data_types_for_extraction = [
+                        "frr_parameters",
+                        "netplan_parameters",
+                    ]
+                    # In metalbox mode, also ensure gnmic_parameters are generated
+                    if config.reconciler_mode == "metalbox":
+                        data_types_for_extraction.append("gnmic_parameters")
+                    inventory_manager.extract_device_data(
+                        device, data_types=data_types_for_extraction
+                    )
 
         # Filter devices based on reconciler mode for inventory writing
         if config.reconciler_mode == "metalbox":
