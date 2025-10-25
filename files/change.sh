@@ -33,6 +33,15 @@ elif [[ "$1" == "osism" ]]; then
 elif [[ "$1" == "release" ]]; then
     rm -rf /release
     git clone --depth 1 -b $2 https://github.com/osism/release /release
+elif [[ "$1" == "netbox" ]]; then
+    rm -rf /tmp/netbox-clone
+    git clone --depth 1 -b $2 https://github.com/osism/container-image-inventory-reconciler /tmp/netbox-clone
+
+    rm -rf /netbox
+    mkdir -p /netbox
+    cp -r /tmp/netbox-clone/files/netbox/* /netbox/
+
+    rm -rf /tmp/netbox-clone
 fi
 
 chown -R dragon: \
