@@ -264,16 +264,20 @@ class MetalboxModeHandler(DnsmasqBase):
             all_devices: List of all devices to collect OOB configs from (includes switches)
             flush_cache: Force regeneration of cached parameters
         """
-        # Collect all dnsmasq entries from all devices
-        all_dhcp_hosts = []
-        all_dhcp_macs = []
-        all_dnsmasq_interfaces = []
+        # Collect all dnsmasq entries from all devices using dictionaries for deduplication
+        # Key format:
+        # - dhcp_hosts: hostname (2nd field from "mac,hostname,ip[,set:vlanXXX]")
+        # - dhcp_macs: MAC address (2nd field from "tag:tagname,mac")
+        # - interfaces: interface name (the string itself)
+        all_dhcp_hosts_dict = {}
+        all_dhcp_macs_dict = {}
+        all_dnsmasq_interfaces_dict = {}
         # Track switch-specific entries
-        switch_dhcp_hosts = []
-        switch_dhcp_macs = []
+        switch_dhcp_hosts_dict = {}
+        switch_dhcp_macs_dict = {}
         # Track metalbox-specific entries
-        metalbox_own_dhcp_hosts = []
-        metalbox_own_dhcp_macs = []
+        metalbox_own_dhcp_hosts_dict = {}
+        metalbox_own_dhcp_macs_dict = {}
 
         for device in all_devices:
             logger.debug(f"Collecting OOB interface for device {device}")
@@ -300,34 +304,42 @@ class MetalboxModeHandler(DnsmasqBase):
                     "dnsmasq_dhcp_hosts" in cached_params
                     and cached_params["dnsmasq_dhcp_hosts"]
                 ):
-                    all_dhcp_hosts.extend(cached_params["dnsmasq_dhcp_hosts"])
-                    # Track switch-specific entries from cache
-                    if is_switch:
-                        switch_dhcp_hosts.extend(cached_params["dnsmasq_dhcp_hosts"])
-                    # Track metalbox own parameters from cache
-                    if is_metalbox:
-                        metalbox_own_dhcp_hosts.extend(
-                            cached_params["dnsmasq_dhcp_hosts"]
-                        )
+                    # Parse each entry to extract hostname as key
+                    for entry in cached_params["dnsmasq_dhcp_hosts"]:
+                        parts = entry.split(",")
+                        if len(parts) >= 2:
+                            hostname = parts[1]  # 2nd field is hostname
+                            all_dhcp_hosts_dict[hostname] = entry
+                            # Track switch-specific entries from cache
+                            if is_switch:
+                                switch_dhcp_hosts_dict[hostname] = entry
+                            # Track metalbox own parameters from cache
+                            if is_metalbox:
+                                metalbox_own_dhcp_hosts_dict[hostname] = entry
                 if (
                     "dnsmasq_dhcp_macs" in cached_params
                     and cached_params["dnsmasq_dhcp_macs"]
                 ):
-                    all_dhcp_macs.extend(cached_params["dnsmasq_dhcp_macs"])
-                    # Track switch-specific entries from cache
-                    if is_switch:
-                        switch_dhcp_macs.extend(cached_params["dnsmasq_dhcp_macs"])
-                    # Track metalbox own parameters from cache
-                    if is_metalbox:
-                        metalbox_own_dhcp_macs.extend(
-                            cached_params["dnsmasq_dhcp_macs"]
-                        )
+                    # Parse each entry to extract MAC as key
+                    for entry in cached_params["dnsmasq_dhcp_macs"]:
+                        parts = entry.split(",")
+                        if len(parts) >= 2:
+                            mac = parts[1]  # 2nd field is MAC address
+                            all_dhcp_macs_dict[mac] = entry
+                            # Track switch-specific entries from cache
+                            if is_switch:
+                                switch_dhcp_macs_dict[mac] = entry
+                            # Track metalbox own parameters from cache
+                            if is_metalbox:
+                                metalbox_own_dhcp_macs_dict[mac] = entry
                 if (
                     "dnsmasq_interfaces" in cached_params
                     and cached_params["dnsmasq_interfaces"]
                     and is_metalbox
                 ):
-                    all_dnsmasq_interfaces.extend(cached_params["dnsmasq_interfaces"])
+                    # Interface names are the strings themselves
+                    for interface in cached_params["dnsmasq_interfaces"]:
+                        all_dnsmasq_interfaces_dict[interface] = interface
                 continue
 
             # Generate parameters if not cached
@@ -348,15 +360,21 @@ class MetalboxModeHandler(DnsmasqBase):
                     host_entry = self.dhcp_generator.generate_dhcp_host_entry(
                         device, ip_address, mac_address, vlan_id
                     )
-                    all_dhcp_hosts.append(host_entry)
-                    cache_params["dnsmasq_dhcp_hosts"] = [host_entry]
-                    # Track switch-specific entries when generating new parameters
-                    if is_switch:
-                        switch_dhcp_hosts.append(host_entry)
-                    # Track metalbox own parameters when generating new parameters
-                    if is_metalbox:
-                        metalbox_own_dhcp_hosts.append(host_entry)
-                    logger.debug(f"Collected dnsmasq entry for {device.name}: {host_entry}")
+                    # Use hostname as key for deduplication
+                    parts = host_entry.split(",")
+                    if len(parts) >= 2:
+                        hostname = parts[1]
+                        all_dhcp_hosts_dict[hostname] = host_entry
+                        cache_params["dnsmasq_dhcp_hosts"] = [host_entry]
+                        # Track switch-specific entries when generating new parameters
+                        if is_switch:
+                            switch_dhcp_hosts_dict[hostname] = host_entry
+                        # Track metalbox own parameters when generating new parameters
+                        if is_metalbox:
+                            metalbox_own_dhcp_hosts_dict[hostname] = host_entry
+                    logger.debug(
+                        f"Collected dnsmasq entry for {device.name}: {host_entry}"
+                    )
                 else:
                     logger.info(
                         f"Device {device.name} has MAC {mac_address} but no IP address - "
@@ -371,7 +389,9 @@ class MetalboxModeHandler(DnsmasqBase):
                             device, netbox_client
                         )
                     )
-                    all_dnsmasq_interfaces.extend(device_interfaces)
+                    # Use interface name as key for deduplication
+                    for interface in device_interfaces:
+                        all_dnsmasq_interfaces_dict[interface] = interface
                     cache_params["dnsmasq_interfaces"] = device_interfaces
 
                 # Generate DHCP MAC entry (always generated when MAC exists)
@@ -379,14 +399,18 @@ class MetalboxModeHandler(DnsmasqBase):
                     device, mac_address
                 )
                 if mac_entry:
-                    all_dhcp_macs.append(mac_entry)
-                    cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
-                    # Track switch-specific MAC entries when generating new parameters
-                    if is_switch:
-                        switch_dhcp_macs.append(mac_entry)
-                    # Track metalbox own parameters when generating new parameters
-                    if is_metalbox:
-                        metalbox_own_dhcp_macs.append(mac_entry)
+                    # Use MAC address as key for deduplication
+                    parts = mac_entry.split(",")
+                    if len(parts) >= 2:
+                        mac = parts[1]
+                        all_dhcp_macs_dict[mac] = mac_entry
+                        cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
+                        # Track switch-specific MAC entries when generating new parameters
+                        if is_switch:
+                            switch_dhcp_macs_dict[mac] = mac_entry
+                        # Track metalbox own parameters when generating new parameters
+                        if is_metalbox:
+                            metalbox_own_dhcp_macs_dict[mac] = mac_entry
                     logger.debug(
                         f"Collected dnsmasq MAC entry for {device.name}: {mac_entry}"
                     )
@@ -411,7 +435,9 @@ class MetalboxModeHandler(DnsmasqBase):
                         )
                     )
                     if device_interfaces:
-                        all_dnsmasq_interfaces.extend(device_interfaces)
+                        # Use interface name as key for deduplication
+                        for interface in device_interfaces:
+                            all_dnsmasq_interfaces_dict[interface] = interface
                         # Cache just the interfaces
                         cache_params = {
                             "dnsmasq_dhcp_hosts": [],
@@ -440,6 +466,11 @@ class MetalboxModeHandler(DnsmasqBase):
                 # Generate DHCP options for this metalbox device
                 dhcp_options = self.get_dhcp_options_for_metalbox(device, netbox_client)
 
+                # Convert dictionaries to lists for writing
+                all_dhcp_hosts = list(all_dhcp_hosts_dict.values())
+                all_dhcp_macs = list(all_dhcp_macs_dict.values())
+                all_dnsmasq_interfaces = list(all_dnsmasq_interfaces_dict.values())
+
                 # Create the dnsmasq configuration data with all collected entries
                 dnsmasq_data = {
                     "dnsmasq_dhcp_hosts__metalbox": all_dhcp_hosts,
@@ -449,9 +480,18 @@ class MetalboxModeHandler(DnsmasqBase):
                     "dnsmasq_dhcp_options__metalbox": dhcp_options,
                 }
 
-                # Merge metalbox own parameters with switch parameters
-                merged_dhcp_hosts = metalbox_own_dhcp_hosts + switch_dhcp_hosts
-                merged_dhcp_macs = metalbox_own_dhcp_macs + switch_dhcp_macs
+                # Merge metalbox own parameters with switch parameters using dictionaries
+                merged_dhcp_hosts_dict = {}
+                merged_dhcp_hosts_dict.update(metalbox_own_dhcp_hosts_dict)
+                merged_dhcp_hosts_dict.update(switch_dhcp_hosts_dict)
+
+                merged_dhcp_macs_dict = {}
+                merged_dhcp_macs_dict.update(metalbox_own_dhcp_macs_dict)
+                merged_dhcp_macs_dict.update(switch_dhcp_macs_dict)
+
+                # Convert to lists
+                merged_dhcp_hosts = list(merged_dhcp_hosts_dict.values())
+                merged_dhcp_macs = list(merged_dhcp_macs_dict.values())
 
                 # Store merged parameters in metalbox custom field
                 if merged_dhcp_hosts or merged_dhcp_macs:
@@ -462,11 +502,11 @@ class MetalboxModeHandler(DnsmasqBase):
                     }
 
                     logger.info(
-                        f"Caching {len(metalbox_own_dhcp_hosts)} metalbox own + "
-                        f"{len(switch_dhcp_hosts)} switch dnsmasq_dhcp_hosts "
+                        f"Caching {len(metalbox_own_dhcp_hosts_dict)} metalbox own + "
+                        f"{len(switch_dhcp_hosts_dict)} switch dnsmasq_dhcp_hosts "
                         f"({len(merged_dhcp_hosts)} total) and "
-                        f"{len(metalbox_own_dhcp_macs)} metalbox own + "
-                        f"{len(switch_dhcp_macs)} switch dnsmasq_dhcp_macs "
+                        f"{len(metalbox_own_dhcp_macs_dict)} metalbox own + "
+                        f"{len(switch_dhcp_macs_dict)} switch dnsmasq_dhcp_macs "
                         f"({len(merged_dhcp_macs)} total) to metalbox device {device.name}"
                     )
 
