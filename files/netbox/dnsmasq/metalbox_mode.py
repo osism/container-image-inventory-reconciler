@@ -480,34 +480,22 @@ class MetalboxModeHandler(DnsmasqBase):
                     "dnsmasq_dhcp_options__metalbox": dhcp_options,
                 }
 
-                # Merge metalbox own parameters with switch parameters using dictionaries
-                merged_dhcp_hosts_dict = {}
-                merged_dhcp_hosts_dict.update(metalbox_own_dhcp_hosts_dict)
-                merged_dhcp_hosts_dict.update(switch_dhcp_hosts_dict)
+                # Use only switch parameters (discard metalbox own parameters)
+                switch_dhcp_hosts = list(switch_dhcp_hosts_dict.values())
+                switch_dhcp_macs = list(switch_dhcp_macs_dict.values())
 
-                merged_dhcp_macs_dict = {}
-                merged_dhcp_macs_dict.update(metalbox_own_dhcp_macs_dict)
-                merged_dhcp_macs_dict.update(switch_dhcp_macs_dict)
-
-                # Convert to lists
-                merged_dhcp_hosts = list(merged_dhcp_hosts_dict.values())
-                merged_dhcp_macs = list(merged_dhcp_macs_dict.values())
-
-                # Store merged parameters in metalbox custom field
-                if merged_dhcp_hosts or merged_dhcp_macs:
+                # Store switch-only parameters in metalbox custom field
+                if switch_dhcp_hosts or switch_dhcp_macs:
                     metalbox_cache_params = {
-                        "dnsmasq_dhcp_hosts": merged_dhcp_hosts,
-                        "dnsmasq_dhcp_macs": merged_dhcp_macs,
+                        "dnsmasq_dhcp_hosts": switch_dhcp_hosts,
+                        "dnsmasq_dhcp_macs": switch_dhcp_macs,
                         "dnsmasq_interfaces": all_dnsmasq_interfaces,  # Preserve metalbox VLAN interfaces
                     }
 
                     logger.info(
-                        f"Caching {len(metalbox_own_dhcp_hosts_dict)} metalbox own + "
-                        f"{len(switch_dhcp_hosts_dict)} switch dnsmasq_dhcp_hosts "
-                        f"({len(merged_dhcp_hosts)} total) and "
-                        f"{len(metalbox_own_dhcp_macs_dict)} metalbox own + "
+                        f"Caching {len(switch_dhcp_hosts_dict)} switch dnsmasq_dhcp_hosts and "
                         f"{len(switch_dhcp_macs_dict)} switch dnsmasq_dhcp_macs "
-                        f"({len(merged_dhcp_macs)} total) to metalbox device {device.name}"
+                        f"to metalbox device {device.name} (metalbox own parameters excluded)"
                     )
 
                     success = netbox_client.update_device_custom_field(
@@ -516,7 +504,7 @@ class MetalboxModeHandler(DnsmasqBase):
 
                     if not success:
                         logger.warning(
-                            f"Failed to cache merged dnsmasq parameters for metalbox device {device.name}"
+                            f"Failed to cache switch dnsmasq parameters for metalbox device {device.name}"
                         )
 
                 # Write to metalbox device's host vars
