@@ -107,15 +107,19 @@ class NetBoxClient(BaseNetBoxClient):
             # In metalbox mode, additionally fetch metalbox devices
             if self.config.reconciler_mode == "metalbox":
                 logger.debug("Metalbox mode: fetching additional metalbox devices")
-                metalbox_filters = self._device_filter._apply_metalbox_filter_modifications(
-                    filter_list
+                metalbox_filters = (
+                    self._device_filter._apply_metalbox_filter_modifications(
+                        filter_list
+                    )
                 )
 
                 for metalbox_filter in metalbox_filters:
-                    logger.debug(f"Fetching metalbox devices with filter: {metalbox_filter}")
+                    logger.debug(
+                        f"Fetching metalbox devices with filter: {metalbox_filter}"
+                    )
                     metalbox_devices = self.api.dcim.devices.filter(**metalbox_filter)
-                    metalbox_devices_filtered = self._device_filter.filter_by_maintenance(
-                        metalbox_devices
+                    metalbox_devices_filtered = (
+                        self._device_filter.filter_by_maintenance(metalbox_devices)
                     )
 
                     # Metalbox devices could be ironic or non-ironic, categorize them
@@ -124,6 +128,24 @@ class NetBoxClient(BaseNetBoxClient):
                             all_devices_with_ironic.append(device)
                         else:
                             all_devices_non_ironic.append(device)
+
+                # In metalbox mode, additionally fetch switch devices
+                logger.debug("Metalbox mode: fetching additional switch devices")
+                switch_filters = self._device_filter._apply_switch_filter_modifications(
+                    filter_list, self.config.dnsmasq_switch_roles
+                )
+
+                for switch_filter in switch_filters:
+                    logger.debug(
+                        f"Fetching switch devices with filter: {switch_filter}"
+                    )
+                    switch_devices = self.api.dcim.devices.filter(**switch_filter)
+                    switch_devices_filtered = self._device_filter.filter_by_maintenance(
+                        switch_devices
+                    )
+
+                    # Switch devices are not managed by ironic
+                    all_devices_non_ironic.extend(switch_devices_filtered)
 
             # Remove duplicates
             unique_devices_with_ironic = self._device_filter.deduplicate_devices(

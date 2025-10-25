@@ -27,6 +27,14 @@ DEFAULT_FRR_SWITCH_ROLES = [
     "borderleaf",
     "serviceleaf",
 ]
+DEFAULT_DNSMASQ_SWITCH_ROLES = [
+    "leaf",
+    "accessleaf",
+    "dataleaf",
+    "storageleaf",
+    "borderleaf",
+    "serviceleaf",
+]
 DEFAULT_RECONCILER_MODE = "manager"
 ALLOWED_RECONCILER_MODES = ["manager", "metalbox"]
 
@@ -55,6 +63,7 @@ class Config:
         filter_inventory: Filter(s) for device selection from NetBox
         default_local_as_prefix: Default local AS prefix for FRR configuration
         frr_switch_roles: Device roles considered as switches for FRR uplinks
+        dnsmasq_switch_roles: Device roles considered as switches for dnsmasq operations
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
         flush_cache: Force regeneration of cached custom field values
         write_cache: Write cache to local file for persistence across runs
@@ -81,6 +90,9 @@ class Config:
     default_local_as_prefix: int = DEFAULT_LOCAL_AS_PREFIX
     frr_switch_roles: List[str] = field(
         default_factory=lambda: DEFAULT_FRR_SWITCH_ROLES.copy()
+    )
+    dnsmasq_switch_roles: List[str] = field(
+        default_factory=lambda: DEFAULT_DNSMASQ_SWITCH_ROLES.copy()
     )
     reconciler_mode: str = DEFAULT_RECONCILER_MODE
     flush_cache: bool = False
@@ -150,6 +162,9 @@ class Config:
                 "DEFAULT_LOCAL_AS_PREFIX", DEFAULT_LOCAL_AS_PREFIX
             ),
             frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
+            dnsmasq_switch_roles=SETTINGS.get(
+                "DNSMASQ_SWITCH_ROLES", DEFAULT_DNSMASQ_SWITCH_ROLES
+            ),
             reconciler_mode=reconciler_mode,
             flush_cache=SETTINGS.get("FLUSH_CACHE", False),
             write_cache=SETTINGS.get("WRITE_CACHE", False),

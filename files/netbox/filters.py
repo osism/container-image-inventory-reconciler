@@ -70,6 +70,55 @@ class DeviceFilter:
 
         return modified_filters
 
+    def _apply_switch_filter_modifications(
+        self, filters: List[Dict[str, Any]], switch_roles: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Apply switch-specific modifications to filter dictionaries for dnsmasq operations.
+
+        Modifies filters to:
+        - Replace managed-by-ironic with managed-by-metalbox in tag parameter
+        - Add role filter for switch roles
+
+        Args:
+            filters: List of filter dictionaries
+            switch_roles: List of device roles considered as switches for dnsmasq operations
+
+        Returns:
+            List of modified filter dictionaries for each switch role
+        """
+        modified_filters = []
+
+        for filter_dict in filters:
+            for switch_role in switch_roles:
+                # Create a copy to avoid modifying the original
+                modified_filter = filter_dict.copy()
+
+                # Replace managed-by-ironic with managed-by-metalbox in tag parameter
+                if "tag" in modified_filter:
+                    tag_value = modified_filter["tag"]
+
+                    if isinstance(tag_value, str):
+                        if tag_value == "managed-by-ironic":
+                            modified_filter["tag"] = "managed-by-metalbox"
+                    elif isinstance(tag_value, list):
+                        filtered_tags = []
+                        for tag in tag_value:
+                            if tag == "managed-by-ironic":
+                                filtered_tags.append("managed-by-metalbox")
+                            else:
+                                filtered_tags.append(tag)
+                        modified_filter["tag"] = filtered_tags
+                else:
+                    # If no tag parameter exists, add managed-by-metalbox
+                    modified_filter["tag"] = "managed-by-metalbox"
+
+                # Add role filter for this switch role
+                modified_filter["role"] = switch_role
+
+                modified_filters.append(modified_filter)
+
+        return modified_filters
+
     def build_ironic_filter(self, base_filter: Dict[str, Any]) -> Dict[str, Any]:
         """Build filter for devices managed by Ironic.
 
