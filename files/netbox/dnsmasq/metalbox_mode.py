@@ -498,7 +498,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     metalbox_cache_params = {
                         "dnsmasq_dhcp_hosts": merged_dhcp_hosts,
                         "dnsmasq_dhcp_macs": merged_dhcp_macs,
-                        "dnsmasq_interfaces": [],  # Switches don't have dnsmasq_interfaces
+                        "dnsmasq_interfaces": all_dnsmasq_interfaces,  # Preserve metalbox VLAN interfaces
                     }
 
                     logger.info(
