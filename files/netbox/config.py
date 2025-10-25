@@ -26,14 +26,20 @@ DEFAULT_FRR_SWITCH_ROLES = [
     "storageleaf",
     "borderleaf",
     "serviceleaf",
+    "transferleaf",
+    "computeleaf",
 ]
 DEFAULT_DNSMASQ_SWITCH_ROLES = [
+    "spine",
+    "superspine",
     "leaf",
     "accessleaf",
     "dataleaf",
     "storageleaf",
     "borderleaf",
     "serviceleaf",
+    "transferleaf",
+    "computeleaf",
 ]
 DEFAULT_RECONCILER_MODE = "manager"
 ALLOWED_RECONCILER_MODES = ["manager", "metalbox"]
