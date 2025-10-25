@@ -78,26 +78,32 @@ class ManagerModeHandler(DnsmasqBase):
                 device
             )
 
-            if ip_address and mac_address:
+            if mac_address:
                 # Use inventory_hostname if set, otherwise use device name
                 hostname = get_inventory_hostname(device)
 
-                # Generate DHCP host entry (without VLAN tag in manager mode)
-                entry = self.dhcp_generator.generate_dhcp_host_entry(
-                    device, ip_address, mac_address
-                )
-                logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
-
-                # Create the dnsmasq configuration data
-                dnsmasq_data = {f"dnsmasq_dhcp_hosts__{hostname}": [entry]}
-
-                # Prepare parameters for caching
+                # Prepare dnsmasq data and cache params
+                dnsmasq_data = {}
                 cache_params = {
-                    "dnsmasq_dhcp_hosts": [entry],
+                    "dnsmasq_dhcp_hosts": [],
                     "dnsmasq_dhcp_macs": [],
                 }
 
-                # Generate DHCP MAC entry
+                # Generate DHCP host entry only if we have both IP and MAC
+                if ip_address:
+                    entry = self.dhcp_generator.generate_dhcp_host_entry(
+                        device, ip_address, mac_address
+                    )
+                    logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
+                    dnsmasq_data[f"dnsmasq_dhcp_hosts__{hostname}"] = [entry]
+                    cache_params["dnsmasq_dhcp_hosts"] = [entry]
+                else:
+                    logger.info(
+                        f"Device {device.name} has MAC {mac_address} but no IP address - "
+                        f"skipping dnsmasq_dhcp_hosts entry, will generate dnsmasq_dhcp_macs only"
+                    )
+
+                # Generate DHCP MAC entry (always generated when MAC exists)
                 mac_entry = self.dhcp_generator.generate_dhcp_mac_entry(
                     device, mac_address
                 )
@@ -106,7 +112,7 @@ class ManagerModeHandler(DnsmasqBase):
                     cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
                     logger.debug(f"Added dnsmasq MAC entry for {hostname}: {mac_entry}")
 
-                # Cache the generated parameters
+                # Cache the generated parameters (even if only MAC entry exists)
                 logger.info(
                     f"Caching generated dnsmasq parameters for device {device.name}"
                 )
@@ -118,5 +124,6 @@ class ManagerModeHandler(DnsmasqBase):
                         f"Failed to cache dnsmasq parameters for device {device.name}"
                     )
 
-                # Write to device-specific file
-                self.write_dnsmasq_to_device(device, dnsmasq_data)
+                # Write to device-specific file (only if we have at least one entry)
+                if dnsmasq_data:
+                    self.write_dnsmasq_to_device(device, dnsmasq_data)
