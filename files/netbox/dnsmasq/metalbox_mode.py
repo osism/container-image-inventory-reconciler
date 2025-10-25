@@ -335,19 +335,33 @@ class MetalboxModeHandler(DnsmasqBase):
                 device
             )
 
-            if ip_address and mac_address:
-                # Generate DHCP host entry
-                host_entry = self.dhcp_generator.generate_dhcp_host_entry(
-                    device, ip_address, mac_address, vlan_id
-                )
-                all_dhcp_hosts.append(host_entry)
-                # Track switch-specific entries when generating new parameters
-                if is_switch:
-                    switch_dhcp_hosts.append(host_entry)
-                # Track metalbox own parameters when generating new parameters
-                if is_metalbox:
-                    metalbox_own_dhcp_hosts.append(host_entry)
-                logger.debug(f"Collected dnsmasq entry for {device.name}: {host_entry}")
+            if mac_address:
+                # Prepare parameters for caching
+                cache_params = {
+                    "dnsmasq_dhcp_hosts": [],
+                    "dnsmasq_dhcp_macs": [],
+                    "dnsmasq_interfaces": [],
+                }
+
+                # Generate DHCP host entry only if we have both IP and MAC
+                if ip_address:
+                    host_entry = self.dhcp_generator.generate_dhcp_host_entry(
+                        device, ip_address, mac_address, vlan_id
+                    )
+                    all_dhcp_hosts.append(host_entry)
+                    cache_params["dnsmasq_dhcp_hosts"] = [host_entry]
+                    # Track switch-specific entries when generating new parameters
+                    if is_switch:
+                        switch_dhcp_hosts.append(host_entry)
+                    # Track metalbox own parameters when generating new parameters
+                    if is_metalbox:
+                        metalbox_own_dhcp_hosts.append(host_entry)
+                    logger.debug(f"Collected dnsmasq entry for {device.name}: {host_entry}")
+                else:
+                    logger.info(
+                        f"Device {device.name} has MAC {mac_address} but no IP address - "
+                        f"skipping dnsmasq_dhcp_hosts entry, will generate dnsmasq_dhcp_macs only"
+                    )
 
                 # Get virtual interfaces for this device (only for metalbox devices)
                 device_interfaces = []
@@ -358,15 +372,9 @@ class MetalboxModeHandler(DnsmasqBase):
                         )
                     )
                     all_dnsmasq_interfaces.extend(device_interfaces)
+                    cache_params["dnsmasq_interfaces"] = device_interfaces
 
-                # Prepare parameters for caching
-                cache_params = {
-                    "dnsmasq_dhcp_hosts": [host_entry],
-                    "dnsmasq_dhcp_macs": [],
-                    "dnsmasq_interfaces": device_interfaces,
-                }
-
-                # Generate DHCP MAC entry
+                # Generate DHCP MAC entry (always generated when MAC exists)
                 mac_entry = self.dhcp_generator.generate_dhcp_mac_entry(
                     device, mac_address
                 )
@@ -383,7 +391,7 @@ class MetalboxModeHandler(DnsmasqBase):
                         f"Collected dnsmasq MAC entry for {device.name}: {mac_entry}"
                     )
 
-                # Cache the generated parameters
+                # Cache the generated parameters (even if only MAC entry exists)
                 logger.info(
                     f"Caching generated dnsmasq parameters for device {device.name}"
                 )
