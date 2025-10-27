@@ -146,21 +146,37 @@ class NetplanExtractor(BaseExtractor):
         loopback0_interface = None
 
         for interface in interfaces:
+            # Debug logging for oob1 interface
+            is_oob1 = (interface.label == "oob1" or interface.name == "oob1") if hasattr(interface, "label") and hasattr(interface, "name") else False
+            if is_oob1:
+                logger.debug(f"[oob1] Processing interface: name={interface.name}, label={getattr(interface, 'label', None)}, type={interface.type if hasattr(interface, 'type') else None}")
+
             # Check if interface has managed-by-osism tag
             if not hasattr(interface, "tags") or not interface.tags:
+                if is_oob1:
+                    logger.warning(f"[oob1] Skipped: no tags attribute")
                 continue
 
             tag_slugs = [tag.slug for tag in interface.tags]
             if "managed-by-osism" not in tag_slugs:
+                if is_oob1:
+                    logger.warning(f"[oob1] Skipped: missing managed-by-osism tag (tags: {tag_slugs})")
                 continue
+
+            if is_oob1:
+                logger.debug(f"[oob1] Passed tag check")
 
             # Check for loopback0 interface
             if interface.name and interface.name.lower() == "loopback0":
+                if is_oob1:
+                    logger.warning(f"[oob1] Identified as loopback0")
                 loopback0_interface = interface
                 continue
 
             # Check if this is a virtual interface (VLAN)
             if interface.type and interface.type.value == "virtual":
+                if is_oob1:
+                    logger.debug(f"[oob1] Entered virtual interface block (type={interface.type.value})")
                 # Check if interface has untagged VLAN and parent interface
                 if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
                     if hasattr(interface, "parent") and interface.parent:
@@ -228,11 +244,22 @@ class NetplanExtractor(BaseExtractor):
                                     vlan_config.update(interface_netplan_params)
 
                             network_vlans[vlan_name] = vlan_config
+
+                if is_oob1:
+                    logger.warning(f"[oob1] Skipped at virtual interface continue (line 246)")
                 continue
+
+            if is_oob1:
+                logger.debug(f"[oob1] Passed virtual interface check (not virtual)")
 
             # Skip interfaces without MAC address or label
             if not interface.mac_address or not interface.label:
+                if is_oob1:
+                    logger.warning(f"[oob1] Skipped: mac={getattr(interface, 'mac_address', None)}, label={getattr(interface, 'label', None)}")
                 continue
+
+            if is_oob1:
+                logger.debug(f"[oob1] Passed MAC and label check (mac={interface.mac_address}, label={interface.label})")
 
             # Use label as the interface name
             label = interface.label
@@ -241,13 +268,23 @@ class NetplanExtractor(BaseExtractor):
                 "set-name": label,
             }
 
+            if is_oob1:
+                logger.debug(f"[oob1] Created interface config: {interface_config}")
+
             # Check if interface is disabled
             is_enabled = getattr(interface, "enabled", True)
             if not is_enabled:
+                if is_oob1:
+                    logger.info(f"[oob1] Interface is disabled, adding with activation-mode=off")
                 # For disabled interfaces, only set basic config and mark as down
                 interface_config["activation-mode"] = "off"
                 network_ethernets[label] = interface_config
+                if is_oob1:
+                    logger.success(f"[oob1] Added to network_ethernets (disabled)")
                 continue
+
+            if is_oob1:
+                logger.debug(f"[oob1] Interface is enabled")
 
             # Add MTU - use interface MTU if set, otherwise use effective default
             if hasattr(interface, "mtu") and interface.mtu:
@@ -269,16 +306,27 @@ class NetplanExtractor(BaseExtractor):
 
             if addresses:
                 interface_config["addresses"] = addresses
+                if is_oob1:
+                    logger.debug(f"[oob1] Found {len(addresses)} IP addresses: {addresses}")
+            else:
+                if is_oob1:
+                    logger.debug(f"[oob1] No IP addresses found")
 
             # Check if this is a leaf interface (connected to a switch AND no IP addresses)
             switch_roles = kwargs.get("switch_roles", DEFAULT_FRR_SWITCH_ROLES)
-            if self._is_connected_to_switch(
-                interface, switch_roles
-            ) and not self._interface_has_ip_addresses(interface):
+            is_connected_to_switch = self._is_connected_to_switch(interface, switch_roles)
+            has_ip_addresses = self._interface_has_ip_addresses(interface)
+
+            if is_oob1:
+                logger.debug(f"[oob1] Leaf check: connected_to_switch={is_connected_to_switch}, has_ip={has_ip_addresses}")
+
+            if is_connected_to_switch and not has_ip_addresses:
                 # Add leaf-specific parameters
                 interface_config["link-local"] = ["ipv6"]
                 interface_config["dhcp4"] = False
                 interface_config["dhcp6"] = False
+                if is_oob1:
+                    logger.info(f"[oob1] Added leaf-specific parameters (link-local, dhcp4=false, dhcp6=false)")
 
             # Check for interface-specific netplan_parameters custom field
             if hasattr(interface, "custom_fields") and interface.custom_fields:
@@ -290,8 +338,16 @@ class NetplanExtractor(BaseExtractor):
                 ):
                     # Merge interface-specific parameters into the interface config
                     interface_config.update(interface_netplan_params)
+                    if is_oob1:
+                        logger.debug(f"[oob1] Merged interface-specific netplan_parameters: {interface_netplan_params}")
+
+            if is_oob1:
+                logger.info(f"[oob1] Adding to network_ethernets: {interface_config}")
 
             network_ethernets[label] = interface_config
+
+            if is_oob1:
+                logger.success(f"[oob1] Successfully added to network_ethernets")
 
         # Add loopback0 configuration if found
         if loopback0_interface:
@@ -339,15 +395,26 @@ class NetplanExtractor(BaseExtractor):
 
         # Return None if no interfaces found
         if not network_ethernets and not network_dummy_devices and not network_vlans:
+            logger.debug(f"[{device.name}] No interfaces found, returning None")
             return None
 
         result = {}
         if network_ethernets:
             result["network_ethernets"] = network_ethernets
+            if "oob1" in network_ethernets:
+                logger.success(f"[{device.name}] oob1 IS in final network_ethernets: {network_ethernets['oob1']}")
+            else:
+                logger.warning(f"[{device.name}] oob1 NOT in final network_ethernets. Keys: {list(network_ethernets.keys())}")
         if network_dummy_devices:
             result["network_dummy_devices"] = network_dummy_devices
         if network_vlans:
             result["network_vlans"] = network_vlans
+            # Check if VLANs reference oob1
+            vlans_using_oob1 = [name for name, config in network_vlans.items() if config.get("link") == "oob1"]
+            if vlans_using_oob1:
+                logger.info(f"[{device.name}] VLANs referencing oob1: {vlans_using_oob1}")
+
+        logger.debug(f"[{device.name}] Final result sections: {list(result.keys())}")
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:
