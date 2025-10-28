@@ -78,6 +78,7 @@ class InterfaceFilter:
         - a label
         - connected endpoints
         - enabled status
+        - NOT marked as management only (mgmt_only=False)
 
         Args:
             interface: NetBox interface object
@@ -91,6 +92,7 @@ class InterfaceFilter:
             and hasattr(interface, "connected_endpoints")
             and bool(interface.connected_endpoints)
             and getattr(interface, "enabled", True)
+            and not getattr(interface, "mgmt_only", False)
         )
 
 
