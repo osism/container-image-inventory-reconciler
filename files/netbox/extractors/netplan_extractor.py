@@ -2,6 +2,7 @@
 
 """Netplan parameters extractor."""
 
+import re
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -143,6 +144,7 @@ class NetplanExtractor(BaseExtractor):
         network_ethernets = {}
         network_dummy_devices = {}
         network_vlans = {}
+        network_vrfs = {}
         loopback0_interface = None
 
         for interface in interfaces:
@@ -153,6 +155,64 @@ class NetplanExtractor(BaseExtractor):
             tag_slugs = [tag.slug for tag in interface.tags]
             if "managed-by-osism" not in tag_slugs:
                 continue
+
+            # Check if interface is assigned to a VRF
+            if hasattr(interface, "vrf") and interface.vrf:
+                try:
+                    # Get VRF table ID from VRF name (e.g., "vrf42" -> 42)
+                    vrf_table = None
+                    if hasattr(interface.vrf, "name"):
+                        vrf_name_str = str(interface.vrf.name)
+                        # Match pattern like "vrf42", "vrf123", etc. (case insensitive)
+                        match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
+                        if match:
+                            vrf_table = int(match.group(1))
+                            logger.debug(
+                                f"Extracted table ID {vrf_table} from VRF name '{vrf_name_str}' for device {device.name}"
+                            )
+
+                    if vrf_table is not None:
+                        vrf_table = int(vrf_table)
+                        vrf_name = f"vrf{vrf_table}"
+
+                        # Determine interface name to use
+                        # For virtual interfaces, use name; for non-virtual, use label
+                        if interface.type and interface.type.value == "virtual":
+                            interface_name = interface.name
+                        else:
+                            interface_name = interface.label
+
+                        if interface_name:
+                            # Initialize VRF entry if not exists
+                            if vrf_name not in network_vrfs:
+                                network_vrfs[vrf_name] = {
+                                    "table": vrf_table,
+                                    "interfaces": [],
+                                }
+
+                            # Add interface to VRF's interface list
+                            if (
+                                interface_name
+                                not in network_vrfs[vrf_name]["interfaces"]
+                            ):
+                                network_vrfs[vrf_name]["interfaces"].append(
+                                    interface_name
+                                )
+                                logger.debug(
+                                    f"Added interface {interface_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
+                                )
+                        else:
+                            logger.warning(
+                                f"Interface {interface.id} on device {device.name} has VRF assigned but no name/label"
+                            )
+                    else:
+                        logger.warning(
+                            f"Interface {interface.name or interface.id} on device {device.name} has VRF {interface.vrf.name} but no table ID found"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Error processing VRF for interface {interface.name or interface.id} on device {device.name}: {e}"
+                    )
 
             # Check for loopback0 interface
             if interface.name and interface.name.lower() == "loopback0":
@@ -348,6 +408,8 @@ class NetplanExtractor(BaseExtractor):
             result["network_dummy_devices"] = network_dummy_devices
         if network_vlans:
             result["network_vlans"] = network_vlans
+        if network_vrfs:
+            result["network_vrfs"] = network_vrfs
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:
