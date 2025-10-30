@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import Config
 from data_extractor import DeviceDataExtractor
 from utils import get_inventory_hostname
@@ -15,10 +16,20 @@ from .base import BaseInventoryComponent
 class DataCache(BaseInventoryComponent):
     """Manages caching of extracted device data."""
 
-    def __init__(self, config: Config, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        config: Config,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         super().__init__(config)
         self.data_extractor = DeviceDataExtractor(
-            api=api, netbox_client=netbox_client, file_cache=file_cache
+            api=api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._file_cache = file_cache

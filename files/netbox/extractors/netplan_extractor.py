@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import DEFAULT_FRR_SWITCH_ROLES, DEFAULT_METALBOX_IPV6
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
@@ -15,17 +16,25 @@ from .custom_field_extractor import CustomFieldExtractor
 class NetplanExtractor(BaseExtractor):
     """Extracts netplan parameters from NetBox devices."""
 
-    def __init__(self, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface fetching)
             netbox_client: NetBox client instance for updating custom fields
             file_cache: FileCache instance for persistent caching
+            bulk_loader: BulkDataLoader instance for optimized API calls (required)
         """
         self.api = api
         self.netbox_client = netbox_client
         self.file_cache = file_cache
+        self.bulk_loader = bulk_loader
 
     def _is_connected_to_switch(self, interface: Any, switch_roles: List[str]) -> bool:
         """Check if interface is connected to a device with switch role.
@@ -64,7 +73,7 @@ class NetplanExtractor(BaseExtractor):
             return False
 
         try:
-            ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=interface.id)
+            ip_addresses = self.bulk_loader.get_interface_ip_addresses(interface)
             return bool(ip_addresses)
         except Exception:
             return False
@@ -129,12 +138,12 @@ class NetplanExtractor(BaseExtractor):
             if manual_params:
                 return manual_params
 
-        # Get interfaces from device using API filter
+        # Get interfaces from device using bulk_loader
         if not self.api:
             return None
 
         try:
-            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+            interfaces = self.bulk_loader.get_device_interfaces(device)
         except Exception:
             return None
 
@@ -261,8 +270,10 @@ class NetplanExtractor(BaseExtractor):
                             # Get IP addresses for this VLAN interface
                             addresses = []
                             try:
-                                ip_addresses = self.api.ipam.ip_addresses.filter(
-                                    interface_id=interface.id
+                                ip_addresses = (
+                                    self.bulk_loader.get_interface_ip_addresses(
+                                        interface
+                                    )
                                 )
                                 for ip in ip_addresses:
                                     if ip.address:
@@ -318,9 +329,7 @@ class NetplanExtractor(BaseExtractor):
             # Get IP addresses for this interface
             addresses = []
             try:
-                ip_addresses = self.api.ipam.ip_addresses.filter(
-                    interface_id=interface.id
-                )
+                ip_addresses = self.bulk_loader.get_interface_ip_addresses(interface)
                 for ip in ip_addresses:
                     if ip.address:
                         addresses.append(ip.address)
@@ -357,11 +366,11 @@ class NetplanExtractor(BaseExtractor):
         if loopback0_interface:
             loopback0_config = {}
 
-            # Get all IP addresses assigned to loopback0 using API filter
+            # Get all IP addresses assigned to loopback0 using bulk_loader
             addresses = []
             try:
-                ip_addresses = self.api.ipam.ip_addresses.filter(
-                    interface_id=loopback0_interface.id
+                ip_addresses = self.bulk_loader.get_interface_ip_addresses(
+                    loopback0_interface
                 )
                 for ip in ip_addresses:
                     if ip.address:

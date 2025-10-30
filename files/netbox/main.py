@@ -13,6 +13,7 @@ import sys
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import Config
 from device_mapping import build_device_role_mapping
 from dnsmasq import DnsmasqManager
@@ -43,11 +44,34 @@ def main() -> None:
 
         # Initialize components
         netbox_client = NetBoxClient(config, file_cache=file_cache)
+
+        # Fetch devices
+        logger.info("Getting managed devices from NetBox. This could take some time.")
+        devices_with_both_tags, devices_osism_only = netbox_client.get_managed_devices()
+        all_devices = devices_with_both_tags + devices_osism_only
+        logger.info(f"Found {len(all_devices)} total managed devices")
+
+        # Initialize bulk data loader and pre-load all interface and IP data
+        logger.info("Initializing bulk data loader for optimized API access")
+        bulk_loader = BulkDataLoader(netbox_client.api)
+        device_ids = [device.id for device in all_devices]
+        logger.info(f"Bulk loading interface and IP data for {len(device_ids)} devices")
+        bulk_loader.load_device_data(device_ids)
+
+        # Log bulk loader statistics
+        stats = bulk_loader.get_statistics()
+        logger.info(
+            f"Bulk loader statistics: {stats['devices']} devices, "
+            f"{stats['interfaces']} interfaces, {stats['ip_addresses']} IP addresses loaded"
+        )
+
+        # Initialize inventory manager with bulk loader
         inventory_manager = InventoryManager(
             config,
             api=netbox_client.api,
             netbox_client=netbox_client,
             file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
         dnsmasq_manager = DnsmasqManager(config, file_cache=file_cache)
         gnmic_manager = GnmicManager(
@@ -55,13 +79,8 @@ def main() -> None:
             api=netbox_client.api,
             netbox_client=netbox_client,
             file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
-
-        # Fetch devices
-        logger.info("Getting managed devices from NetBox. This could take some time.")
-        devices_with_both_tags, devices_osism_only = netbox_client.get_managed_devices()
-        all_devices = devices_with_both_tags + devices_osism_only
-        logger.info(f"Found {len(all_devices)} total managed devices")
 
         # Extract data for ALL devices (regardless of mode)
         # Always ensure FRR and Netplan parameters are generated and written to NetBox
@@ -206,6 +225,13 @@ def main() -> None:
             logger.info(
                 "INVENTORY_FROM_NETBOX is False - skipping inventory file writing"
             )
+
+        # Log final bulk loader statistics
+        final_stats = bulk_loader.get_statistics()
+        logger.info(
+            f"Final bulk loader statistics: {final_stats['devices']} devices, "
+            f"{final_stats['interfaces']} interfaces, {final_stats['ip_addresses']} IP addresses"
+        )
 
         logger.info("NetBox inventory generation completed successfully")
 

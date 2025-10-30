@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import Config
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
@@ -14,7 +15,14 @@ from netbox_client import NetBoxClient
 class GnmicManager:
     """Manages gnmic configuration for metalbox mode."""
 
-    def __init__(self, config: Config, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        config: Config,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         """Initialize the GNMIC manager.
 
         Args:
@@ -22,13 +30,19 @@ class GnmicManager:
             api: NetBox API instance
             netbox_client: NetBox client instance
             file_cache: FileCache instance for persistent caching
+            bulk_loader: BulkDataLoader instance for optimized data access
         """
         self.config = config
         self.api = api
         self.netbox_client = netbox_client
         self.file_cache = file_cache
+        self.bulk_loader = bulk_loader
         self.inventory_manager = InventoryManager(
-            config, api=api, netbox_client=netbox_client, file_cache=file_cache
+            config,
+            api=api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
 
     def write_gnmic_config(

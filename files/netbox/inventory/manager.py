@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import Config
 from utils import get_inventory_hostname
 from .data_cache import DataCache
@@ -16,10 +17,21 @@ from .host_group_writer import HostGroupWriter
 class InventoryManager:
     """Manages inventory file operations."""
 
-    def __init__(self, config: Config, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        config: Config,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         self.config = config
         self.data_cache = DataCache(
-            config, api=api, netbox_client=netbox_client, file_cache=file_cache
+            config,
+            api=api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
         self.file_writer = FileWriter(config)
         self.host_group_writer = HostGroupWriter(config)

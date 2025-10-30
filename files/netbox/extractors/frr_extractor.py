@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+from bulk_loader import BulkDataLoader
 from config import DEFAULT_FRR_SWITCH_ROLES
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
@@ -99,17 +100,25 @@ class InterfaceFilter:
 class FRRExtractor(BaseExtractor):
     """Extracts FRR parameters from NetBox devices."""
 
-    def __init__(self, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface and device fetching)
             netbox_client: NetBox client instance for updating custom fields
             file_cache: FileCache instance for persistent caching
+            bulk_loader: BulkDataLoader instance for optimized API calls (required)
         """
         self.api = api
         self.netbox_client = netbox_client
         self.file_cache = file_cache
+        self.bulk_loader = bulk_loader
         self.as_calculator = ASNumberCalculator()
         self.interface_filter = InterfaceFilter()
 
@@ -156,8 +165,8 @@ class FRRExtractor(BaseExtractor):
             return result
 
         try:
-            # Get all interfaces and find loopback0 (case-insensitive)
-            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+            # Get all interfaces using bulk_loader
+            interfaces = self.bulk_loader.get_device_interfaces(device)
 
             loopback0 = None
             for interface in interfaces:
@@ -169,8 +178,8 @@ class FRRExtractor(BaseExtractor):
                 logger.debug(f"No loopback0 interface found for device {device.name}")
                 return result
 
-            # Get IP addresses assigned to loopback0
-            ip_addresses = self.api.ipam.ip_addresses.filter(interface_id=loopback0.id)
+            # Get IP addresses assigned to loopback0 using bulk_loader
+            ip_addresses = self.bulk_loader.get_interface_ip_addresses(loopback0)
 
             for ip in ip_addresses:
                 if not ip.address:
@@ -214,7 +223,8 @@ class FRRExtractor(BaseExtractor):
             return uplinks
 
         try:
-            interfaces = self.api.dcim.interfaces.filter(device_id=device.id)
+            # Get interfaces using bulk_loader
+            interfaces = self.bulk_loader.get_device_interfaces(device)
 
             for interface in interfaces:
                 if not self.interface_filter.is_valid_uplink(interface):
