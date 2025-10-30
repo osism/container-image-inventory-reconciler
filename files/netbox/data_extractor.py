@@ -4,6 +4,7 @@
 
 from typing import Any, Dict, List
 
+from bulk_loader import BulkDataLoader
 from extractors import (
     ConfigContextExtractor,
     CustomFieldExtractor,
@@ -17,28 +18,42 @@ from extractors import (
 class DeviceDataExtractor:
     """Extracts various data fields from NetBox devices."""
 
-    def __init__(self, api=None, netbox_client=None, file_cache=None):
+    def __init__(
+        self,
+        api,
+        netbox_client,
+        file_cache,
+        bulk_loader: BulkDataLoader,
+    ):
         """Initialize extractors.
 
         Args:
             api: NetBox API instance (required for NetplanExtractor, FRRExtractor, and GnmicExtractor)
             netbox_client: NetBox client instance for updating custom fields
             file_cache: FileCache instance for persistent caching
+            bulk_loader: BulkDataLoader instance for optimized API calls (required)
         """
         self.config_context_extractor = ConfigContextExtractor()
         self.primary_ip_extractor = PrimaryIPExtractor()
         self.custom_field_extractor = CustomFieldExtractor(file_cache=file_cache)
         self.netplan_extractor = NetplanExtractor(
-            api=api, netbox_client=netbox_client, file_cache=file_cache
+            api=api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
         self.frr_extractor = FRRExtractor(
-            api=api, netbox_client=netbox_client, file_cache=file_cache
+            api=api,
+            netbox_client=netbox_client,
+            file_cache=file_cache,
+            bulk_loader=bulk_loader,
         )
         self.gnmic_extractor = GnmicExtractor(
             api=api, netbox_client=netbox_client, file_cache=file_cache
         )
         self.netbox_client = netbox_client
         self.file_cache = file_cache
+        self.bulk_loader = bulk_loader
 
     def extract_config_context(self, device: Any) -> Dict[str, Any]:
         """Extract config context from device."""
