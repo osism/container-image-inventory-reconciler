@@ -21,6 +21,8 @@ from file_cache import FileCache
 from gnmic import GnmicManager
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
+from parallel_processor import ParallelDeviceProcessor
+from retry_utils import retry_on_api_error
 from utils import setup_logging, get_inventory_hostname
 
 
@@ -83,11 +85,23 @@ def main() -> None:
         )
 
         # Extract data for ALL devices (regardless of mode)
-        # Always ensure FRR and Netplan parameters are generated and written to NetBox
-        # BUT: Switches should only get dnsmasq_parameters (generated during dnsmasq config generation)
+        # Use parallel processing for improved performance
         logger.info("Extracting data for all devices")
-        for device in all_devices:
-            logger.info(f"Extracting data for {device.name}")
+
+        # Create parallel processor
+        processor = ParallelDeviceProcessor(
+            max_workers=config.max_workers, enabled=config.parallel_processing_enabled
+        )
+
+        # Define device processing function with retry logic
+        @retry_on_api_error(
+            max_retries=config.max_retries,
+            initial_delay=config.retry_delay,
+            backoff_factor=config.retry_backoff,
+        )
+        def process_single_device(device):
+            """Process a single device with retry logic."""
+            logger.debug(f"Extracting data for {device.name}")
 
             # Check if this device is a switch
             is_switch = (
@@ -99,18 +113,14 @@ def main() -> None:
             if is_switch:
                 # Switches only need dnsmasq_parameters (generated during dnsmasq config generation)
                 # Extract only other data types if specified, excluding frr_parameters, netplan_parameters
-                logger.info(
+                logger.debug(
                     f"Device {device.name} is a switch - skipping FRR/Netplan parameter generation"
                 )
                 if config.data_types:
                     data_types_for_extraction = [
                         dt
                         for dt in config.data_types
-                        if dt
-                        not in [
-                            "frr_parameters",
-                            "netplan_parameters",
-                        ]
+                        if dt not in ["frr_parameters", "netplan_parameters"]
                     ]
                 else:
                     data_types_for_extraction = list()
@@ -123,13 +133,10 @@ def main() -> None:
                     inventory_manager.extract_device_data(
                         device, data_types=data_types_for_extraction
                     )
-                # If no data types remain after filtering, don't extract anything
-                # dnsmasq_parameters will be generated later during dnsmasq config generation
             else:
                 # Non-switch devices: current behavior (FRR + Netplan + gnmic for metalbox)
                 if config.data_types:
                     # Always include FRR and Netplan parameters for generation
-                    # They will be written to NetBox but only included in inventory if specified
                     data_types_for_extraction = list(
                         set(
                             config.data_types + ["frr_parameters", "netplan_parameters"]
@@ -143,13 +150,26 @@ def main() -> None:
                     )
                 else:
                     # Even without data_types, ensure FRR and Netplan are generated
-                    data_types_for_extraction = [
-                        "frr_parameters",
-                        "netplan_parameters",
-                    ]
+                    data_types_for_extraction = ["frr_parameters", "netplan_parameters"]
                     inventory_manager.extract_device_data(
                         device, data_types=data_types_for_extraction
                     )
+
+        # Process all devices (parallel or sequential based on config)
+        results = processor.process_devices(all_devices, process_single_device)
+
+        # Log processing results
+        logger.info(
+            f"Device processing summary: "
+            f"{results['completed']} completed, "
+            f"{results['failed']} failed"
+        )
+
+        if results["failures"]:
+            logger.warning(
+                f"Failed to process {len(results['failures'])} devices: "
+                f"{[f['device'] for f in results['failures']]}"
+            )
 
         # Filter devices based on reconciler mode for inventory writing
         if config.reconciler_mode == "metalbox":

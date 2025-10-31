@@ -76,6 +76,12 @@ class Config:
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
         ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
         ignore_maintenance_state: Ignore maintenance state filter for devices
+        parallel_processing_enabled: Enable parallel device processing for improved performance
+        max_workers: Maximum number of parallel workers (1-50)
+        max_retries: Maximum retry attempts for failed API calls (0-10)
+        retry_delay: Initial delay between retries in seconds (0.1-60.0)
+        retry_backoff: Exponential backoff multiplier for retries (1.0-10.0)
+        api_timeout: API request timeout in seconds (5-300)
     """
 
     netbox_url: str
@@ -106,6 +112,13 @@ class Config:
     inventory_from_netbox: bool = True
     ignore_provision_state: bool = False
     ignore_maintenance_state: bool = False
+    # Parallel processing settings
+    parallel_processing_enabled: bool = True
+    max_workers: int = 10
+    max_retries: int = 3
+    retry_delay: float = 1.0
+    retry_backoff: float = 2.0
+    api_timeout: int = 30
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -181,6 +194,14 @@ class Config:
             ignore_maintenance_state=SETTINGS.get(
                 "INVENTORY_IGNORE_MAINTENANCE_STATE", False
             ),
+            parallel_processing_enabled=SETTINGS.get(
+                "PARALLEL_PROCESSING_ENABLED", True
+            ),
+            max_workers=SETTINGS.get("MAX_WORKERS", 10),
+            max_retries=SETTINGS.get("MAX_RETRIES", 3),
+            retry_delay=SETTINGS.get("RETRY_DELAY", 1.0),
+            retry_backoff=SETTINGS.get("RETRY_BACKOFF", 2.0),
+            api_timeout=SETTINGS.get("API_TIMEOUT", 30),
         )
 
     @staticmethod
