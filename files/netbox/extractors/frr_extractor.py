@@ -104,7 +104,6 @@ class FRRExtractor(BaseExtractor):
         self,
         api,
         netbox_client,
-        file_cache,
         bulk_loader: BulkDataLoader,
     ):
         """Initialize the extractor.
@@ -112,12 +111,10 @@ class FRRExtractor(BaseExtractor):
         Args:
             api: NetBox API instance (required for interface and device fetching)
             netbox_client: NetBox client instance for updating custom fields
-            file_cache: FileCache instance for persistent caching
             bulk_loader: BulkDataLoader instance for optimized API calls (required)
         """
         self.api = api
         self.netbox_client = netbox_client
-        self.file_cache = file_cache
         self.bulk_loader = bulk_loader
         self.as_calculator = ASNumberCalculator()
         self.interface_filter = InterfaceFilter()
@@ -321,16 +318,8 @@ class FRRExtractor(BaseExtractor):
 
         # Check if manual frr_parameters is set (unless cache flush is requested)
         if not flush_cache:
-            # First check file cache if available
-            if self.file_cache:
-                cached_value = self.file_cache.get_custom_field(
-                    device.name, "frr_parameters"
-                )
-                if cached_value is not None:
-                    return cached_value
-
-            # Then check device custom fields
-            custom_field_extractor = CustomFieldExtractor(file_cache=self.file_cache)
+            # Check device custom fields
+            custom_field_extractor = CustomFieldExtractor()
             manual_params = custom_field_extractor.extract(
                 device, field_name="frr_parameters"
             )

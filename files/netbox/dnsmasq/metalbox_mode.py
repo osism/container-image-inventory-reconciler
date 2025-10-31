@@ -16,9 +16,8 @@ from .interface_handler import InterfaceHandler
 class MetalboxModeHandler(DnsmasqBase):
     """Handles dnsmasq configuration for metalbox mode."""
 
-    def __init__(self, config, file_cache=None):
+    def __init__(self, config):
         super().__init__(config)
-        self.file_cache = file_cache
         self.dhcp_generator = DHCPConfigGenerator(config)
         self.interface_handler = InterfaceHandler()
 

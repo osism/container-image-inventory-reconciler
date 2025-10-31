@@ -15,9 +15,8 @@ from .dhcp_config import DHCPConfigGenerator
 class ManagerModeHandler(DnsmasqBase):
     """Handles dnsmasq configuration for manager mode."""
 
-    def __init__(self, config, file_cache=None):
+    def __init__(self, config):
         super().__init__(config)
-        self.file_cache = file_cache
         self.dhcp_generator = DHCPConfigGenerator(config)
 
     def process_devices(
@@ -41,14 +40,8 @@ class ManagerModeHandler(DnsmasqBase):
             # Check if dnsmasq_parameters custom field exists and use it (unless cache flush is requested)
             cached_params = None
             if not flush_cache:
-                # First check file cache if available
-                if self.file_cache:
-                    cached_params = self.file_cache.get_custom_field(
-                        device.name, "dnsmasq_parameters"
-                    )
-                # Then check device custom fields
-                if cached_params is None:
-                    cached_params = device.custom_fields.get("dnsmasq_parameters")
+                # Check device custom fields
+                cached_params = device.custom_fields.get("dnsmasq_parameters")
 
             if cached_params and isinstance(cached_params, dict):
                 logger.info(f"Using cached dnsmasq parameters for device {device.name}")
