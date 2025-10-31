@@ -14,12 +14,11 @@ from .metalbox_mode import MetalboxModeHandler
 class DnsmasqManager:
     """Manages dnsmasq configuration for devices."""
 
-    def __init__(self, config: Config, file_cache=None):
+    def __init__(self, config: Config):
         self.config = config
-        self.file_cache = file_cache
         self.dhcp_generator = DHCPConfigGenerator(config)
-        self.manager_handler = ManagerModeHandler(config, file_cache=file_cache)
-        self.metalbox_handler = MetalboxModeHandler(config, file_cache=file_cache)
+        self.manager_handler = ManagerModeHandler(config)
+        self.metalbox_handler = MetalboxModeHandler(config)
 
     def write_dnsmasq_config(
         self,

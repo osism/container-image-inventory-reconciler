@@ -21,18 +21,15 @@ class DataCache(BaseInventoryComponent):
         config: Config,
         api,
         netbox_client,
-        file_cache,
         bulk_loader: BulkDataLoader,
     ):
         super().__init__(config)
         self.data_extractor = DeviceDataExtractor(
             api=api,
             netbox_client=netbox_client,
-            file_cache=file_cache,
             bulk_loader=bulk_loader,
         )
         self._cache: Dict[str, Dict[str, Any]] = {}
-        self._file_cache = file_cache
 
     def extract_and_cache(
         self, device: Any, data_types: List[str] = None

@@ -17,7 +17,6 @@ from bulk_loader import BulkDataLoader
 from config import Config
 from device_mapping import build_device_role_mapping
 from dnsmasq import DnsmasqManager
-from file_cache import FileCache
 from gnmic import GnmicManager
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
@@ -38,14 +37,8 @@ def main() -> None:
             f"Generate the inventory from the Netbox ({config.reconciler_mode} mode)"
         )
 
-        # Initialize file cache (always initialize to allow reading from existing cache)
-        file_cache = FileCache()
-        # Load cache from file if it exists, unless FLUSH_CACHE is true
-        if not config.flush_cache:
-            file_cache.load(flush_cache=False)
-
         # Initialize components
-        netbox_client = NetBoxClient(config, file_cache=file_cache)
+        netbox_client = NetBoxClient(config)
 
         # Fetch devices
         logger.info("Getting managed devices from NetBox. This could take some time.")
@@ -72,15 +65,13 @@ def main() -> None:
             config,
             api=netbox_client.api,
             netbox_client=netbox_client,
-            file_cache=file_cache,
             bulk_loader=bulk_loader,
         )
-        dnsmasq_manager = DnsmasqManager(config, file_cache=file_cache)
+        dnsmasq_manager = DnsmasqManager(config)
         gnmic_manager = GnmicManager(
             config,
             api=netbox_client.api,
             netbox_client=netbox_client,
-            file_cache=file_cache,
             bulk_loader=bulk_loader,
         )
 
@@ -254,10 +245,6 @@ def main() -> None:
         )
 
         logger.info("NetBox inventory generation completed successfully")
-
-        # Save file cache if enabled
-        if config.write_cache and file_cache:
-            file_cache.save()
 
     except Exception as e:
         logger.error(f"Failed to generate inventory from NetBox: {e}")

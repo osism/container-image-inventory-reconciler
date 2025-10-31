@@ -72,7 +72,8 @@ class BulkDataLoader:
             List of chunks
         """
         return [
-            items[i : i + chunk_size] for i in range(0, len(items), chunk_size)  # noqa E203
+            items[i : i + chunk_size]  # noqa E203
+            for i in range(0, len(items), chunk_size)
         ]
 
     def load_device_data(self, device_ids: List[int]) -> None:

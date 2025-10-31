@@ -22,7 +22,6 @@ class InventoryManager:
         config: Config,
         api,
         netbox_client,
-        file_cache,
         bulk_loader: BulkDataLoader,
     ):
         self.config = config
@@ -30,7 +29,6 @@ class InventoryManager:
             config,
             api=api,
             netbox_client=netbox_client,
-            file_cache=file_cache,
             bulk_loader=bulk_loader,
         )
         self.file_writer = FileWriter(config)

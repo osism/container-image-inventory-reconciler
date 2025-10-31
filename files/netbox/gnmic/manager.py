@@ -20,7 +20,6 @@ class GnmicManager:
         config: Config,
         api,
         netbox_client,
-        file_cache,
         bulk_loader: BulkDataLoader,
     ):
         """Initialize the GNMIC manager.
@@ -29,19 +28,16 @@ class GnmicManager:
             config: Configuration object
             api: NetBox API instance
             netbox_client: NetBox client instance
-            file_cache: FileCache instance for persistent caching
             bulk_loader: BulkDataLoader instance for optimized data access
         """
         self.config = config
         self.api = api
         self.netbox_client = netbox_client
-        self.file_cache = file_cache
         self.bulk_loader = bulk_loader
         self.inventory_manager = InventoryManager(
             config,
             api=api,
             netbox_client=netbox_client,
-            file_cache=file_cache,
             bulk_loader=bulk_loader,
         )
 
