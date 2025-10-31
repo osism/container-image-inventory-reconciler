@@ -71,7 +71,9 @@ class BulkDataLoader:
         Returns:
             List of chunks
         """
-        return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]  # noqa E203
+        return [
+            items[i : i + chunk_size] for i in range(0, len(items), chunk_size)  # noqa E203
+        ]
 
     def load_device_data(self, device_ids: List[int]) -> None:
         """Load all interfaces and IP addresses for multiple devices using batched API calls.
