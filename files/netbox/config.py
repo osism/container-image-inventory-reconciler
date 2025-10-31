@@ -81,6 +81,8 @@ class Config:
         retry_delay: Initial delay between retries in seconds (0.1-60.0)
         retry_backoff: Exponential backoff multiplier for retries (1.0-10.0)
         api_timeout: API request timeout in seconds (5-300)
+        pool_connections: Number of connection pools to cache (1-100)
+        pool_maxsize: Maximum pool size for connection pooling (10-200)
     """
 
     netbox_url: str
@@ -117,6 +119,9 @@ class Config:
     retry_delay: float = 1.0
     retry_backoff: float = 2.0
     api_timeout: int = 30
+    # Connection pool settings
+    pool_connections: int = 10
+    pool_maxsize: int = 50
 
     @classmethod
     def from_environment(cls) -> "Config":
@@ -199,6 +204,8 @@ class Config:
             retry_delay=SETTINGS.get("RETRY_DELAY", 1.0),
             retry_backoff=SETTINGS.get("RETRY_BACKOFF", 2.0),
             api_timeout=SETTINGS.get("API_TIMEOUT", 30),
+            pool_connections=max(1, min(100, SETTINGS.get("POOL_CONNECTIONS", 10))),
+            pool_maxsize=max(10, min(200, SETTINGS.get("POOL_MAXSIZE", 50))),
         )
 
     @staticmethod
