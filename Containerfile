@@ -1,5 +1,5 @@
 # Multi-stage build for better layer caching and smaller final image
-FROM python:3.13-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Build arguments
 ARG VERSION=latest
@@ -140,7 +140,7 @@ EOF
 USER dragon
 
 # Final stage - minimal runtime image
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 # Copy everything from builder
 COPY --link --from=builder / /
