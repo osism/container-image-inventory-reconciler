@@ -28,14 +28,18 @@ def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
 def build_device_role_mapping(
     devices: List[Any], ignored_roles: List[str] = None
 ) -> Dict[str, List[str]]:
-    """Build mapping of roles to device hostnames.
+    """Build mapping of roles and sites to device hostnames.
 
     Only includes devices that have the managed-by-osism tag.
     Each device role can be mapped to multiple Ansible inventory groups.
+    Additionally, devices are grouped by their NetBox site (if assigned).
 
     Role to group mapping can be customized via NETBOX_ROLE_MAPPING environment variable
     which should contain a JSON dictionary:
     NETBOX_ROLE_MAPPING='{"compute": ["generic", "compute"], "manager": ["generic", "manager"]}'
+
+    Site-based groups are automatically created with format: site-{site_slug}
+    Example: Site with slug "muenchen" creates group "site-muenchen"
 
     Args:
         devices: List of NetBox device objects
@@ -69,11 +73,25 @@ def build_device_role_mapping(
             logger.debug(f"Skipping device {device} with ignored role '{role_slug}'")
             continue
 
+        # Get device hostname once for both role-based and site-based grouping
+        device_hostname = get_inventory_hostname(device)
+
+        # Site-based grouping: add device to its site group if it has a site
+        if device.site and device.site.slug:
+            site_group = f"site-{device.site.slug}"
+            if site_group not in devices_to_groups:
+                devices_to_groups[site_group] = []
+            if device_hostname not in devices_to_groups[site_group]:
+                devices_to_groups[site_group].append(device_hostname)
+                logger.debug(
+                    f"Added device '{device_hostname}' to site group '{site_group}'"
+                )
+
+        # Role-based grouping: determine which groups this device should be assigned to
         # Special handling for metalbox role
         if role_slug == "metalbox":
             # Metalbox devices always go to these groups, ignoring NETBOX_ROLE_MAPPING
             groups = ["generic", "manager", "control"]
-        # Determine which groups this device should be assigned to
         elif role_slug in role_mapping:
             groups = role_mapping[role_slug]
             if not isinstance(groups, list):
@@ -85,8 +103,7 @@ def build_device_role_mapping(
             # Default behavior: add to group 'generic'
             groups = ["generic"]
 
-        # Add device hostname to each of its groups
-        device_hostname = get_inventory_hostname(device)
+        # Add device hostname to each of its role-based groups
         for group in groups:
             if group not in devices_to_groups:
                 devices_to_groups[group] = []
