@@ -105,6 +105,13 @@ class MetalboxModeHandler(DnsmasqBase):
                                 entry = f"metalbox,{ip_only},{interface_info['interface_identifier']}"
                                 dynamic_hosts.append(entry)
                                 logger.debug(f"Created dynamic host entry: {entry}")
+
+                                # Also create entry for metalbox.osism.xyz with same IP and interface
+                                osism_entry = f"metalbox.osism.xyz,{ip_only},{interface_info['interface_identifier']}"
+                                dynamic_hosts.append(osism_entry)
+                                logger.debug(
+                                    f"Created dynamic host entry: {osism_entry}"
+                                )
                                 break  # Only use the first matching IP
                         except Exception as e:
                             logger.warning(f"Failed to process IP {ip_str}: {e}")
