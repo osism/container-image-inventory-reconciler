@@ -145,6 +145,10 @@ class NetplanExtractor(BaseExtractor):
         network_vrfs = {}
         loopback0_interface = None
 
+        # Track VRF assignments during interface processing
+        # Format: {interface_id: (vrf_name, vrf_table)}
+        interface_vrf_assignments = {}
+
         for interface in interfaces:
             # Check if interface has managed-by-osism tag
             if not hasattr(interface, "tags") or not interface.tags:
@@ -154,7 +158,7 @@ class NetplanExtractor(BaseExtractor):
             if "managed-by-osism" not in tag_slugs:
                 continue
 
-            # Check if interface is assigned to a VRF
+            # Store VRF assignment for later processing (after interface validation)
             if hasattr(interface, "vrf") and interface.vrf:
                 try:
                     # Get VRF table ID from VRF name (e.g., "vrf42" -> 42)
@@ -165,51 +169,23 @@ class NetplanExtractor(BaseExtractor):
                         match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
                         if match:
                             vrf_table = int(match.group(1))
+                            vrf_name = f"vrf{vrf_table}"
+                            # Store VRF assignment for processing after interface validation
+                            interface_vrf_assignments[interface.id] = (vrf_name, vrf_table)
                             logger.debug(
-                                f"Extracted table ID {vrf_table} from VRF name '{vrf_name_str}' for device {device.name}"
+                                f"Stored VRF assignment for interface {interface.name or interface.id}: {vrf_name} (table {vrf_table}) on device {device.name}"
                             )
-
-                    if vrf_table is not None:
-                        vrf_table = int(vrf_table)
-                        vrf_name = f"vrf{vrf_table}"
-
-                        # Determine interface name to use
-                        # For virtual interfaces, use name; for non-virtual, use label
-                        if interface.type and interface.type.value == "virtual":
-                            interface_name = interface.name
-                        else:
-                            interface_name = interface.label
-
-                        if interface_name:
-                            # Initialize VRF entry if not exists
-                            if vrf_name not in network_vrfs:
-                                network_vrfs[vrf_name] = {
-                                    "table": vrf_table,
-                                    "interfaces": [],
-                                }
-
-                            # Add interface to VRF's interface list
-                            if (
-                                interface_name
-                                not in network_vrfs[vrf_name]["interfaces"]
-                            ):
-                                network_vrfs[vrf_name]["interfaces"].append(
-                                    interface_name
-                                )
-                                logger.debug(
-                                    f"Added interface {interface_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
-                                )
                         else:
                             logger.warning(
-                                f"Interface {interface.id} on device {device.name} has VRF assigned but no name/label"
+                                f"Interface {interface.name or interface.id} on device {device.name} has VRF {vrf_name_str} but name doesn't match expected pattern 'vrfN'"
                             )
                     else:
                         logger.warning(
-                            f"Interface {interface.name or interface.id} on device {device.name} has VRF {interface.vrf.name} but no table ID found"
+                            f"Interface {interface.name or interface.id} on device {device.name} has VRF but no name attribute"
                         )
                 except Exception as e:
                     logger.warning(
-                        f"Error processing VRF for interface {interface.name or interface.id} on device {device.name}: {e}"
+                        f"Error storing VRF assignment for interface {interface.name or interface.id} on device {device.name}: {e}"
                     )
 
             # Check for loopback0 interface
@@ -288,6 +264,22 @@ class NetplanExtractor(BaseExtractor):
                                     vlan_config.update(interface_netplan_params)
 
                             network_vlans[vlan_name] = vlan_config
+
+                            # Process VRF assignment if interface was successfully added
+                            if interface.id in interface_vrf_assignments:
+                                vrf_name, vrf_table = interface_vrf_assignments[interface.id]
+                                # Initialize VRF entry if not exists
+                                if vrf_name not in network_vrfs:
+                                    network_vrfs[vrf_name] = {
+                                        "table": vrf_table,
+                                        "interfaces": [],
+                                    }
+                                # Add VLAN interface to VRF's interface list
+                                if vlan_name not in network_vrfs[vrf_name]["interfaces"]:
+                                    network_vrfs[vrf_name]["interfaces"].append(vlan_name)
+                                    logger.debug(
+                                        f"Added VLAN interface {vlan_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
+                                    )
                 continue
 
             # Skip interfaces without MAC address or label
@@ -350,6 +342,22 @@ class NetplanExtractor(BaseExtractor):
                     interface_config.update(interface_netplan_params)
 
             network_ethernets[label] = interface_config
+
+            # Process VRF assignment if interface was successfully added
+            if interface.id in interface_vrf_assignments:
+                vrf_name, vrf_table = interface_vrf_assignments[interface.id]
+                # Initialize VRF entry if not exists
+                if vrf_name not in network_vrfs:
+                    network_vrfs[vrf_name] = {
+                        "table": vrf_table,
+                        "interfaces": [],
+                    }
+                # Add ethernet interface to VRF's interface list
+                if label not in network_vrfs[vrf_name]["interfaces"]:
+                    network_vrfs[vrf_name]["interfaces"].append(label)
+                    logger.debug(
+                        f"Added ethernet interface {label} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
+                    )
 
         # Add loopback0 configuration if found
         if loopback0_interface:
