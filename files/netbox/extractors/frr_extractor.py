@@ -257,6 +257,27 @@ class FRRExtractor(BaseExtractor):
                 return endpoint.device
         return None
 
+    def _get_remote_interface(self, local_interface: Any) -> Optional[Any]:
+        """Get the remote interface connected to a local interface.
+
+        Args:
+            local_interface: Local NetBox interface object
+
+        Returns:
+            Remote interface object or None
+        """
+        if (
+            not hasattr(local_interface, "connected_endpoints")
+            or not local_interface.connected_endpoints
+        ):
+            return None
+
+        # connected_endpoints contains the remote interface(s)
+        for endpoint in local_interface.connected_endpoints:
+            return endpoint  # Return first endpoint
+
+        return None
+
     def _filter_switch_connections(
         self, uplinks: List[Dict[str, Any]], switch_roles: List[str]
     ) -> List[Dict[str, Any]]:
@@ -412,15 +433,39 @@ class FRRExtractor(BaseExtractor):
                     "remote_as": remote_as,
                 }
 
-                # Add local_pref if custom field is set on the interface
+                # Add local_pref if custom field is set on either local or remote interface
                 interface_obj = uplink.get("interface_obj")
                 if interface_obj:
                     custom_field_extractor = CustomFieldExtractor()
-                    local_pref = custom_field_extractor.extract(
+
+                    # Check local interface
+                    local_pref_local = custom_field_extractor.extract(
                         interface_obj, field_name="frr_local_pref"
                     )
-                    if local_pref is not None:
-                        uplink_config["local_pref"] = local_pref
+
+                    # Check remote interface
+                    remote_interface = self._get_remote_interface(interface_obj)
+                    local_pref_remote = None
+                    if remote_interface:
+                        local_pref_remote = custom_field_extractor.extract(
+                            remote_interface, field_name="frr_local_pref"
+                        )
+
+                    # Conflict resolution: use higher value if both are set
+                    local_pref_final = None
+                    if local_pref_local is not None and local_pref_remote is not None:
+                        local_pref_final = max(local_pref_local, local_pref_remote)
+                        logger.debug(
+                            f"Both local ({local_pref_local}) and remote ({local_pref_remote}) "
+                            f"frr_local_pref set for {uplink['interface']}, using {local_pref_final}"
+                        )
+                    elif local_pref_local is not None:
+                        local_pref_final = local_pref_local
+                    elif local_pref_remote is not None:
+                        local_pref_final = local_pref_remote
+
+                    if local_pref_final is not None:
+                        uplink_config["local_pref"] = local_pref_final
 
                 frr_uplinks.append(uplink_config)
             else:
