@@ -178,7 +178,10 @@ class NetplanExtractor(BaseExtractor):
                             vrf_table = int(match.group(1))
                             vrf_name = f"vrf{vrf_table}"
                             # Store VRF assignment for processing after interface validation
-                            interface_vrf_assignments[interface.id] = (vrf_name, vrf_table)
+                            interface_vrf_assignments[interface.id] = (
+                                vrf_name,
+                                vrf_table,
+                            )
                             logger.debug(
                                 f"Stored VRF assignment for interface {interface.name or interface.id}: {vrf_name} (table {vrf_table}) on device {device.name}"
                             )
@@ -274,7 +277,9 @@ class NetplanExtractor(BaseExtractor):
 
                             # Process VRF assignment if interface was successfully added
                             if interface.id in interface_vrf_assignments:
-                                vrf_name, vrf_table = interface_vrf_assignments[interface.id]
+                                vrf_name, vrf_table = interface_vrf_assignments[
+                                    interface.id
+                                ]
                                 # Initialize VRF entry if not exists
                                 if vrf_name not in network_vrfs:
                                     network_vrfs[vrf_name] = {
@@ -282,8 +287,13 @@ class NetplanExtractor(BaseExtractor):
                                         "interfaces": [],
                                     }
                                 # Add VLAN interface to VRF's interface list
-                                if vlan_name not in network_vrfs[vrf_name]["interfaces"]:
-                                    network_vrfs[vrf_name]["interfaces"].append(vlan_name)
+                                if (
+                                    vlan_name
+                                    not in network_vrfs[vrf_name]["interfaces"]
+                                ):
+                                    network_vrfs[vrf_name]["interfaces"].append(
+                                        vlan_name
+                                    )
                                     logger.debug(
                                         f"Added VLAN interface {vlan_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
                                     )
