@@ -211,7 +211,7 @@ class FRRExtractor(BaseExtractor):
             device: NetBox device object
 
         Returns:
-            List of interface dictionaries with connection info
+            List of interface dictionaries with connection info and interface object
         """
         uplinks = []
 
@@ -231,7 +231,11 @@ class FRRExtractor(BaseExtractor):
                 remote_device = self._get_remote_device(interface)
                 if remote_device:
                     uplinks.append(
-                        {"interface": interface.label, "remote_device": remote_device}
+                        {
+                            "interface": interface.label,
+                            "remote_device": remote_device,
+                            "interface_obj": interface,
+                        }
                     )
 
         except Exception as e:
@@ -402,9 +406,23 @@ class FRRExtractor(BaseExtractor):
             )
 
             if remote_as:
-                frr_uplinks.append(
-                    {"interface": uplink["interface"], "remote_as": remote_as}
-                )
+                # Build base uplink configuration
+                uplink_config = {
+                    "interface": uplink["interface"],
+                    "remote_as": remote_as,
+                }
+
+                # Add local_pref if custom field is set on the interface
+                interface_obj = uplink.get("interface_obj")
+                if interface_obj:
+                    custom_field_extractor = CustomFieldExtractor()
+                    local_pref = custom_field_extractor.extract(
+                        interface_obj, field_name="frr_local_pref"
+                    )
+                    if local_pref is not None:
+                        uplink_config["local_pref"] = local_pref
+
+                frr_uplinks.append(uplink_config)
             else:
                 logger.warning(
                     f"Could not determine remote AS for {remote_device.name} "
