@@ -158,6 +158,13 @@ class NetplanExtractor(BaseExtractor):
             if "managed-by-osism" not in tag_slugs:
                 continue
 
+            # Skip management-only (out-of-band) interfaces
+            if getattr(interface, "mgmt_only", False):
+                logger.debug(
+                    f"Skipping mgmt_only interface {interface.name or interface.id} on device {device.name}"
+                )
+                continue
+
             # Store VRF assignment for later processing (after interface validation)
             if hasattr(interface, "vrf") and interface.vrf:
                 try:
