@@ -53,7 +53,6 @@ class DataCache(BaseInventoryComponent):
             self.config.default_mtu,
             self.config.default_local_as_prefix,
             self.config.frr_switch_roles,
-            self.config.flush_cache,
             self.config.reconciler_mode,
         )
 

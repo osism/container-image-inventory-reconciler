@@ -65,7 +65,6 @@ class DeviceDataExtractor:
         device: Any,
         default_mtu: int = 9100,
         switch_roles: List[str] = None,
-        flush_cache: bool = False,
         reconciler_mode: str = "manager",
     ) -> Any:
         """Extract netplan parameters, combining manual and auto-generated config."""
@@ -73,7 +72,6 @@ class DeviceDataExtractor:
             device,
             default_mtu=default_mtu,
             switch_roles=switch_roles,
-            flush_cache=flush_cache,
             reconciler_mode=reconciler_mode,
         )
 
@@ -82,14 +80,12 @@ class DeviceDataExtractor:
         device: Any,
         local_as_prefix: int = 42,
         switch_roles: List[str] = None,
-        flush_cache: bool = False,
     ) -> Any:
         """Extract FRR parameters, combining manual and auto-generated config."""
         return self.frr_extractor.extract(
             device,
             local_as_prefix=local_as_prefix,
             switch_roles=switch_roles,
-            flush_cache=flush_cache,
         )
 
     def extract_dnsmasq_parameters(self, device: Any) -> Any:
@@ -108,7 +104,6 @@ class DeviceDataExtractor:
         default_mtu: int = 9100,
         local_as_prefix: int = 42,
         switch_roles: List[str] = None,
-        flush_cache: bool = False,
         reconciler_mode: str = "manager",
     ) -> Dict[str, Any]:
         """Extract all configured data types from a device."""
@@ -116,10 +111,10 @@ class DeviceDataExtractor:
             "config_context": self.extract_config_context(device),
             "primary_ip": self.extract_primary_ip(device),
             "netplan_parameters": self.extract_netplan_parameters(
-                device, default_mtu, switch_roles, flush_cache, reconciler_mode
+                device, default_mtu, switch_roles, reconciler_mode
             ),
             "frr_parameters": self.extract_frr_parameters(
-                device, local_as_prefix, switch_roles, flush_cache
+                device, local_as_prefix, switch_roles
             ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
             "gnmic_parameters": self.extract_gnmic_parameters(device),
