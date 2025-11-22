@@ -71,7 +71,6 @@ class Config:
         frr_switch_roles: Device roles considered as switches for FRR uplinks
         dnsmasq_switch_roles: Device roles considered as switches for dnsmasq operations
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
-        flush_cache: Force regeneration of cached custom field values
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
         ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
         ignore_maintenance_state: Ignore maintenance state filter for devices
@@ -106,7 +105,6 @@ class Config:
         default_factory=lambda: DEFAULT_DNSMASQ_SWITCH_ROLES.copy()
     )
     reconciler_mode: str = DEFAULT_RECONCILER_MODE
-    flush_cache: bool = False
     inventory_from_netbox: bool = True
     ignore_provision_state: bool = False
     ignore_maintenance_state: bool = False
@@ -183,7 +181,6 @@ class Config:
                 "DNSMASQ_SWITCH_ROLES", DEFAULT_DNSMASQ_SWITCH_ROLES
             ),
             reconciler_mode=reconciler_mode,
-            flush_cache=SETTINGS.get("FLUSH_CACHE", False),
             inventory_from_netbox=SETTINGS.get("INVENTORY_FROM_NETBOX", True),
             ignore_provision_state=SETTINGS.get(
                 "INVENTORY_IGNORE_PROVISION_STATE", False

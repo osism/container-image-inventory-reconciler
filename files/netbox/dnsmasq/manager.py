@@ -25,7 +25,6 @@ class DnsmasqManager:
         netbox_client: NetBoxClient,
         devices: List[Any],
         all_devices: List[Any] = None,
-        flush_cache: bool = False,
     ) -> None:
         """Write dnsmasq DHCP configuration for devices with OOB management interfaces.
 
@@ -33,16 +32,13 @@ class DnsmasqManager:
             netbox_client: NetBox API client
             devices: List of devices to write configurations for
             all_devices: List of all devices (used in metalbox mode to collect all OOB configs)
-            flush_cache: Force regeneration of cached parameters
         """
         # In metalbox mode, collect all dnsmasq entries to write to metalbox device
         if self.config.reconciler_mode == "metalbox" and all_devices:
-            self.metalbox_handler.process_devices(
-                netbox_client, devices, all_devices, flush_cache
-            )
+            self.metalbox_handler.process_devices(netbox_client, devices, all_devices)
         else:
             # Original behavior for manager mode
-            self.manager_handler.process_devices(netbox_client, devices, flush_cache)
+            self.manager_handler.process_devices(netbox_client, devices)
 
     def write_dnsmasq_dhcp_ranges(self, netbox_client: NetBoxClient) -> None:
         """Generate and write dnsmasq DHCP ranges for OOB networks.

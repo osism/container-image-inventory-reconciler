@@ -10,7 +10,6 @@ from loguru import logger
 from bulk_loader import BulkDataLoader
 from config import DEFAULT_FRR_SWITCH_ROLES, DEFAULT_METALBOX_IPV6
 from .base_extractor import BaseExtractor
-from .custom_field_extractor import CustomFieldExtractor
 
 
 class NetplanExtractor(BaseExtractor):
@@ -114,18 +113,6 @@ class NetplanExtractor(BaseExtractor):
                         f"Invalid _segment_default_mtu value '{segment_mtu}' in config context for device {device.name}, using default {default_mtu}"
                     )
                     effective_default_mtu = default_mtu
-        # Check flush_cache flag
-        flush_cache = kwargs.get("flush_cache", False)
-
-        # Check if manual netplan_parameters is set (unless cache flush is requested)
-        if not flush_cache:
-            # Check device custom fields
-            custom_field_extractor = CustomFieldExtractor()
-            manual_params = custom_field_extractor.extract(
-                device, field_name="netplan_parameters"
-            )
-            if manual_params:
-                return manual_params
 
         # Get interfaces from device using bulk_loader
         if not self.api:
