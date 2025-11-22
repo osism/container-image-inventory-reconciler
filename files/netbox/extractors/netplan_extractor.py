@@ -424,7 +424,7 @@ class NetplanExtractor(BaseExtractor):
         # Cache the generated parameters in the custom field
         if self.netbox_client:
             logger.info(
-                f"Caching generated Netplan parameters for device {device.name}"
+                f"Writing generated Netplan parameters for device {device.name}"
             )
             success = self.netbox_client.update_device_custom_field(
                 device, "netplan_parameters", result
