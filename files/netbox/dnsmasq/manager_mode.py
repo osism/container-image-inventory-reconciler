@@ -46,7 +46,7 @@ class ManagerModeHandler(DnsmasqBase):
 
                 # Prepare dnsmasq data and cache params
                 dnsmasq_data = {}
-                cache_params = {
+                write_params = {
                     "dnsmasq_dhcp_hosts": [],
                     "dnsmasq_dhcp_macs": [],
                 }
@@ -58,7 +58,7 @@ class ManagerModeHandler(DnsmasqBase):
                     )
                     logger.debug(f"Added dnsmasq entry for {hostname}: {entry}")
                     dnsmasq_data[f"dnsmasq_dhcp_hosts__{hostname}"] = [entry]
-                    cache_params["dnsmasq_dhcp_hosts"] = [entry]
+                    write_params["dnsmasq_dhcp_hosts"] = [entry]
                 else:
                     logger.info(
                         f"Device {device.name} has MAC {mac_address} but no IP address - "
@@ -71,15 +71,15 @@ class ManagerModeHandler(DnsmasqBase):
                 )
                 if mac_entry:
                     dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = [mac_entry]
-                    cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
+                    write_params["dnsmasq_dhcp_macs"] = [mac_entry]
                     logger.debug(f"Added dnsmasq MAC entry for {hostname}: {mac_entry}")
 
-                # Cache the generated parameters (even if only MAC entry exists)
+                # Write the generated parameters (even if only MAC entry exists)
                 logger.info(
-                    f"Caching generated dnsmasq parameters for device {device.name}"
+                    f"Writing generated dnsmasq parameters for device {device.name}"
                 )
                 success = netbox_client.update_device_custom_field(
-                    device, "dnsmasq_parameters", cache_params
+                    device, "dnsmasq_parameters", write_params
                 )
                 if not success:
                     logger.warning(

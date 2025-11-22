@@ -307,7 +307,7 @@ class MetalboxModeHandler(DnsmasqBase):
 
             if mac_address:
                 # Prepare parameters for caching
-                cache_params = {
+                write_params = {
                     "dnsmasq_dhcp_hosts": [],
                     "dnsmasq_dhcp_macs": [],
                     "dnsmasq_interfaces": [],
@@ -323,7 +323,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     if len(parts) >= 2:
                         hostname = parts[1]
                         all_dhcp_hosts_dict[hostname] = host_entry
-                        cache_params["dnsmasq_dhcp_hosts"] = [host_entry]
+                        write_params["dnsmasq_dhcp_hosts"] = [host_entry]
                         # Track switch-specific entries when generating new parameters
                         if is_switch:
                             switch_dhcp_hosts_dict[hostname] = host_entry
@@ -350,7 +350,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     # Use interface name as key for deduplication
                     for interface in device_interfaces:
                         all_dnsmasq_interfaces_dict[interface] = interface
-                    cache_params["dnsmasq_interfaces"] = device_interfaces
+                    write_params["dnsmasq_interfaces"] = device_interfaces
 
                 # Generate DHCP MAC entry (always generated when MAC exists)
                 mac_entry = self.dhcp_generator.generate_dhcp_mac_entry(
@@ -362,7 +362,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     if len(parts) >= 2:
                         mac = parts[1]
                         all_dhcp_macs_dict[mac] = mac_entry
-                        cache_params["dnsmasq_dhcp_macs"] = [mac_entry]
+                        write_params["dnsmasq_dhcp_macs"] = [mac_entry]
                         # Track switch-specific MAC entries when generating new parameters
                         if is_switch:
                             switch_dhcp_macs_dict[mac] = mac_entry
@@ -373,12 +373,12 @@ class MetalboxModeHandler(DnsmasqBase):
                         f"Collected dnsmasq MAC entry for {device.name}: {mac_entry}"
                     )
 
-                # Cache the generated parameters (even if only MAC entry exists)
+                # Write the generated parameters (even if only MAC entry exists)
                 logger.info(
-                    f"Caching generated dnsmasq parameters for device {device.name}"
+                    f"Writing generated dnsmasq parameters for device {device.name}"
                 )
                 success = netbox_client.update_device_custom_field(
-                    device, "dnsmasq_parameters", cache_params
+                    device, "dnsmasq_parameters", write_params
                 )
                 if not success:
                     logger.warning(
@@ -396,8 +396,8 @@ class MetalboxModeHandler(DnsmasqBase):
                         # Use interface name as key for deduplication
                         for interface in device_interfaces:
                             all_dnsmasq_interfaces_dict[interface] = interface
-                        # Cache just the interfaces
-                        cache_params = {
+                        # Write just the interfaces
+                        write_params = {
                             "dnsmasq_dhcp_hosts": [],
                             "dnsmasq_dhcp_macs": [],
                             "dnsmasq_interfaces": device_interfaces,
@@ -406,7 +406,7 @@ class MetalboxModeHandler(DnsmasqBase):
                             f"Caching dnsmasq interfaces for metalbox device {device.name}"
                         )
                         netbox_client.update_device_custom_field(
-                            device, "dnsmasq_parameters", cache_params
+                            device, "dnsmasq_parameters", write_params
                         )
 
         # Write collected entries to metalbox device(s)
@@ -444,7 +444,7 @@ class MetalboxModeHandler(DnsmasqBase):
 
                 # Store switch-only parameters in metalbox custom field
                 if switch_dhcp_hosts or switch_dhcp_macs:
-                    metalbox_cache_params = {
+                    metalbox_write_params = {
                         "dnsmasq_dhcp_hosts": switch_dhcp_hosts,
                         "dnsmasq_dhcp_macs": switch_dhcp_macs,
                         "dnsmasq_interfaces": all_dnsmasq_interfaces,  # Preserve metalbox VLAN interfaces
@@ -457,7 +457,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     )
 
                     success = netbox_client.update_device_custom_field(
-                        device, "dnsmasq_parameters", metalbox_cache_params
+                        device, "dnsmasq_parameters", metalbox_write_params
                     )
 
                     if not success:

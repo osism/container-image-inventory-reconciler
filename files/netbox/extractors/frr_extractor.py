@@ -371,9 +371,9 @@ class FRRExtractor(BaseExtractor):
         if not result:
             return None
 
-        # Cache the generated parameters in the custom field
+        # Write the generated parameters in the custom field
         if self.netbox_client:
-            logger.info(f"Caching generated FRR parameters for device {device.name}")
+            logger.info(f"Writing generated FRR parameters for device {device.name}")
             success = self.netbox_client.update_device_custom_field(
                 device, "frr_parameters", result
             )
