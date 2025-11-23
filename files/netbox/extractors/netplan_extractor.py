@@ -395,6 +395,33 @@ class NetplanExtractor(BaseExtractor):
 
             if addresses:
                 loopback0_config["addresses"] = addresses
+
+            # Check for interface-specific netplan_parameters custom field
+            if (
+                hasattr(loopback0_interface, "custom_fields")
+                and loopback0_interface.custom_fields
+            ):
+                interface_netplan_params = loopback0_interface.custom_fields.get(
+                    "netplan_parameters"
+                )
+                if interface_netplan_params and isinstance(
+                    interface_netplan_params, dict
+                ):
+                    # Merge interface-specific parameters into the loopback0 config
+                    for key, value in interface_netplan_params.items():
+                        if key == "addresses" and isinstance(value, list):
+                            # Merge addresses lists (avoid duplicates)
+                            if "addresses" in loopback0_config:
+                                for addr in value:
+                                    if addr not in loopback0_config["addresses"]:
+                                        loopback0_config["addresses"].append(addr)
+                            else:
+                                loopback0_config["addresses"] = value
+                        else:
+                            # For all other keys, just update normally
+                            loopback0_config[key] = value
+
+            if loopback0_config:
                 network_dummy_devices["loopback0"] = loopback0_config
 
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
