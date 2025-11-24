@@ -124,7 +124,10 @@ class FRRExtractor(BaseExtractor):
     ) -> Optional[int]:
         """Calculate or extract AS number for a device.
 
-        First checks for custom field 'frr_local_as', then calculates from IPv4.
+        Priority order:
+        1. Manual override: frr_local_as custom field
+        2. Cached value: frr_parameters['frr_local_as'] custom field
+        3. Calculate from IPv4 loopback0 address
 
         Args:
             device: NetBox device object
@@ -134,13 +137,24 @@ class FRRExtractor(BaseExtractor):
         Returns:
             AS number or None if cannot be determined
         """
-        # Check for manual AS configuration
         custom_field_extractor = CustomFieldExtractor()
+
+        # Priority 1: Check for manual AS configuration
         manual_as = custom_field_extractor.extract(device, field_name="frr_local_as")
         if manual_as:
             return manual_as
 
-        # Calculate from IPv4 if available
+        # Priority 2: Check for cached AS from frr_parameters
+        cached_params = custom_field_extractor.extract(
+            device, field_name="frr_parameters"
+        )
+        if cached_params and isinstance(cached_params, dict):
+            cached_as = cached_params.get("frr_local_as")
+            if cached_as:
+                logger.debug(f"Using cached AS {cached_as} for {device.name}")
+                return cached_as
+
+        # Priority 3: Calculate from IPv4 if available
         if ipv4_address:
             try:
                 return self.as_calculator.from_ipv4(ipv4_address, local_as_prefix)
@@ -408,9 +422,24 @@ class FRRExtractor(BaseExtractor):
         for uplink in switch_uplinks:
             # Get remote AS number
             remote_device = uplink["remote_device"]
-            remote_loopback0 = self._get_loopback0_addresses(remote_device)
+
+            # Fetch full device object with custom fields for cached AS lookup
+            # Remote devices from interface connections lack custom field data
+            full_remote_device = None
+            if remote_device and hasattr(remote_device, "id"):
+                try:
+                    full_remote_device = self.api.dcim.devices.get(remote_device.id)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to fetch full device object for {remote_device.name}: {e}"
+                    )
+
+            # Use full device object if available, otherwise fall back to minimal object
+            device_for_calc = full_remote_device if full_remote_device else remote_device
+
+            remote_loopback0 = self._get_loopback0_addresses(device_for_calc)
             remote_as = self._calculate_as_number(
-                remote_device, remote_loopback0.get("ipv4"), local_as_prefix
+                device_for_calc, remote_loopback0.get("ipv4"), local_as_prefix
             )
 
             if remote_as:
