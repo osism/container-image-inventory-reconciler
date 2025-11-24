@@ -53,6 +53,14 @@ def build_device_role_mapping(
     # Read role mappings from NETBOX_ROLE_MAPPING environment variable
     role_mapping = SETTINGS.get("NETBOX_ROLE_MAPPING", {})
 
+    # Initialize all groups from NETBOX_ROLE_MAPPING as empty lists
+    # This ensures groups appear in the result even if no devices are assigned
+    for groups in role_mapping.values():
+        if isinstance(groups, list):
+            for group in groups:
+                if group not in devices_to_groups:
+                    devices_to_groups[group] = []
+
     if ignored_roles is None:
         ignored_roles = []
 
