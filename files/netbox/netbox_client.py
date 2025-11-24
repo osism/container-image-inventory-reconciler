@@ -11,7 +11,7 @@ from config import Config
 from base import BaseNetBoxClient
 from cache import CacheManager
 from connection import ConnectionManager
-from exceptions import NetBoxAPIError
+from exceptions import NetBoxAPIError, NetBoxConnectionError
 from filters import DeviceFilter
 from interfaces import InterfaceHandler
 
@@ -33,6 +33,32 @@ class NetBoxClient(BaseNetBoxClient):
         self.api = self._connection_manager.connect()
         self._interface_handler = InterfaceHandler(self.api, self._cache_manager)
         self._connected = True
+
+    def verify_connectivity(self) -> bool:
+        """Verify that NetBox is reachable and API is usable.
+
+        Performs a comprehensive check by attempting to access the devices endpoint
+        to validate both connectivity and API token permissions.
+
+        Returns:
+            bool: True if connectivity check passes
+
+        Raises:
+            NetBoxConnectionError: If NetBox is not reachable or API access fails
+        """
+        if not self._connected:
+            raise NetBoxConnectionError("Not connected to NetBox")
+
+        try:
+            logger.debug("Verifying NetBox connectivity and API permissions")
+            # Test actual API access with devices endpoint to validate permissions
+            self.api.dcim.devices.count()
+            logger.info("NetBox connectivity verified successfully")
+            return True
+        except Exception as e:
+            error_msg = f"NetBox connectivity verification failed: {e}"
+            logger.error(error_msg)
+            raise NetBoxConnectionError(error_msg) from e
 
     def disconnect(self) -> None:
         """Close connection to NetBox."""
