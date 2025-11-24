@@ -166,6 +166,9 @@ class FRRExtractor(BaseExtractor):
     def _get_loopback0_addresses(self, device: Any) -> Dict[str, Optional[str]]:
         """Get IPv4 and IPv6 addresses from loopback0 interface.
 
+        First tries bulk_loader cache, falls back to direct API calls if device
+        interfaces are not cached (e.g., for remote switch devices in manager mode).
+
         Returns:
             Dictionary with 'ipv4' and 'ipv6' keys
         """
@@ -179,6 +182,15 @@ class FRRExtractor(BaseExtractor):
             # Get all interfaces using bulk_loader
             interfaces = self.bulk_loader.get_device_interfaces(device)
 
+            # Fallback to direct API call if bulk_loader has no data for this device
+            # This happens in manager mode when remote devices (switches) are not
+            # in the initial device list and thus not pre-loaded into bulk_loader
+            if not interfaces:
+                logger.debug(
+                    f"No cached interfaces for {device.name}, fetching via API"
+                )
+                interfaces = list(self.api.dcim.interfaces.filter(device_id=device.id))
+
             loopback0 = None
             for interface in interfaces:
                 if interface.name and interface.name.lower() == "loopback0":
@@ -191,6 +203,15 @@ class FRRExtractor(BaseExtractor):
 
             # Get IP addresses assigned to loopback0 using bulk_loader
             ip_addresses = self.bulk_loader.get_interface_ip_addresses(loopback0)
+
+            # Fallback to direct API call if bulk_loader has no IP data
+            if not ip_addresses:
+                logger.debug(
+                    f"No cached IPs for loopback0 on {device.name}, fetching via API"
+                )
+                ip_addresses = list(
+                    self.api.ipam.ip_addresses.filter(interface_id=loopback0.id)
+                )
 
             for ip in ip_addresses:
                 if not ip.address:
@@ -435,7 +456,9 @@ class FRRExtractor(BaseExtractor):
                     )
 
             # Use full device object if available, otherwise fall back to minimal object
-            device_for_calc = full_remote_device if full_remote_device else remote_device
+            device_for_calc = (
+                full_remote_device if full_remote_device else remote_device
+            )
 
             remote_loopback0 = self._get_loopback0_addresses(device_for_calc)
             remote_as = self._calculate_as_number(
