@@ -195,11 +195,20 @@ class NetplanExtractor(BaseExtractor):
                 # Check if interface has untagged VLAN and parent interface
                 if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
                     if hasattr(interface, "parent") and interface.parent:
+                        # Get full parent interface from bulk_loader to access all fields
+                        # The nested parent object only has minimal fields (id, name, url)
+                        parent_interface = self.bulk_loader.get_interface_by_id(
+                            interface.parent.id
+                        )
+                        # Fall back to nested object if not found in bulk_loader
+                        if not parent_interface:
+                            parent_interface = interface.parent
+
                         # Check if parent interface also has managed-by-osism tag
                         parent_has_tag = False
-                        if hasattr(interface.parent, "tags") and interface.parent.tags:
+                        if hasattr(parent_interface, "tags") and parent_interface.tags:
                             parent_tag_slugs = [
-                                tag.slug for tag in interface.parent.tags
+                                tag.slug for tag in parent_interface.tags
                             ]
                             parent_has_tag = "managed-by-osism" in parent_tag_slugs
 
@@ -211,21 +220,24 @@ class NetplanExtractor(BaseExtractor):
                             interface.label if interface.label else interface.name
                         )
                         if vlan_name:
+                            # Use parent's label if available, otherwise name
+                            parent_link = (
+                                parent_interface.label
+                                if hasattr(parent_interface, "label")
+                                and parent_interface.label
+                                else parent_interface.name
+                            )
                             vlan_config = {
                                 "id": interface.untagged_vlan.vid,
-                                "link": (
-                                    interface.parent.label
-                                    if interface.parent.label
-                                    else interface.parent.name
-                                ),
+                                "link": parent_link,
                             }
 
                             # Use parent interface's MTU if available, otherwise use effective default
                             if (
-                                hasattr(interface.parent, "mtu")
-                                and interface.parent.mtu
+                                hasattr(parent_interface, "mtu")
+                                and parent_interface.mtu
                             ):
-                                vlan_config["mtu"] = interface.parent.mtu
+                                vlan_config["mtu"] = parent_interface.mtu
                             else:
                                 vlan_config["mtu"] = effective_default_mtu
 
