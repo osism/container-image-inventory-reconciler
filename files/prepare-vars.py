@@ -99,7 +99,7 @@ def prepare_ceph_rgw_hosts(groups: Dict[str, List[str]]) -> int:
                     f"default(hostvars['{host}']['ansible_host'])"
                     " }}"
                 ),
-                "port": RGW_DEFAULT_PORT,
+                "port": f"{{{{ ceph_rgw_default_port | default({RGW_DEFAULT_PORT}) }}}}",
             }
         )
 
