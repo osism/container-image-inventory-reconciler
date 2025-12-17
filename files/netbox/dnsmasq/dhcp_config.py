@@ -98,7 +98,7 @@ class DHCPConfigGenerator:
                 subnet_mask = str(net.netmask)
 
                 # Add 'static' mode to only allow static assignments
-                dhcp_range = f"{start_ip},static,{subnet_mask},12h"
+                dhcp_range = f"{start_ip},static,{subnet_mask},28d"
                 dhcp_ranges.append(dhcp_range)
 
                 logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")
