@@ -184,7 +184,7 @@ class NetplanExtractor(BaseExtractor):
                         f"Error storing VRF assignment for interface {interface.name or interface.id} on device {device.name}: {e}"
                     )
 
-            # Check for loopback0 interface
+            # Config for loopback0 interface will be handled later
             if interface.name and interface.name.lower() == "loopback0":
                 loopback0_interface = interface
                 continue
@@ -394,6 +394,12 @@ class NetplanExtractor(BaseExtractor):
 
             if addresses:
                 loopback0_config["addresses"] = addresses
+
+            # Add MTU - use interface MTU if set, otherwise use effective default
+            if hasattr(loopback0_interface, "mtu") and loopback0_interface.mtu:
+                loopback0_config["mtu"] = loopback0_interface.mtu
+            else:
+                loopback0_config["mtu"] = effective_default_mtu
 
             # Check for interface-specific netplan_parameters custom field
             if (
