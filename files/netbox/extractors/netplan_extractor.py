@@ -112,7 +112,6 @@ class NetplanExtractor(BaseExtractor):
                     logger.warning(
                         f"Invalid _segment_default_mtu value '{segment_mtu}' in config context for device {device.name}, using default {default_mtu}"
                     )
-                    effective_default_mtu = default_mtu
 
         # Get interfaces from device using bulk_loader
         if not self.api:
