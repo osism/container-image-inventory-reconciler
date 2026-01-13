@@ -90,6 +90,10 @@ class NetplanExtractor(BaseExtractor):
         - Must have a parent interface
         - Parent interface must also have "managed-by-osism" tag
 
+        For VXLAN interfaces (type=vxlan):
+        - Must have "managed-by-osism" tag
+        - If assigned to a VRF, the interface is added to the VRF's interface list
+
         Args:
             device: NetBox device object
             default_mtu: Default MTU value for interfaces without explicit MTU
@@ -283,6 +287,26 @@ class NetplanExtractor(BaseExtractor):
                                     logger.debug(
                                         f"Added VLAN interface {vlan_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
                                     )
+                continue
+
+            # Check if this is a VXLAN interface - only process VRF assignment
+            if interface.type and interface.type.value == "vxlan":
+                # Get VXLAN interface name (prefer label, fallback to name)
+                vxlan_name = interface.label if interface.label else interface.name
+                if vxlan_name and interface.id in interface_vrf_assignments:
+                    vrf_name, vrf_table = interface_vrf_assignments[interface.id]
+                    # Initialize VRF entry if not exists
+                    if vrf_name not in network_vrfs:
+                        network_vrfs[vrf_name] = {
+                            "table": vrf_table,
+                            "interfaces": [],
+                        }
+                    # Add VXLAN interface to VRF's interface list
+                    if vxlan_name not in network_vrfs[vrf_name]["interfaces"]:
+                        network_vrfs[vrf_name]["interfaces"].append(vxlan_name)
+                        logger.debug(
+                            f"Added VXLAN interface {vxlan_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
+                        )
                 continue
 
             # Skip interfaces without MAC address or label
