@@ -95,6 +95,15 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - The VLAN ID is extracted from the untagged VLAN
     - The parent interface's label (or name) is used as the link
     - All IPv4 and IPv6 addresses assigned to the VLAN interface are included
+  - **VXLAN tunnel interfaces**: Interfaces with names matching pattern `vxlan<VNI>` (e.g., vxlan42)
+    - Must have the `managed-by-osism` tag
+    - The VNI (VXLAN Network Identifier) is extracted from the interface name (e.g., vxlan42 → id: 42)
+    - The `local` address is taken from the loopback0 interface's IPv4 address
+    - MTU is set from the interface's MTU value, or uses the segment default
+    - Port is always 4789
+    - All IPv4 and IPv6 addresses assigned to the interface are included (even if VRF-assigned)
+    - If the interface is assigned to a VRF, it is also added to the VRF's interface list
+    - The interface is configured in `network_tunnels`
   - Example output:
     ```yaml
     network_dummy_devices:
@@ -117,6 +126,18 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
         link: oob1
         addresses:
           - 172.16.10.5/20
+    network_tunnels:
+      vxlan42:
+        mode: vxlan
+        link: loopback0
+        id: 42
+        mtu: 1500
+        accept-ra: false
+        mac-learning: true
+        port: 4789
+        local: 192.168.45.123
+        addresses:
+          - 10.170.64.2/24
     ```
 
 ### FRR Configuration

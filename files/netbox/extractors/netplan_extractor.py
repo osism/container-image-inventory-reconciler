@@ -133,7 +133,12 @@ class NetplanExtractor(BaseExtractor):
         network_dummy_devices = {}
         network_vlans = {}
         network_vrfs = {}
+        network_tunnels = {}
         loopback0_interface = None
+
+        # Track VXLAN interfaces for later processing (need loopback0 IP first)
+        # Format: {interface_name: interface_object}
+        vxlan_interfaces = {}
 
         # Track VRF assignments during interface processing
         # Format: {interface_id: (vrf_name, vrf_table)}
@@ -199,6 +204,13 @@ class NetplanExtractor(BaseExtractor):
             if interface_name and re.match(
                 r"^vxlan\d+$", interface_name, re.IGNORECASE
             ):
+                # Store VXLAN interface for later processing (needs loopback0 IP)
+                vxlan_interfaces[interface_name] = interface
+                logger.debug(
+                    f"Found VXLAN interface {interface_name} on device {device.name}, will process after loopback0"
+                )
+
+                # Process VRF assignment
                 if interface.id in interface_vrf_assignments:
                     vrf_name, vrf_table = interface_vrf_assignments[interface.id]
                     # Initialize VRF entry if not exists
@@ -455,6 +467,94 @@ class NetplanExtractor(BaseExtractor):
             if loopback0_config:
                 network_dummy_devices["loopback0"] = loopback0_config
 
+        # Process VXLAN interfaces now that we have loopback0 information
+        if vxlan_interfaces:
+            # Extract loopback0 IPv4 address for VXLAN local address
+            loopback0_ipv4 = None
+            if loopback0_interface:
+                try:
+                    loopback0_ips = self.bulk_loader.get_interface_ip_addresses(
+                        loopback0_interface
+                    )
+                    for ip in loopback0_ips:
+                        if ip.address and "." in ip.address:  # IPv4
+                            # Extract IP without prefix (e.g., "10.10.129.75/32" -> "10.10.129.75")
+                            loopback0_ipv4 = ip.address.split("/")[0]
+                            break
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get loopback0 IP addresses for device {device.name}: {e}"
+                    )
+
+            for vxlan_name, vxlan_interface in vxlan_interfaces.items():
+                # Extract VNI from interface name (e.g., "vxlan42" -> 42)
+                vni_match = re.match(r"^vxlan(\d+)$", vxlan_name, re.IGNORECASE)
+                if not vni_match:
+                    logger.warning(
+                        f"Could not extract VNI from VXLAN interface name {vxlan_name} on device {device.name}"
+                    )
+                    continue
+
+                vni = int(vni_match.group(1))
+
+                # Build tunnel configuration
+                tunnel_config = {
+                    "mode": "vxlan",
+                    "link": "loopback0",
+                    "id": vni,
+                    "accept-ra": False,
+                    "mac-learning": True,
+                    "port": 4789,
+                }
+
+                # Set MTU - use interface MTU if available, otherwise use effective default
+                if hasattr(vxlan_interface, "mtu") and vxlan_interface.mtu:
+                    tunnel_config["mtu"] = vxlan_interface.mtu
+                else:
+                    tunnel_config["mtu"] = effective_default_mtu
+
+                # Set local address from loopback0
+                if loopback0_ipv4:
+                    tunnel_config["local"] = loopback0_ipv4
+                else:
+                    logger.warning(
+                        f"No loopback0 IPv4 address found for VXLAN {vxlan_name} on device {device.name}, 'local' will not be set"
+                    )
+
+                # Get IP addresses for this VXLAN interface (including VRF-assigned)
+                addresses = []
+                try:
+                    ip_addresses = self.bulk_loader.get_interface_ip_addresses(
+                        vxlan_interface
+                    )
+                    for ip in ip_addresses:
+                        if ip.address:
+                            addresses.append(ip.address)
+                except Exception:
+                    pass
+
+                if addresses:
+                    tunnel_config["addresses"] = addresses
+
+                # Check for interface-specific netplan_parameters custom field
+                if (
+                    hasattr(vxlan_interface, "custom_fields")
+                    and vxlan_interface.custom_fields
+                ):
+                    interface_netplan_params = vxlan_interface.custom_fields.get(
+                        "netplan_parameters"
+                    )
+                    if interface_netplan_params and isinstance(
+                        interface_netplan_params, dict
+                    ):
+                        # Merge interface-specific parameters into the tunnel config
+                        tunnel_config.update(interface_netplan_params)
+
+                network_tunnels[vxlan_name] = tunnel_config
+                logger.debug(
+                    f"Added VXLAN tunnel {vxlan_name} (VNI {vni}) for device {device.name}"
+                )
+
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
         reconciler_mode = kwargs.get("reconciler_mode", "manager")
         if reconciler_mode == "metalbox" and hasattr(device, "role") and device.role:
@@ -466,7 +566,12 @@ class NetplanExtractor(BaseExtractor):
                 network_dummy_devices["metalbox"] = {"addresses": ["192.168.42.10/24"]}
 
         # Return None if no interfaces found
-        if not network_ethernets and not network_dummy_devices and not network_vlans:
+        if (
+            not network_ethernets
+            and not network_dummy_devices
+            and not network_vlans
+            and not network_tunnels
+        ):
             return None
 
         result = {}
@@ -476,6 +581,8 @@ class NetplanExtractor(BaseExtractor):
             result["network_dummy_devices"] = network_dummy_devices
         if network_vlans:
             result["network_vlans"] = network_vlans
+        if network_tunnels:
+            result["network_tunnels"] = network_tunnels
         if network_vrfs:
             result["network_vrfs"] = network_vrfs
 
