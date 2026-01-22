@@ -185,17 +185,19 @@ class NetplanExtractor(BaseExtractor):
                                 # Fallback: Extract table ID from Route Distinguisher (RD)
                                 if hasattr(interface.vrf, "rd") and interface.vrf.rd:
                                     rd_str = str(interface.vrf.rd)
-                                    # RD format: "ASN:number" or "IP:number"
-                                    if ":" in rd_str:
-                                        try:
+                                    # RD format: "ASN:number", "IP:number", or plain number
+                                    try:
+                                        if ":" in rd_str:
                                             vrf_table = int(rd_str.split(":")[-1])
-                                            logger.debug(
-                                                f"Extracted table ID {vrf_table} from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
-                                            )
-                                        except ValueError:
-                                            logger.warning(
-                                                f"Could not extract table ID from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
-                                            )
+                                        else:
+                                            vrf_table = int(rd_str)
+                                        logger.debug(
+                                            f"Extracted table ID {vrf_table} from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
+                                        )
+                                    except ValueError:
+                                        logger.warning(
+                                            f"Could not extract table ID from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
+                                        )
 
                             if vrf_table is None:
                                 logger.warning(
