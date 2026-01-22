@@ -163,26 +163,56 @@ class NetplanExtractor(BaseExtractor):
             # Store VRF assignment for later processing (after interface validation)
             if hasattr(interface, "vrf") and interface.vrf:
                 try:
-                    # Get VRF table ID from VRF name (e.g., "vrf42" -> 42)
-                    vrf_table = None
+                    # Check if VRF name starts with "vrf" (case insensitive)
                     if hasattr(interface.vrf, "name"):
                         vrf_name_str = str(interface.vrf.name)
-                        # Match pattern like "vrf42", "vrf123", etc. (case insensitive)
-                        match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
-                        if match:
-                            vrf_table = int(match.group(1))
-                            vrf_name = f"vrf{vrf_table}"
-                            # Store VRF assignment for processing after interface validation
-                            interface_vrf_assignments[interface.id] = (
-                                vrf_name,
-                                vrf_table,
+                        # Accept any VRF name starting with "vrf" (case insensitive)
+                        if vrf_name_str.lower().startswith("vrf"):
+                            # Use the VRF name directly from Netbox
+                            vrf_name = vrf_name_str
+                            vrf_table = None
+
+                            # First try to extract table ID from VRF name (pattern: vrfN)
+                            name_match = re.match(
+                                r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE
                             )
-                            logger.debug(
-                                f"Stored VRF assignment for interface {interface.name or interface.id}: {vrf_name} (table {vrf_table}) on device {device.name}"
-                            )
+                            if name_match:
+                                vrf_table = int(name_match.group(1))
+                                logger.debug(
+                                    f"Extracted table ID {vrf_table} from VRF name {vrf_name} on device {device.name}"
+                                )
+                            else:
+                                # Fallback: Extract table ID from Route Distinguisher (RD)
+                                if hasattr(interface.vrf, "rd") and interface.vrf.rd:
+                                    rd_str = str(interface.vrf.rd)
+                                    # RD format: "ASN:number" or "IP:number"
+                                    if ":" in rd_str:
+                                        try:
+                                            vrf_table = int(rd_str.split(":")[-1])
+                                            logger.debug(
+                                                f"Extracted table ID {vrf_table} from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
+                                            )
+                                        except ValueError:
+                                            logger.warning(
+                                                f"Could not extract table ID from RD '{rd_str}' for VRF {vrf_name} on device {device.name}"
+                                            )
+
+                            if vrf_table is None:
+                                logger.warning(
+                                    f"VRF {vrf_name} on device {device.name} has no table ID in name and no valid RD"
+                                )
+                            else:
+                                # Store VRF assignment for processing after interface validation
+                                interface_vrf_assignments[interface.id] = (
+                                    vrf_name,
+                                    vrf_table,
+                                )
+                                logger.debug(
+                                    f"Stored VRF assignment for interface {interface.name or interface.id}: {vrf_name} (table {vrf_table}) on device {device.name}"
+                                )
                         else:
                             logger.warning(
-                                f"Interface {interface.name or interface.id} on device {device.name} has VRF {vrf_name_str} but name doesn't match expected pattern 'vrfN'"
+                                f"Interface {interface.name or interface.id} on device {device.name} has VRF {vrf_name_str} but name doesn't start with 'vrf'"
                             )
                     else:
                         logger.warning(
