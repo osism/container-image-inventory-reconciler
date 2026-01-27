@@ -59,6 +59,8 @@ class BulkDataLoader:
         self.batch_size = batch_size
         self.device_interfaces: Dict[int, List[Any]] = {}
         self.interface_ips: Dict[int, List[Any]] = {}
+        # Index of all interfaces by interface ID for fast lookup
+        self._interfaces_by_id: Dict[int, Any] = {}
 
     @staticmethod
     def _chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
@@ -135,12 +137,14 @@ class BulkDataLoader:
                 f"from {len(device_id_batches)} batches"
             )
 
-            # Group interfaces by device ID
+            # Group interfaces by device ID and build interface ID index
             for interface in all_interfaces:
                 device_id = interface.device.id
                 if device_id not in self.device_interfaces:
                     self.device_interfaces[device_id] = []
                 self.device_interfaces[device_id].append(interface)
+                # Add to interface ID index for fast lookup
+                self._interfaces_by_id[interface.id] = interface
 
             # Extract all interface IDs for IP address lookup
             interface_ids = [interface.id for interface in all_interfaces]
@@ -219,6 +223,20 @@ class BulkDataLoader:
         """
         return self.interface_ips.get(interface.id, [])
 
+    def get_interface_by_id(self, interface_id: int) -> Any:
+        """Get a full interface object by its ID.
+
+        This is useful for resolving nested interface references (e.g., parent
+        interfaces) to their full objects with all fields including label.
+
+        Args:
+            interface_id: NetBox interface ID
+
+        Returns:
+            Full interface object if found in cache, None otherwise
+        """
+        return self._interfaces_by_id.get(interface_id)
+
     def clear(self) -> None:
         """Clear all cached data.
 
@@ -226,6 +244,7 @@ class BulkDataLoader:
         """
         self.device_interfaces.clear()
         self.interface_ips.clear()
+        self._interfaces_by_id.clear()
         logger.debug("Cleared bulk loader cache")
 
     def get_statistics(self) -> Dict[str, int]:
