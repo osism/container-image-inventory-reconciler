@@ -67,7 +67,11 @@ class DeviceDataExtractor:
         switch_roles: List[str] = None,
         reconciler_mode: str = "manager",
     ) -> Any:
-        """Extract netplan parameters, combining manual and auto-generated config."""
+        """Extract netplan parameters from device interfaces.
+
+        Auto-generates config and deep-merges overrides from
+        device.local_context_data["netplan_parameters"] if present.
+        """
         return self.netplan_extractor.extract(
             device,
             default_mtu=default_mtu,
@@ -81,7 +85,11 @@ class DeviceDataExtractor:
         local_as_prefix: int = 42,
         switch_roles: List[str] = None,
     ) -> Any:
-        """Extract FRR parameters, combining manual and auto-generated config."""
+        """Extract FRR parameters from device.
+
+        Auto-generates config and deep-merges overrides from
+        device.local_context_data["frr_parameters"] if present.
+        """
         return self.frr_extractor.extract(
             device,
             local_as_prefix=local_as_prefix,

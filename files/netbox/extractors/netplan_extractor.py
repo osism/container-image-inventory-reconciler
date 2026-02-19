@@ -9,6 +9,7 @@ from loguru import logger
 
 from bulk_loader import BulkDataLoader
 from config import DEFAULT_FRR_SWITCH_ROLES, DEFAULT_METALBOX_IPV6
+from utils import deep_merge
 from .base_extractor import BaseExtractor
 
 
@@ -77,7 +78,7 @@ class NetplanExtractor(BaseExtractor):
     def extract(
         self, device: Any, default_mtu: int = 9100, **kwargs
     ) -> Optional[Dict[str, Any]]:
-        """Extract netplan parameters, combining manual and auto-generated config.
+        """Extract netplan parameters from device interfaces.
 
         Auto-generates config for interfaces that have:
         - The "managed-by-osism" tag
@@ -93,6 +94,10 @@ class NetplanExtractor(BaseExtractor):
         For VXLAN interfaces (name pattern: vxlan<VNI>, e.g. vxlan42):
         - Must have "managed-by-osism" tag
         - If assigned to a VRF, the interface is added to the VRF's interface list
+
+        If device.local_context_data contains a "netplan_parameters" key, its values
+        are deep-merged into the auto-generated parameters. Values from
+        local_context_data take precedence on conflicts.
 
         Args:
             device: NetBox device object
@@ -617,6 +622,15 @@ class NetplanExtractor(BaseExtractor):
             result["network_tunnels"] = network_tunnels
         if network_vrfs:
             result["network_vrfs"] = network_vrfs
+
+        # Deep-merge overrides from local_context_data if available
+        if hasattr(device, "local_context_data") and device.local_context_data:
+            lcd_netplan = device.local_context_data.get("netplan_parameters")
+            if lcd_netplan and isinstance(lcd_netplan, dict):
+                logger.info(
+                    f"Merging netplan_parameters from local_context_data for device {device.name}"
+                )
+                result = deep_merge(result, lcd_netplan)
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:

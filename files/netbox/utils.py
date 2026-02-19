@@ -40,3 +40,26 @@ def get_inventory_hostname(device: Any) -> str:
         return str(inventory_hostname)
 
     return str(device.name)
+
+
+def deep_merge(base: dict, override: dict) -> dict:
+    """Recursively deep-merge two dictionaries.
+
+    For conflicting keys:
+    - Two dicts: merged recursively
+    - All other types (including lists): override value wins
+
+    Args:
+        base: Base dictionary (e.g. auto-generated parameters)
+        override: Override dictionary (e.g. from local_context_data), wins on conflicts
+
+    Returns:
+        New merged dictionary
+    """
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result

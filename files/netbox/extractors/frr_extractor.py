@@ -8,6 +8,7 @@ from loguru import logger
 
 from bulk_loader import BulkDataLoader
 from config import DEFAULT_FRR_SWITCH_ROLES
+from utils import deep_merge
 from .base_extractor import BaseExtractor
 from .custom_field_extractor import CustomFieldExtractor
 
@@ -358,11 +359,14 @@ class FRRExtractor(BaseExtractor):
     ) -> Optional[Dict[str, Any]]:
         """Extract FRR parameters from device.
 
-        First checks for manual frr_parameters custom field.
-        If not found, generates parameters based on:
+        Auto-generates parameters based on:
         - AS number from primary IPv4 of loopback0 (or frr_local_as custom field)
         - Loopback addresses from loopback0 interface
         - Uplinks from interfaces connected to Leaf switches
+
+        If device.local_context_data contains a "frr_parameters" key, its values
+        are deep-merged into the auto-generated parameters. Values from
+        local_context_data take precedence on conflicts.
 
         Args:
             device: NetBox device object
@@ -405,6 +409,15 @@ class FRRExtractor(BaseExtractor):
         # Return None if no FRR configuration found
         if not result:
             return None
+
+        # Deep-merge overrides from local_context_data if available
+        if hasattr(device, "local_context_data") and device.local_context_data:
+            lcd_frr = device.local_context_data.get("frr_parameters")
+            if lcd_frr and isinstance(lcd_frr, dict):
+                logger.info(
+                    f"Merging frr_parameters from local_context_data for device {device.name}"
+                )
+                result = deep_merge(result, lcd_frr)
 
         # Write the generated parameters in the custom field
         if self.netbox_client:
