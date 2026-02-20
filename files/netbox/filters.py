@@ -203,3 +203,21 @@ class DeviceFilter:
         """
         unique_devices = {dev.id: dev for dev in devices}
         return list(unique_devices.values())
+
+    def build_dnsmasq_filters(self) -> List[Dict[str, Any]]:
+        """Build filters for dnsmasq device selection (tag-stripped).
+
+        Returns filter dictionaries based on NETBOX_FILTER_INVENTORY but with
+        the 'tag' key removed, so that dnsmasq entries are generated for all
+        active devices regardless of device-level tags.
+
+        Returns:
+            List of filter dictionaries without tag constraints
+        """
+        filters = self.normalize_filters()
+        result = []
+        for f in filters:
+            modified = f.copy()
+            modified.pop("tag", None)
+            result.append(modified)
+        return result
