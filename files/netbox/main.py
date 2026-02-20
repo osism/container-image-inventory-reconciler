@@ -210,15 +210,32 @@ def main() -> None:
             logger.info("Generating host groups based on device roles")
             inventory_manager.write_host_groups(devices_to_roles)
 
+            # Fetch broader device list for dnsmasq (all active devices, no tag filter)
+            logger.info("Fetching devices for dnsmasq configuration (broader filter)")
+            dnsmasq_devices = netbox_client.get_dnsmasq_devices()
+            logger.info(
+                f"Found {len(dnsmasq_devices)} devices for dnsmasq configuration"
+            )
+
+            # Bulk-load interface data for any new devices not already loaded
+            existing_device_ids = set(device_ids)
+            new_dnsmasq_device_ids = [
+                d.id for d in dnsmasq_devices if d.id not in existing_device_ids
+            ]
+            if new_dnsmasq_device_ids:
+                logger.info(
+                    f"Bulk loading data for {len(new_dnsmasq_device_ids)} additional dnsmasq devices"
+                )
+                bulk_loader.load_device_data(new_dnsmasq_device_ids)
+
             # Generate dnsmasq configuration
             logger.info("Generating dnsmasq configuration")
-            # In metalbox mode, pass all_devices to collect OOB configs from all devices
             if config.reconciler_mode == "metalbox":
                 dnsmasq_manager.write_dnsmasq_config(
-                    netbox_client, inventory_devices, all_devices
+                    netbox_client, inventory_devices, dnsmasq_devices
                 )
             else:
-                dnsmasq_manager.write_dnsmasq_config(netbox_client, inventory_devices)
+                dnsmasq_manager.write_dnsmasq_config(netbox_client, dnsmasq_devices)
 
             # Generate dnsmasq DHCP ranges
             logger.info("Generating dnsmasq DHCP ranges")

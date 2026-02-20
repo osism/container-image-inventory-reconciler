@@ -161,6 +161,28 @@ class NetBoxClient(BaseNetBoxClient):
 
             return unique_devices_with_ironic, unique_devices_non_ironic
 
+    def get_dnsmasq_devices(self) -> List[Any]:
+        """Retrieve devices for dnsmasq configuration (broader than inventory).
+
+        Uses tag-stripped filters so that any active device with a qualifying
+        OOB interface gets a dnsmasq entry, regardless of device-level tags.
+        Applies maintenance filtering but no provision-state or Ironic split.
+
+        Returns:
+            List of unique device objects for dnsmasq processing
+
+        Raises:
+            NetBoxAPIError: If device retrieval fails
+        """
+        with self.api_operation("get_dnsmasq_devices"):
+            dnsmasq_filters = self._device_filter.build_dnsmasq_filters()
+            all_devices = []
+            for f in dnsmasq_filters:
+                devices = self.api.dcim.devices.filter(**f)
+                filtered = self._device_filter.filter_by_maintenance(devices)
+                all_devices.extend(filtered)
+            return self._device_filter.deduplicate_devices(all_devices)
+
     def get_device_oob_interface(
         self, device: Any
     ) -> Tuple[Optional[str], Optional[str], Optional[int]]:
