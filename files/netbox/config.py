@@ -11,7 +11,7 @@ from dynaconf import Dynaconf
 # Default configuration values
 DEFAULT_INVENTORY_PATH = "/inventory.pre"
 DEFAULT_TEMPLATE_PATH = "/netbox/templates/"
-DEFAULT_DATA_TYPES = ["primary_ip", "config_context", "netplan_parameters"]
+DEFAULT_DATA_TYPES = ["primary_ip", "config_context", "netplan_parameters", "secrets"]
 DEFAULT_IGNORED_ROLES = ["housing", "pdu", "other", "oob"]
 DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
 DEFAULT_RETRY_ATTEMPTS = 10
