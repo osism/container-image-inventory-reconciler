@@ -33,7 +33,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 
 - `NETBOX_API` - NetBox API URL (required)
 - `NETBOX_TOKEN` - Authentication token (via env or `/run/secrets/NETBOX_TOKEN`)
-- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters")
+- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters"). Available types: primary_ip, config_context, netplan_parameters, frr_parameters, dnsmasq_parameters, gnmic_parameters, secrets
 - `NETBOX_IGNORED_ROLES` - Device roles to skip (default: "housing,pdu,other,oob")
 - `NETBOX_ROLE_MAPPING` - JSON mapping of device roles to inventory groups
 - `NETBOX_FILTER_INVENTORY` - JSON filter for device selection (default: `{"status": "active", "tag": "managed-by-osism"}`)
@@ -76,6 +76,7 @@ Devices are assigned to Ansible groups based on their NetBox role:
   - `999-netbox-ansible.yml` - Ansible connection info (ansible_host)
   - `999-netbox-netplan.yml` - Netplan parameters (if configured)
   - `999-netbox-frr.yml` - FRR parameters (if configured)
+  - `999-netbox-secrets.yml` - Ansible Vault encrypted secrets (if configured)
 
 ### Netplan Configuration
 The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
@@ -163,6 +164,25 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
         - interface: leaf2
           remote_as: 4200042101
     ```
+
+### Secrets
+The `999-netbox-secrets.yml` file contains Ansible Vault encrypted values from the `secrets` custom field on devices.
+- **Source**: The `secrets` custom field (JSON type) on the NetBox device
+- **Filtering**: Keys prefixed with `remote_board_` (e.g. `remote_board_username`, `remote_board_password`) are excluded — these are reserved for the Ironic integration
+- **Vault handling**: Any string value starting with `$ANSIBLE_VAULT;` is automatically serialized with the `!vault` YAML tag and literal block scalar style, both in secrets and in any other data type (e.g. `frr_parameters`)
+- Example NetBox custom field value:
+  ```json
+  {
+    "frr_bmc_password": "$ANSIBLE_VAULT;1.1;AES256\n336534365656632306766373962333231...\n",
+    "remote_board_password": "$ANSIBLE_VAULT;1.1;AES256\n..."
+  }
+  ```
+- Example output (`999-netbox-secrets.yml`), with `remote_board_password` filtered out:
+  ```yaml
+  frr_bmc_password: !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    336534365656632306766373962333231...
+  ```
 
 ### Dnsmasq Files
 - `/inventory.pre/group_vars/manager/999-netbox-dnsmasq.yml` - OOB device configurations

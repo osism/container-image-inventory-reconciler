@@ -13,6 +13,31 @@ from utils import get_inventory_hostname
 from .base import BaseInventoryComponent
 
 
+def _vault_string_representer(dumper, data):
+    """YAML representer that emits Ansible Vault strings with !vault tag."""
+    return dumper.represent_scalar("!vault", data, style="|")
+
+
+class _VaultString(str):
+    """Marker type for Ansible Vault encrypted strings."""
+
+
+# Build a Dumper that automatically handles vault strings
+VaultAwareDumper = type("VaultAwareDumper", (yaml.Dumper,), {})
+VaultAwareDumper.add_representer(_VaultString, _vault_string_representer)
+
+
+def _tag_vault_strings(obj):
+    """Recursively wrap vault-encrypted strings so the custom Dumper picks them up."""
+    if isinstance(obj, dict):
+        return {k: _tag_vault_strings(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_tag_vault_strings(v) for v in obj]
+    if isinstance(obj, str) and obj.strip().startswith("$ANSIBLE_VAULT;"):
+        return _VaultString(obj)
+    return obj
+
+
 class FileWriter(BaseInventoryComponent):
     """Handles writing inventory data to files."""
 
@@ -24,6 +49,7 @@ class FileWriter(BaseInventoryComponent):
         "frr_parameters": "999-netbox-frr.yml",
         "dnsmasq_parameters": "999-netbox-dnsmasq.yml",
         "gnmic_parameters": "999-netbox-gnmic.yml",
+        "secrets": "999-netbox-secrets.yml",
     }
 
     def write_device_data(self, device: Any, data_type: str, data: Any) -> None:
@@ -83,6 +109,9 @@ class FileWriter(BaseInventoryComponent):
     def _prepare_content(self, data_type: str, data: Any) -> str:
         """Prepare content for writing based on data type.
 
+        Any string value starting with ``$ANSIBLE_VAULT;`` is automatically
+        serialized with the ``!vault`` YAML tag regardless of data type.
+
         Args:
             data_type: Type of data being written
             data: The data to format
@@ -92,16 +121,11 @@ class FileWriter(BaseInventoryComponent):
         """
         if data_type == "primary_ip":
             return f"ansible_host: {data}\n"
-        elif data_type in [
-            "frr_parameters",
-            "netplan_parameters",
-            "dnsmasq_parameters",
-            "gnmic_parameters",
-        ]:
-            # Write these parameters directly without wrapper
-            return yaml.dump(data, Dumper=yaml.Dumper)
         else:
-            return yaml.dump(data, Dumper=yaml.Dumper)
+            # All other data types (config_context, frr_parameters,
+            # netplan_parameters, dnsmasq_parameters, gnmic_parameters,
+            # secrets, ...) are written as YAML with vault-aware serialization.
+            return yaml.dump(_tag_vault_strings(data), Dumper=VaultAwareDumper)
 
     def _write_to_file(
         self, device: Any, data_type: str, content: str, base_path: Optional[Path]
