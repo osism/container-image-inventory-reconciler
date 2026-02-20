@@ -456,19 +456,41 @@ class MetalboxModeHandler(DnsmasqBase):
         # Routed mode setup
         prefix_mapping = None
         metalbox_loopback0_ip = None
+        self.prefix_tags = None
+
         if is_routed:
             oob_networks = netbox_client.get_oob_networks()
-            prefix_mapping = self._build_prefix_tag_mapping(oob_networks)
+
+            # Build network lookup for IP-to-prefix matching (no tags yet)
+            network_lookup = {}
+            for network in oob_networks:
+                net = ipaddress.ip_network(network.prefix)
+                if net.version == 4:
+                    network_lookup[network.prefix] = net
+
+            # Quick scan: find which prefixes actually have devices assigned
+            used_prefixes = set()
+            for device in all_devices:
+                ip_address, _, _ = netbox_client.get_device_oob_interface(device)
+                if ip_address:
+                    ip = ipaddress.ip_address(ip_address.split("/")[0])
+                    for prefix_str, net in network_lookup.items():
+                        if ip in net:
+                            used_prefixes.add(prefix_str)
+                            break
+
+            # Build tag mapping from ONLY used prefixes (sequential suffixes)
+            used_oob_networks = [n for n in oob_networks if n.prefix in used_prefixes]
+            prefix_mapping = self._build_prefix_tag_mapping(used_oob_networks)
+            self.prefix_tags = {k: v["tag"] for k, v in prefix_mapping.items()}
+
             metalbox_loopback0_ip = self._get_metalbox_loopback0_ip(
                 metalbox_device, netbox_client
             )
             logger.info(
-                f"Routed OOB mode: {len(prefix_mapping)} prefixes, "
-                f"loopback0 IP: {metalbox_loopback0_ip}"
+                f"Routed OOB mode: {len(used_prefixes)} of {len(network_lookup)} "
+                f"prefixes have devices, loopback0 IP: {metalbox_loopback0_ip}"
             )
-
-        # Track which prefixes are actually used by devices (routed mode)
-        used_prefixes = set()
 
         # Collect all dnsmasq entries from all devices using dictionaries for deduplication
         # Key format:
@@ -520,12 +542,6 @@ class MetalboxModeHandler(DnsmasqBase):
                     # Determine set_tag based on mode
                     if is_routed and prefix_mapping:
                         set_tag = self._get_set_tag_for_ip(ip_address, prefix_mapping)
-                        # Track which prefix this device belongs to
-                        if set_tag:
-                            for prefix_str, info in prefix_mapping.items():
-                                if info["tag"] == set_tag:
-                                    used_prefixes.add(prefix_str)
-                                    break
                     else:
                         set_tag = None
 
@@ -623,23 +639,6 @@ class MetalboxModeHandler(DnsmasqBase):
                             device, "dnsmasq_parameters", write_params
                         )
 
-        # Store prefix_tags for use by write_dnsmasq_dhcp_ranges (only used prefixes)
-        self.prefix_tags = None
-        if is_routed and prefix_mapping:
-            self.prefix_tags = {
-                k: v["tag"] for k, v in prefix_mapping.items() if k in used_prefixes
-            }
-            # Filter prefix_mapping to only used prefixes for DHCP options
-            used_prefix_mapping = {
-                k: v for k, v in prefix_mapping.items() if k in used_prefixes
-            }
-            logger.info(
-                f"Routed OOB mode: {len(used_prefixes)} of {len(prefix_mapping)} "
-                f"prefixes have devices assigned"
-            )
-        else:
-            used_prefix_mapping = prefix_mapping
-
         # Write collected entries to metalbox device(s)
         for device in devices:
             if (
@@ -653,7 +652,7 @@ class MetalboxModeHandler(DnsmasqBase):
                         metalbox_loopback0_ip
                     )
                     dhcp_options = self._get_dhcp_options_routed(
-                        metalbox_loopback0_ip, used_prefix_mapping
+                        metalbox_loopback0_ip, prefix_mapping
                     )
                     dnsmasq_interfaces = ["loopback0"]
                 else:
