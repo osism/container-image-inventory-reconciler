@@ -33,7 +33,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 
 - `NETBOX_API` - NetBox API URL (required)
 - `NETBOX_TOKEN` - Authentication token (via env or `/run/secrets/NETBOX_TOKEN`)
-- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters"). Available types: primary_ip, config_context, netplan_parameters, frr_parameters, dnsmasq_parameters, gnmic_parameters, secrets
+- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters,secrets"). Available types: primary_ip, config_context, netplan_parameters, frr_parameters, dnsmasq_parameters, gnmic_parameters, secrets
 - `NETBOX_IGNORED_ROLES` - Device roles to skip (default: "housing,pdu,other,oob")
 - `NETBOX_ROLE_MAPPING` - JSON mapping of device roles to inventory groups
 - `NETBOX_FILTER_INVENTORY` - JSON filter for device selection (default: `{"status": "active", "tag": "managed-by-osism"}`)
