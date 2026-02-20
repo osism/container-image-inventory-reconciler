@@ -20,7 +20,12 @@ class DHCPConfigGenerator:
         self.config = config
 
     def generate_dhcp_host_entry(
-        self, device: Any, ip_address: str, mac_address: str, vlan_id: int = None
+        self,
+        device: Any,
+        ip_address: str,
+        mac_address: str,
+        vlan_id: int = None,
+        set_tag: str = None,
     ) -> str:
         """Generate a dnsmasq DHCP host entry.
 
@@ -28,7 +33,8 @@ class DHCPConfigGenerator:
             device: NetBox device object
             ip_address: IP address for the device
             mac_address: MAC address for the device
-            vlan_id: Optional VLAN ID for metalbox mode
+            vlan_id: Optional VLAN ID for metalbox mode (used in bridged mode)
+            set_tag: Optional explicit set tag (used in routed mode, overrides vlan_id)
 
         Returns:
             DHCP host entry string
@@ -38,8 +44,10 @@ class DHCPConfigGenerator:
         # Get inventory hostname for the device
         device_hostname = get_inventory_hostname(device)
 
-        # Create dnsmasq DHCP host entry: "mac,hostname,ip[,set:vlanXXX]"
-        if vlan_id and self.config.reconciler_mode == "metalbox":
+        # Create dnsmasq DHCP host entry: "mac,hostname,ip[,set:tag]"
+        if set_tag:
+            return f"{mac_formatted},{device_hostname},{ip_address},set:{set_tag}"
+        elif vlan_id and self.config.reconciler_mode == "metalbox":
             return f"{mac_formatted},{device_hostname},{ip_address},set:vlan{vlan_id}"
         else:
             return f"{mac_formatted},{device_hostname},{ip_address}"
@@ -74,8 +82,15 @@ class DHCPConfigGenerator:
 
         return None
 
-    def write_dhcp_ranges(self, netbox_client: NetBoxClient) -> None:
-        """Generate and write dnsmasq DHCP ranges for OOB networks."""
+    def write_dhcp_ranges(
+        self, netbox_client: NetBoxClient, prefix_tags: dict = None
+    ) -> None:
+        """Generate and write dnsmasq DHCP ranges for OOB networks.
+
+        Args:
+            netbox_client: NetBox API client
+            prefix_tags: Optional mapping of prefix string to set tag (for routed mode)
+        """
         oob_networks = netbox_client.get_oob_networks()
 
         if not oob_networks:
@@ -98,7 +113,11 @@ class DHCPConfigGenerator:
                 subnet_mask = str(net.netmask)
 
                 # Add 'static' mode to only allow static assignments
-                dhcp_range = f"{start_ip},static,{subnet_mask},28d"
+                if prefix_tags and network.prefix in prefix_tags:
+                    tag = prefix_tags[network.prefix]
+                    dhcp_range = f"set:{tag},{start_ip},static,{subnet_mask},28d"
+                else:
+                    dhcp_range = f"{start_ip},static,{subnet_mask},28d"
                 dhcp_ranges.append(dhcp_range)
 
                 logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")

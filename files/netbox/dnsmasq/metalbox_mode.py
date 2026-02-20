@@ -21,6 +21,152 @@ class MetalboxModeHandler(DnsmasqBase):
         self.dhcp_generator = DHCPConfigGenerator(config)
         self.interface_handler = InterfaceHandler()
 
+    def _build_prefix_tag_mapping(self, oob_networks):
+        """Build mapping: prefix_string -> {tag, network, vlan_id}.
+
+        Sorts OOB prefixes (IPv4) by network address. If multiple prefixes share
+        the same VLAN ID, suffixes (a, b, c, ...) are appended to disambiguate.
+        When VLAN IDs are unique, no suffix is added (e.g. just "vlan100").
+
+        Args:
+            oob_networks: List of OOB network prefix objects
+
+        Returns:
+            Dictionary mapping prefix strings to tag info dicts
+        """
+        ipv4_prefixes = []
+        for network in oob_networks:
+            net = ipaddress.ip_network(network.prefix)
+            if net.version == 4:
+                vlan_id = (
+                    network.vlan.vid
+                    if hasattr(network, "vlan") and network.vlan
+                    else None
+                )
+                ipv4_prefixes.append((net, network.prefix, vlan_id))
+
+        # Sort by network address for deterministic suffix assignment
+        ipv4_prefixes.sort(key=lambda x: x[0].network_address)
+
+        # Count occurrences of each VLAN ID (or None) to detect duplicates
+        vlan_counts = {}
+        for _, _, vlan_id in ipv4_prefixes:
+            key = vlan_id if vlan_id is not None else "__none__"
+            vlan_counts[key] = vlan_counts.get(key, 0) + 1
+
+        # Track per-VLAN-ID suffix counters for duplicates
+        vlan_suffix_counters = {}
+
+        mapping = {}
+        for net, prefix_str, vlan_id in ipv4_prefixes:
+            key = vlan_id if vlan_id is not None else "__none__"
+            if vlan_counts[key] > 1:
+                # Multiple prefixes with same VLAN ID: append suffix
+                idx = vlan_suffix_counters.get(key, 0)
+                vlan_suffix_counters[key] = idx + 1
+                suffix = chr(ord("a") + idx)
+                tag = (
+                    f"vlan{vlan_id}{suffix}" if vlan_id is not None else f"oob{suffix}"
+                )
+            else:
+                # Unique VLAN ID: no suffix needed
+                tag = f"vlan{vlan_id}" if vlan_id is not None else "oob"
+            mapping[prefix_str] = {"tag": tag, "network": net, "vlan_id": vlan_id}
+
+        return mapping
+
+    def _get_set_tag_for_ip(self, ip_address, prefix_mapping):
+        """Find set_tag for a device's OOB IP by matching against prefix mapping.
+
+        Args:
+            ip_address: IP address string (may include /prefix)
+            prefix_mapping: Dictionary from _build_prefix_tag_mapping()
+
+        Returns:
+            Set tag string or None if no match found
+        """
+        ip = ipaddress.ip_address(ip_address.split("/")[0])
+        for prefix_str, info in prefix_mapping.items():
+            if ip in info["network"]:
+                return info["tag"]
+        return None
+
+    def _get_metalbox_loopback0_ip(self, device, netbox_client):
+        """Get metalbox loopback0 IPv4, preferring IP from OOB-role prefix.
+
+        Args:
+            device: NetBox metalbox device object
+            netbox_client: NetBox API client
+
+        Returns:
+            IPv4 address string (without prefix) or None
+        """
+        interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+        loopback0 = None
+        for iface in interfaces:
+            if iface.name and iface.name.lower() == "loopback0":
+                loopback0 = iface
+                break
+        if not loopback0:
+            return None
+
+        ip_addresses = list(
+            netbox_client.api.ipam.ip_addresses.filter(interface_id=loopback0.id)
+        )
+        ipv4_addresses = [ip for ip in ip_addresses if ip.address and "." in ip.address]
+
+        if len(ipv4_addresses) == 1:
+            return ipv4_addresses[0].address.split("/")[0]
+
+        if len(ipv4_addresses) > 1:
+            # Prefer IP from prefix with OOB role
+            all_oob_prefixes = netbox_client.get_all_oob_prefixes()
+            for ip in ipv4_addresses:
+                ip_addr = ipaddress.ip_address(ip.address.split("/")[0])
+                for prefix in all_oob_prefixes:
+                    net = ipaddress.ip_network(prefix.prefix)
+                    if ip_addr in net:
+                        return str(ip_addr)
+            # Fallback to first IPv4
+            return ipv4_addresses[0].address.split("/")[0]
+
+        return None
+
+    def _get_dhcp_options_routed(self, metalbox_loopback0_ip, prefix_mapping):
+        """Generate DHCP options for routed mode (per-prefix).
+
+        Args:
+            metalbox_loopback0_ip: Metalbox loopback0 IPv4 address
+            prefix_mapping: Dictionary from _build_prefix_tag_mapping()
+
+        Returns:
+            List of DHCP option strings
+        """
+        options = []
+        for prefix_str, info in prefix_mapping.items():
+            tag = info["tag"]
+            net = info["network"]
+            gateway_ip = str(net.network_address + 1)
+
+            options.append(f"tag:{tag},3,{gateway_ip}")
+            options.append(f"tag:{tag},6,{metalbox_loopback0_ip}")
+            options.append(f"tag:{tag},42,{metalbox_loopback0_ip}")
+        return options
+
+    def _get_dynamic_hosts_routed(self, metalbox_loopback0_ip):
+        """Generate dynamic hosts entries for routed mode.
+
+        Args:
+            metalbox_loopback0_ip: Metalbox loopback0 IPv4 address
+
+        Returns:
+            List of dynamic host entry strings
+        """
+        return [
+            f"metalbox,{metalbox_loopback0_ip},loopback0",
+            f"metalbox.osism.xyz,{metalbox_loopback0_ip},loopback0",
+        ]
+
     def get_dynamic_hosts_for_metalbox(
         self, device: Any, netbox_client: NetBoxClient
     ) -> List[str]:
@@ -263,11 +409,54 @@ class MetalboxModeHandler(DnsmasqBase):
         Collects all dnsmasq entries from all devices (including switches) and writes them to metalbox devices.
         In metalbox mode, switches with managed-by-metalbox tag are also included.
 
+        Supports two sub-modes:
+        - Bridged (default): Metalbox has VLAN interfaces, hosts grouped by VLAN ID
+        - Routed: Metalbox has NO VLAN interfaces, hosts grouped by OOB prefix with suffixed tags
+
         Args:
             netbox_client: NetBox API client
             devices: List of devices to write configurations for
             all_devices: List of all devices to collect OOB configs from (includes switches)
         """
+        # Find metalbox device to determine mode
+        metalbox_device = None
+        for device in devices:
+            if (
+                device.role
+                and device.role.slug
+                and device.role.slug.lower() == "metalbox"
+            ):
+                metalbox_device = device
+                break
+
+        if not metalbox_device:
+            return
+
+        # Determine mode: routed if metalbox has NO VLAN interfaces
+        vlan_interfaces = self.interface_handler.get_virtual_interfaces_for_dnsmasq(
+            metalbox_device, netbox_client
+        )
+        is_routed = len(vlan_interfaces) == 0
+
+        # Routed mode setup
+        prefix_mapping = None
+        metalbox_loopback0_ip = None
+        if is_routed:
+            oob_networks = netbox_client.get_oob_networks()
+            prefix_mapping = self._build_prefix_tag_mapping(oob_networks)
+            metalbox_loopback0_ip = self._get_metalbox_loopback0_ip(
+                metalbox_device, netbox_client
+            )
+            logger.info(
+                f"Routed OOB mode: {len(prefix_mapping)} prefixes, "
+                f"loopback0 IP: {metalbox_loopback0_ip}"
+            )
+
+        # Store prefix_tags for use by write_dnsmasq_dhcp_ranges
+        self.prefix_tags = None
+        if is_routed and prefix_mapping:
+            self.prefix_tags = {k: v["tag"] for k, v in prefix_mapping.items()}
+
         # Collect all dnsmasq entries from all devices using dictionaries for deduplication
         # Key format:
         # - dhcp_hosts: hostname (2nd field from "mac,hostname,ip[,set:vlanXXX]")
@@ -315,8 +504,14 @@ class MetalboxModeHandler(DnsmasqBase):
 
                 # Generate DHCP host entry only if we have both IP and MAC
                 if ip_address:
+                    # Determine set_tag based on mode
+                    if is_routed and prefix_mapping:
+                        set_tag = self._get_set_tag_for_ip(ip_address, prefix_mapping)
+                    else:
+                        set_tag = None
+
                     host_entry = self.dhcp_generator.generate_dhcp_host_entry(
-                        device, ip_address, mac_address, vlan_id
+                        device, ip_address, mac_address, vlan_id, set_tag=set_tag
                     )
                     # Use hostname as key for deduplication
                     parts = host_entry.split(",")
@@ -339,9 +534,9 @@ class MetalboxModeHandler(DnsmasqBase):
                         f"skipping dnsmasq_dhcp_hosts entry, will generate dnsmasq_dhcp_macs only"
                     )
 
-                # Get virtual interfaces for this device (only for metalbox devices)
+                # Get virtual interfaces for this device (only for metalbox devices in bridged mode)
                 device_interfaces = []
-                if is_metalbox:
+                if is_metalbox and not is_routed:
                     device_interfaces = (
                         self.interface_handler.get_virtual_interfaces_for_dnsmasq(
                             device, netbox_client
@@ -385,8 +580,8 @@ class MetalboxModeHandler(DnsmasqBase):
                         f"Failed to cache dnsmasq parameters for device {device.name}"
                     )
             else:
-                # No OOB interface found, but still check for virtual interfaces (only for metalbox devices)
-                if is_metalbox:
+                # No OOB interface found, but still check for virtual interfaces (only for metalbox devices in bridged mode)
+                if is_metalbox and not is_routed:
                     device_interfaces = (
                         self.interface_handler.get_virtual_interfaces_for_dnsmasq(
                             device, netbox_client
@@ -416,24 +611,34 @@ class MetalboxModeHandler(DnsmasqBase):
                 and device.role.slug
                 and device.role.slug.lower() == "metalbox"
             ):
-                # Generate dynamic hosts for this metalbox device
-                dynamic_hosts = self.get_dynamic_hosts_for_metalbox(
-                    device, netbox_client
-                )
-
-                # Generate DHCP options for this metalbox device
-                dhcp_options = self.get_dhcp_options_for_metalbox(device, netbox_client)
+                if is_routed:
+                    # Routed mode: use loopback0-based values
+                    dynamic_hosts = self._get_dynamic_hosts_routed(
+                        metalbox_loopback0_ip
+                    )
+                    dhcp_options = self._get_dhcp_options_routed(
+                        metalbox_loopback0_ip, prefix_mapping
+                    )
+                    dnsmasq_interfaces = ["loopback0"]
+                else:
+                    # Bridged mode: use VLAN interface-based values
+                    dynamic_hosts = self.get_dynamic_hosts_for_metalbox(
+                        device, netbox_client
+                    )
+                    dhcp_options = self.get_dhcp_options_for_metalbox(
+                        device, netbox_client
+                    )
+                    dnsmasq_interfaces = list(all_dnsmasq_interfaces_dict.values())
 
                 # Convert dictionaries to lists for writing
                 all_dhcp_hosts = list(all_dhcp_hosts_dict.values())
                 all_dhcp_macs = list(all_dhcp_macs_dict.values())
-                all_dnsmasq_interfaces = list(all_dnsmasq_interfaces_dict.values())
 
                 # Create the dnsmasq configuration data with all collected entries
                 dnsmasq_data = {
                     "dnsmasq_dhcp_hosts__metalbox": all_dhcp_hosts,
                     "dnsmasq_dhcp_macs__metalbox": all_dhcp_macs,
-                    "dnsmasq_interfaces__metalbox": all_dnsmasq_interfaces,
+                    "dnsmasq_interfaces__metalbox": dnsmasq_interfaces,
                     "dnsmasq_dynamic_hosts__metalbox": dynamic_hosts,
                     "dnsmasq_dhcp_options__metalbox": dhcp_options,
                 }
@@ -447,7 +652,7 @@ class MetalboxModeHandler(DnsmasqBase):
                     metalbox_write_params = {
                         "dnsmasq_dhcp_hosts": switch_dhcp_hosts,
                         "dnsmasq_dhcp_macs": switch_dhcp_macs,
-                        "dnsmasq_interfaces": all_dnsmasq_interfaces,  # Preserve metalbox VLAN interfaces
+                        "dnsmasq_interfaces": dnsmasq_interfaces,
                     }
 
                     logger.info(
