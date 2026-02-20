@@ -89,7 +89,8 @@ class DHCPConfigGenerator:
 
         Args:
             netbox_client: NetBox API client
-            prefix_tags: Optional mapping of prefix string to set tag (for routed mode)
+            prefix_tags: Optional mapping of prefix string to set tag (for routed mode).
+                         When provided, only prefixes in this mapping are included.
         """
         oob_networks = netbox_client.get_oob_networks()
 
@@ -113,7 +114,10 @@ class DHCPConfigGenerator:
                 subnet_mask = str(net.netmask)
 
                 # Add 'static' mode to only allow static assignments
-                if prefix_tags and network.prefix in prefix_tags:
+                if prefix_tags is not None:
+                    # Routed mode: only include prefixes that have devices assigned
+                    if network.prefix not in prefix_tags:
+                        continue
                     tag = prefix_tags[network.prefix]
                     dhcp_range = f"set:{tag},{start_ip},static,{subnet_mask},28d"
                 else:
