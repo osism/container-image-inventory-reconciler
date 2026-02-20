@@ -25,8 +25,10 @@ class MetalboxModeHandler(DnsmasqBase):
         """Build mapping: prefix_string -> {tag, network, vlan_id}.
 
         Sorts OOB prefixes (IPv4) by network address. If multiple prefixes share
-        the same VLAN ID, suffixes (a, b, c, ...) are appended to disambiguate.
+        the same VLAN ID, suffixes are appended to disambiguate.
         When VLAN IDs are unique, no suffix is added (e.g. just "vlan100").
+
+        Suffixes use letters: a-z for 0-25, then aa, ab, ... az, ba, bb, ... for 26+.
 
         Args:
             oob_networks: List of OOB network prefix objects
@@ -64,7 +66,7 @@ class MetalboxModeHandler(DnsmasqBase):
                 # Multiple prefixes with same VLAN ID: append suffix
                 idx = vlan_suffix_counters.get(key, 0)
                 vlan_suffix_counters[key] = idx + 1
-                suffix = chr(ord("a") + idx)
+                suffix = self._index_to_suffix(idx)
                 tag = (
                     f"vlan{vlan_id}{suffix}" if vlan_id is not None else f"oob{suffix}"
                 )
@@ -74,6 +76,19 @@ class MetalboxModeHandler(DnsmasqBase):
             mapping[prefix_str] = {"tag": tag, "network": net, "vlan_id": vlan_id}
 
         return mapping
+
+    @staticmethod
+    def _index_to_suffix(idx):
+        """Convert a 0-based index to a letter suffix.
+
+        0-25 → a-z, 26-701 → aa, ab, ... az, ba, bb, ... zz
+        """
+        if idx < 26:
+            return chr(ord("a") + idx)
+        idx -= 26
+        first = chr(ord("a") + idx // 26)
+        second = chr(ord("a") + idx % 26)
+        return f"{first}{second}"
 
     def _get_set_tag_for_ip(self, ip_address, prefix_mapping):
         """Find set_tag for a device's OOB IP by matching against prefix mapping.
