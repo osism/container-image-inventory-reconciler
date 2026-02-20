@@ -12,6 +12,7 @@ from extractors import (
     GnmicExtractor,
     NetplanExtractor,
     PrimaryIPExtractor,
+    SecretsExtractor,
 )
 
 
@@ -45,6 +46,7 @@ class DeviceDataExtractor:
             bulk_loader=bulk_loader,
         )
         self.gnmic_extractor = GnmicExtractor(api=api, netbox_client=netbox_client)
+        self.secrets_extractor = SecretsExtractor()
         self.netbox_client = netbox_client
         self.bulk_loader = bulk_loader
 
@@ -106,6 +108,10 @@ class DeviceDataExtractor:
         """Extract gnmicparameters for metalbox-managed switches."""
         return self.gnmic_extractor.extract(device)
 
+    def extract_secrets(self, device: Any) -> Any:
+        """Extract secrets (Ansible Vault encrypted values) from device custom field."""
+        return self.secrets_extractor.extract(device)
+
     def extract_all_data(
         self,
         device: Any,
@@ -126,4 +132,5 @@ class DeviceDataExtractor:
             ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
             "gnmic_parameters": self.extract_gnmic_parameters(device),
+            "secrets": self.extract_secrets(device),
         }

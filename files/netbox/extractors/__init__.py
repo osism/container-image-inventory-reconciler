@@ -9,6 +9,7 @@ from .frr_extractor import FRRExtractor
 from .gnmic_extractor import GnmicExtractor
 from .netplan_extractor import NetplanExtractor
 from .primary_ip_extractor import PrimaryIPExtractor
+from .secrets_extractor import SecretsExtractor
 
 __all__ = [
     "BaseExtractor",
@@ -18,4 +19,5 @@ __all__ = [
     "GnmicExtractor",
     "NetplanExtractor",
     "PrimaryIPExtractor",
+    "SecretsExtractor",
 ]
