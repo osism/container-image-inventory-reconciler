@@ -220,6 +220,23 @@ class NetBoxClient(BaseNetBoxClient):
             self._cache_manager.set(cache_key, result)
             return result
 
+    def get_all_oob_prefixes(self) -> List[Any]:
+        """Get all networks with OOB role (no tag filter).
+
+        Returns:
+            List of prefix objects that have OOB role, regardless of tags
+        """
+        cache_key = "all_oob_prefixes"
+        cached_result = self._cache_manager.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        with self.api_operation("get_all_oob_prefixes"):
+            prefixes = self.api.ipam.prefixes.filter(role="oob")
+            result = list(prefixes)
+            self._cache_manager.set(cache_key, result)
+            return result
+
     def update_device_custom_field(
         self, device: Any, field_name: str, field_value: Any
     ) -> bool:

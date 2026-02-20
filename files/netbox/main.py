@@ -239,7 +239,10 @@ def main() -> None:
 
             # Generate dnsmasq DHCP ranges
             logger.info("Generating dnsmasq DHCP ranges")
-            dnsmasq_manager.write_dnsmasq_dhcp_ranges(netbox_client)
+            prefix_tags = getattr(dnsmasq_manager.metalbox_handler, "prefix_tags", None)
+            dnsmasq_manager.write_dnsmasq_dhcp_ranges(
+                netbox_client, prefix_tags=prefix_tags
+            )
 
             # Generate gnmic configuration (metalbox mode only)
             if config.reconciler_mode == "metalbox":

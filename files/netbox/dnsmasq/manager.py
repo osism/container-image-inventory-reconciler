@@ -40,10 +40,13 @@ class DnsmasqManager:
             # Original behavior for manager mode
             self.manager_handler.process_devices(netbox_client, devices)
 
-    def write_dnsmasq_dhcp_ranges(self, netbox_client: NetBoxClient) -> None:
+    def write_dnsmasq_dhcp_ranges(
+        self, netbox_client: NetBoxClient, prefix_tags: dict = None
+    ) -> None:
         """Generate and write dnsmasq DHCP ranges for OOB networks.
 
         Args:
             netbox_client: NetBox API client
+            prefix_tags: Optional mapping of prefix string to set tag (for routed mode)
         """
-        self.dhcp_generator.write_dhcp_ranges(netbox_client)
+        self.dhcp_generator.write_dhcp_ranges(netbox_client, prefix_tags=prefix_tags)
