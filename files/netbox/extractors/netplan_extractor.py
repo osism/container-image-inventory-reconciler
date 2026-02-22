@@ -145,6 +145,10 @@ class NetplanExtractor(BaseExtractor):
         # Format: {interface_name: interface_object}
         vxlan_interfaces = {}
 
+        # Track VRF dummy interfaces for later processing
+        # Format: {interface_name: interface_object}
+        vrf_dummy_interfaces = {}
+
         # Track VRF assignments during interface processing
         # Format: {interface_id: (vrf_name, vrf_table)}
         interface_vrf_assignments = {}
@@ -264,7 +268,7 @@ class NetplanExtractor(BaseExtractor):
                         )
                 continue
 
-            # Check if this is a virtual interface (VLAN)
+            # Check if this is a virtual interface (VLAN or VRF dummy)
             if interface.type and interface.type.value == "virtual":
                 # Check if interface has untagged VLAN and parent interface
                 if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
@@ -358,6 +362,20 @@ class NetplanExtractor(BaseExtractor):
                                     logger.debug(
                                         f"Added VLAN interface {vlan_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
                                     )
+                elif (
+                    hasattr(interface, "vrf")
+                    and interface.vrf
+                    and hasattr(interface.vrf, "name")
+                    and str(interface.vrf.name).lower().startswith("vrf")
+                    and not interface.mac_address
+                ):
+                    # VRF dummy interface (e.g., lo-vrf-a, lo-vrf-b)
+                    iface_name = interface.label if interface.label else interface.name
+                    if iface_name:
+                        vrf_dummy_interfaces[iface_name] = interface
+                        logger.debug(
+                            f"Found VRF dummy interface {iface_name} on device {device.name}"
+                        )
                 continue
 
             # Skip interfaces without MAC address or label
@@ -591,6 +609,66 @@ class NetplanExtractor(BaseExtractor):
                 logger.debug(
                     f"Added VXLAN tunnel {vxlan_name} (VNI {vni}) for device {device.name}"
                 )
+
+        # Process VRF dummy interfaces
+        for vrf_dummy_name, vrf_dummy_interface in vrf_dummy_interfaces.items():
+            dummy_config = {}
+
+            # Get IP addresses
+            addresses = []
+            try:
+                ip_addresses = self.bulk_loader.get_interface_ip_addresses(
+                    vrf_dummy_interface
+                )
+                for ip in ip_addresses:
+                    if ip.address:
+                        addresses.append(ip.address)
+            except Exception:
+                pass
+
+            if addresses:
+                dummy_config["addresses"] = addresses
+
+            # Add MTU - use interface MTU if set, otherwise use effective default
+            if hasattr(vrf_dummy_interface, "mtu") and vrf_dummy_interface.mtu:
+                dummy_config["mtu"] = vrf_dummy_interface.mtu
+            else:
+                dummy_config["mtu"] = effective_default_mtu
+
+            # Check for interface-specific netplan_parameters custom field
+            if (
+                hasattr(vrf_dummy_interface, "custom_fields")
+                and vrf_dummy_interface.custom_fields
+            ):
+                interface_netplan_params = vrf_dummy_interface.custom_fields.get(
+                    "netplan_parameters"
+                )
+                if interface_netplan_params and isinstance(
+                    interface_netplan_params, dict
+                ):
+                    dummy_config.update(interface_netplan_params)
+
+            if dummy_config:
+                network_dummy_devices[vrf_dummy_name] = dummy_config
+                logger.debug(
+                    f"Added VRF dummy interface {vrf_dummy_name} for device {device.name}"
+                )
+
+            # Process VRF assignment
+            if vrf_dummy_interface.id in interface_vrf_assignments:
+                vrf_name, vrf_table = interface_vrf_assignments[vrf_dummy_interface.id]
+                # Initialize VRF entry if not exists
+                if vrf_name not in network_vrfs:
+                    network_vrfs[vrf_name] = {
+                        "table": vrf_table,
+                        "interfaces": [],
+                    }
+                # Add dummy interface to VRF's interface list
+                if vrf_dummy_name not in network_vrfs[vrf_name]["interfaces"]:
+                    network_vrfs[vrf_name]["interfaces"].append(vrf_dummy_name)
+                    logger.debug(
+                        f"Added VRF dummy interface {vrf_dummy_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
+                    )
 
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
         reconciler_mode = kwargs.get("reconciler_mode", "manager")

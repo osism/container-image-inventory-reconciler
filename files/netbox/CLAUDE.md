@@ -105,6 +105,17 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - All IPv4 and IPv6 addresses assigned to the interface are included (even if VRF-assigned)
     - If the interface is assigned to a VRF, it is also added to the VRF's interface list
     - The interface is configured in `network_tunnels`
+  - **VRF dummy interfaces**: Virtual interfaces assigned to a VRF, used as per-VRF loopback devices (e.g., `lo-vrf-a`, `lo-vrf-b`)
+    - Must have the `managed-by-osism` tag
+    - Interface type must be `virtual`
+    - Must have a VRF assignment (VRF name starts with "vrf", case-insensitive)
+    - Must NOT have a MAC address
+    - Must NOT have an untagged VLAN (distinguishes from VLAN interfaces)
+    - The label (or name if no label) becomes the dummy device name
+    - MTU is set from the interface's MTU value, or uses the effective default
+    - All IPv4 and IPv6 addresses assigned to the interface are included
+    - If the VRF has a table ID, the interface is added to the VRF's interface list in `network_vrfs`
+    - The interface is configured in `network_dummy_devices`
   - Example output:
     ```yaml
     network_dummy_devices:
@@ -112,6 +123,10 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
         addresses:
           - 192.168.45.123/32
           - 2001:db8:85a3::8a2e:370:7334/128
+      lo-vrf-a:
+        addresses:
+          - 192.168.42.10/32
+        mtu: 9100
     network_ethernets:
       leaf1:
         match:
@@ -152,6 +167,10 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
   - **Uplinks**: Interfaces with `managed-by-osism` tag and label connected to switches
     - Switch device roles are configurable via FRR_SWITCH_ROLES
     - Remote AS calculated from connected switch's loopback0 IPv4 or `frr_local_as` field
+  - **VRF loopbacks**: VRF dummy interfaces provide per-VRF router IDs
+    - Uses the same detection criteria as netplan VRF dummy interfaces
+    - Only interfaces with an IPv4 address are included (router_id requires IPv4)
+    - Deduplicated by VRF name (first IPv4 address used if multiple interfaces per VRF)
   - Example output:
     ```yaml
     frr_parameters:
@@ -163,6 +182,11 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
           remote_as: 4200042100
         - interface: leaf2
           remote_as: 4200042101
+      frr_vrfs:
+        - name: VRF-A
+          router_id: 192.168.42.10
+        - name: VRF-B
+          router_id: 192.168.23.10
     ```
 
 ### Secrets
