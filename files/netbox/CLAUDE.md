@@ -45,6 +45,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `INVENTORY_FROM_NETBOX` - Whether to write inventory files to DEFAULT_INVENTORY_PATH (default: true)
 - `INVENTORY_IGNORE_PROVISION_STATE` - Ignore cf_provision_state filter for Ironic devices (default: false)
 - `INVENTORY_IGNORE_MAINTENANCE_STATE` - Ignore maintenance state filter for devices (default: false)
+- `DNSMASQ_LEASE_TIME` - DHCP lease time for dnsmasq DHCP ranges (default: "28d")
 
 ## Device Selection Logic
 

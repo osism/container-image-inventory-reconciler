@@ -119,9 +119,9 @@ class DHCPConfigGenerator:
                     if network.prefix not in prefix_tags:
                         continue
                     tag = prefix_tags[network.prefix]
-                    dhcp_range = f"set:{tag},{start_ip},static,{subnet_mask},28d"
+                    dhcp_range = f"set:{tag},{start_ip},static,{subnet_mask},{self.config.dnsmasq_lease_time}"
                 else:
-                    dhcp_range = f"{start_ip},static,{subnet_mask},28d"
+                    dhcp_range = f"{start_ip},static,{subnet_mask},{self.config.dnsmasq_lease_time}"
                 dhcp_ranges.append(dhcp_range)
 
                 logger.debug(f"Generated DHCP range for {network.prefix}: {dhcp_range}")
