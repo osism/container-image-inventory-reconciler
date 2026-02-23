@@ -147,6 +147,58 @@ class MetalboxModeHandler(DnsmasqBase):
 
         return None
 
+    def _get_physical_uplink_interfaces(self, device, netbox_client):
+        """Get OOB-facing physical interface labels on the metalbox.
+
+        In routed OOB mode, dnsmasq must listen on the physical interfaces
+        where DHCP relay packets arrive, not on loopback0.  OOB-facing
+        interfaces are identified by both the "managed-by-osism" and
+        "out-of-band" tags. Additional criteria: label, connected
+        endpoints, enabled and not management-only.
+
+        Args:
+            device: NetBox metalbox device object
+            netbox_client: NetBox API client
+
+        Returns:
+            List of interface label strings
+        """
+        labels = []
+        try:
+            interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+            for iface in interfaces:
+                # Must have both managed-by-osism and out-of-band tags
+                if not (hasattr(iface, "tags") and iface.tags):
+                    continue
+                tag_slugs = {tag.slug for tag in iface.tags}
+                if not {"managed-by-osism", "out-of-band"} <= tag_slugs:
+                    continue
+
+                # Must have a label
+                if not iface.label:
+                    continue
+
+                # Must have connected endpoints (cable)
+                if not (
+                    hasattr(iface, "connected_endpoints") and iface.connected_endpoints
+                ):
+                    continue
+
+                # Must be enabled
+                if not getattr(iface, "enabled", True):
+                    continue
+
+                # Must not be management-only
+                if getattr(iface, "mgmt_only", False):
+                    continue
+
+                labels.append(iface.label)
+        except Exception as e:
+            logger.warning(
+                f"Failed to get physical uplink interfaces for {device.name}: {e}"
+            )
+        return labels
+
     def _get_dhcp_options_routed(self, metalbox_loopback0_ip, prefix_mapping):
         """Generate DHCP options for routed mode (per-prefix).
 
@@ -654,7 +706,13 @@ class MetalboxModeHandler(DnsmasqBase):
                     dhcp_options = self._get_dhcp_options_routed(
                         metalbox_loopback0_ip, prefix_mapping
                     )
-                    dnsmasq_interfaces = ["loopback0"]
+                    # Bind to physical uplink interfaces where DHCP relay
+                    # packets arrive, plus loopback0 for dynamic host resolution
+                    uplink_interfaces = self._get_physical_uplink_interfaces(
+                        device, netbox_client
+                    )
+                    dnsmasq_interfaces = ["loopback0"] + uplink_interfaces
+                    logger.info(f"Routed OOB dnsmasq interfaces: {dnsmasq_interfaces}")
                 else:
                     # Bridged mode: use VLAN interface-based values
                     dynamic_hosts = self.get_dynamic_hosts_for_metalbox(
