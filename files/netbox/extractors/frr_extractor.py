@@ -2,6 +2,7 @@
 
 """FRR parameters extractor."""
 
+import re
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -235,6 +236,93 @@ class FRRExtractor(BaseExtractor):
 
         return result
 
+    def _get_vrf_loopback_addresses(self, device: Any) -> List[Dict[str, str]]:
+        """Get router IDs from VRF dummy interfaces.
+
+        A VRF dummy interface is detected by:
+        - Interface type is "virtual"
+        - Has a VRF assignment (VRF name starts with "vrf", case-insensitive)
+        - No MAC address
+        - No untagged VLAN
+        - Not loopback0 or VXLAN (different name patterns)
+
+        Returns:
+            List of dicts with 'name' (VRF name) and 'router_id' (first IPv4 without prefix)
+        """
+        result = []
+        seen_vrfs = set()
+
+        if not self.api:
+            return result
+
+        try:
+            interfaces = self.bulk_loader.get_device_interfaces(device)
+            if not interfaces:
+                return result
+
+            for interface in interfaces:
+                # Must have managed-by-osism tag
+                if not self.interface_filter.has_managed_tag(interface):
+                    continue
+
+                # Skip loopback0
+                if interface.name and interface.name.lower() == "loopback0":
+                    continue
+
+                # Skip VXLAN interfaces
+                iface_name = interface.label if interface.label else interface.name
+                if iface_name and re.match(r"^vxlan\d+$", iface_name, re.IGNORECASE):
+                    continue
+
+                # Must be virtual type
+                if not interface.type or interface.type.value != "virtual":
+                    continue
+
+                # Must not be a VLAN (no untagged_vlan)
+                if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
+                    continue
+
+                # Must not have a MAC address
+                if interface.mac_address:
+                    continue
+
+                # Must have a VRF assignment starting with "vrf"
+                if not hasattr(interface, "vrf") or not interface.vrf:
+                    continue
+                if not hasattr(interface.vrf, "name"):
+                    continue
+                vrf_name = str(interface.vrf.name)
+                if not vrf_name.lower().startswith("vrf"):
+                    continue
+
+                # Deduplicate by VRF name
+                if vrf_name in seen_vrfs:
+                    continue
+
+                # Get first IPv4 address (without prefix) as router_id
+                try:
+                    ip_addresses = self.bulk_loader.get_interface_ip_addresses(
+                        interface
+                    )
+                    for ip in ip_addresses:
+                        if ip.address and "." in ip.address:
+                            router_id = ip.address.split("/")[0]
+                            result.append({"name": vrf_name, "router_id": router_id})
+                            seen_vrfs.add(vrf_name)
+                            break
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get IP addresses for VRF dummy interface "
+                        f"{interface.name} on {device.name}: {e}"
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching VRF loopback addresses for {device.name}: {e}"
+            )
+
+        return result
+
     def _get_uplink_interfaces(self, device: Any) -> List[Dict[str, Any]]:
         """Get all interfaces that could be uplinks.
 
@@ -405,6 +493,11 @@ class FRRExtractor(BaseExtractor):
         )
         if frr_uplinks:
             result["frr_uplinks"] = frr_uplinks
+
+        # Get VRF loopback addresses for router IDs
+        vrf_loopbacks = self._get_vrf_loopback_addresses(device)
+        if vrf_loopbacks:
+            result["frr_vrfs"] = vrf_loopbacks
 
         # Return None if no FRR configuration found
         if not result:
