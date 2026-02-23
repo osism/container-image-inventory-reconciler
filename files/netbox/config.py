@@ -41,6 +41,7 @@ DEFAULT_DNSMASQ_SWITCH_ROLES = [
     "transferleaf",
     "computeleaf",
 ]
+DEFAULT_DNSMASQ_LEASE_TIME = "28d"
 DEFAULT_RECONCILER_MODE = "manager"
 ALLOWED_RECONCILER_MODES = ["manager", "metalbox"]
 
@@ -70,6 +71,7 @@ class Config:
         default_local_as_prefix: Default local AS prefix for FRR configuration
         frr_switch_roles: Device roles considered as switches for FRR uplinks
         dnsmasq_switch_roles: Device roles considered as switches for dnsmasq operations
+        dnsmasq_lease_time: DHCP lease time for dnsmasq DHCP ranges (e.g. "28d", "12h", "infinite")
         reconciler_mode: Operating mode for the reconciler (manager or metalbox)
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
         ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
@@ -104,6 +106,7 @@ class Config:
     dnsmasq_switch_roles: List[str] = field(
         default_factory=lambda: DEFAULT_DNSMASQ_SWITCH_ROLES.copy()
     )
+    dnsmasq_lease_time: str = DEFAULT_DNSMASQ_LEASE_TIME
     reconciler_mode: str = DEFAULT_RECONCILER_MODE
     inventory_from_netbox: bool = True
     ignore_provision_state: bool = False
@@ -179,6 +182,9 @@ class Config:
             frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
             dnsmasq_switch_roles=SETTINGS.get(
                 "DNSMASQ_SWITCH_ROLES", DEFAULT_DNSMASQ_SWITCH_ROLES
+            ),
+            dnsmasq_lease_time=SETTINGS.get(
+                "DNSMASQ_LEASE_TIME", DEFAULT_DNSMASQ_LEASE_TIME
             ),
             reconciler_mode=reconciler_mode,
             inventory_from_netbox=SETTINGS.get("INVENTORY_FROM_NETBOX", True),
