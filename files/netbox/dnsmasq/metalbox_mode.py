@@ -136,8 +136,7 @@ class MetalboxModeHandler(DnsmasqBase):
         if loopback0:
             ip = self._get_ipv4_from_interface(loopback0, netbox_client)
             if ip:
-                iface_name = loopback0.label if loopback0.label else loopback0.name
-                return ip, iface_name
+                return ip, "loopback0"
 
         # Priority 2: single virtual interface
         if len(virtual_interfaces) == 1:
