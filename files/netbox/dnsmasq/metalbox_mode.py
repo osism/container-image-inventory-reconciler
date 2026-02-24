@@ -106,27 +106,85 @@ class MetalboxModeHandler(DnsmasqBase):
                 return info["tag"]
         return None
 
-    def _get_metalbox_loopback0_ip(self, device, netbox_client):
-        """Get metalbox loopback0 IPv4, preferring IP from OOB-role prefix.
+    def _get_metalbox_oob_virtual_interface(self, device, netbox_client):
+        """Get the metalbox virtual interface for dnsmasq (IP and name).
+
+        Selection logic:
+        1. If loopback0 exists → use it
+        2. If only one virtual interface exists → use it
+        3. If multiple virtual interfaces exist → use the one with 'out-of-band' tag
 
         Args:
             device: NetBox metalbox device object
             netbox_client: NetBox API client
 
         Returns:
-            IPv4 address string (without prefix) or None
+            Tuple of (ipv4_address_string, interface_name) or (None, None)
         """
         interfaces = netbox_client.api.dcim.interfaces.filter(device_id=device.id)
+
         loopback0 = None
+        virtual_interfaces = []
+
         for iface in interfaces:
             if iface.name and iface.name.lower() == "loopback0":
                 loopback0 = iface
-                break
-        if not loopback0:
-            return None
+            if iface.type and iface.type.value == "virtual":
+                virtual_interfaces.append(iface)
 
+        # Priority 1: loopback0
+        if loopback0:
+            ip = self._get_ipv4_from_interface(loopback0, netbox_client)
+            if ip:
+                iface_name = loopback0.label if loopback0.label else loopback0.name
+                return ip, iface_name
+
+        # Priority 2: single virtual interface
+        if len(virtual_interfaces) == 1:
+            iface = virtual_interfaces[0]
+            ip = self._get_ipv4_from_interface(iface, netbox_client)
+            if ip:
+                iface_name = iface.label if iface.label else iface.name
+                logger.info(
+                    f"Using single virtual interface {iface_name} for dnsmasq (no loopback0 found)"
+                )
+                return ip, iface_name
+
+        # Priority 3: multiple virtual interfaces → use the one with out-of-band tag
+        if len(virtual_interfaces) > 1:
+            for iface in virtual_interfaces:
+                if hasattr(iface, "tags") and iface.tags:
+                    tag_slugs = {tag.slug for tag in iface.tags}
+                    if "out-of-band" in tag_slugs:
+                        ip = self._get_ipv4_from_interface(iface, netbox_client)
+                        if ip:
+                            iface_name = iface.label if iface.label else iface.name
+                            logger.info(
+                                f"Using out-of-band tagged virtual interface {iface_name} "
+                                f"for dnsmasq ({len(virtual_interfaces)} virtual interfaces found)"
+                            )
+                            return ip, iface_name
+            logger.warning(
+                f"Multiple virtual interfaces found on {device.name} but none has "
+                f"'out-of-band' tag - cannot determine dnsmasq interface"
+            )
+
+        return None, None
+
+    def _get_ipv4_from_interface(self, interface, netbox_client):
+        """Get the preferred IPv4 address from an interface.
+
+        If multiple IPv4 addresses exist, prefer the one from an OOB-role prefix.
+
+        Args:
+            interface: NetBox interface object
+            netbox_client: NetBox API client
+
+        Returns:
+            IPv4 address string (without prefix) or None
+        """
         ip_addresses = list(
-            netbox_client.api.ipam.ip_addresses.filter(interface_id=loopback0.id)
+            netbox_client.api.ipam.ip_addresses.filter(interface_id=interface.id)
         )
         ipv4_addresses = [ip for ip in ip_addresses if ip.address and "." in ip.address]
 
@@ -151,7 +209,7 @@ class MetalboxModeHandler(DnsmasqBase):
         """Get OOB-facing physical interface labels on the metalbox.
 
         In routed OOB mode, dnsmasq must listen on the physical interfaces
-        where DHCP relay packets arrive, not on loopback0.  OOB-facing
+        where DHCP relay packets arrive, not on the OOB virtual interface.  OOB-facing
         interfaces are identified by both the "managed-by-osism" and
         "out-of-band" tags. Additional criteria: label, connected
         endpoints, enabled and not management-only.
@@ -199,11 +257,11 @@ class MetalboxModeHandler(DnsmasqBase):
             )
         return labels
 
-    def _get_dhcp_options_routed(self, metalbox_loopback0_ip, prefix_mapping):
+    def _get_dhcp_options_routed(self, metalbox_ip, prefix_mapping):
         """Generate DHCP options for routed mode (per-prefix).
 
         Args:
-            metalbox_loopback0_ip: Metalbox loopback0 IPv4 address
+            metalbox_ip: Metalbox IPv4 address
             prefix_mapping: Dictionary from _build_prefix_tag_mapping()
 
         Returns:
@@ -216,22 +274,23 @@ class MetalboxModeHandler(DnsmasqBase):
             gateway_ip = str(net.network_address + 1)
 
             options.append(f"tag:{tag},3,{gateway_ip}")
-            options.append(f"tag:{tag},6,{metalbox_loopback0_ip}")
-            options.append(f"tag:{tag},42,{metalbox_loopback0_ip}")
+            options.append(f"tag:{tag},6,{metalbox_ip}")
+            options.append(f"tag:{tag},42,{metalbox_ip}")
         return options
 
-    def _get_dynamic_hosts_routed(self, metalbox_loopback0_ip):
+    def _get_dynamic_hosts_routed(self, metalbox_ip, interface_name):
         """Generate dynamic hosts entries for routed mode.
 
         Args:
-            metalbox_loopback0_ip: Metalbox loopback0 IPv4 address
+            metalbox_ip: Metalbox IPv4 address
+            interface_name: Name of the interface to use
 
         Returns:
             List of dynamic host entry strings
         """
         return [
-            f"metalbox,{metalbox_loopback0_ip},loopback0",
-            f"metalbox.osism.xyz,{metalbox_loopback0_ip},loopback0",
+            f"metalbox,{metalbox_ip},{interface_name}",
+            f"metalbox.osism.xyz,{metalbox_ip},{interface_name}",
         ]
 
     def get_dynamic_hosts_for_metalbox(
@@ -507,7 +566,8 @@ class MetalboxModeHandler(DnsmasqBase):
 
         # Routed mode setup
         prefix_mapping = None
-        metalbox_loopback0_ip = None
+        metalbox_ip = None
+        metalbox_iface_name = None
         self.prefix_tags = None
 
         if is_routed:
@@ -536,12 +596,12 @@ class MetalboxModeHandler(DnsmasqBase):
             prefix_mapping = self._build_prefix_tag_mapping(used_oob_networks)
             self.prefix_tags = {k: v["tag"] for k, v in prefix_mapping.items()}
 
-            metalbox_loopback0_ip = self._get_metalbox_loopback0_ip(
+            metalbox_ip, metalbox_iface_name = self._get_metalbox_oob_virtual_interface(
                 metalbox_device, netbox_client
             )
             logger.info(
                 f"Routed OOB mode: {len(used_prefixes)} of {len(network_lookup)} "
-                f"prefixes have devices, loopback0 IP: {metalbox_loopback0_ip}"
+                f"prefixes have devices, interface: {metalbox_iface_name}, IP: {metalbox_ip}"
             )
 
         # Collect all dnsmasq entries from all devices using dictionaries for deduplication
@@ -699,19 +759,19 @@ class MetalboxModeHandler(DnsmasqBase):
                 and device.role.slug.lower() == "metalbox"
             ):
                 if is_routed:
-                    # Routed mode: use loopback0-based values
+                    # Routed mode: use virtual interface-based values
                     dynamic_hosts = self._get_dynamic_hosts_routed(
-                        metalbox_loopback0_ip
+                        metalbox_ip, metalbox_iface_name
                     )
                     dhcp_options = self._get_dhcp_options_routed(
-                        metalbox_loopback0_ip, prefix_mapping
+                        metalbox_ip, prefix_mapping
                     )
                     # Bind to physical uplink interfaces where DHCP relay
-                    # packets arrive, plus loopback0 for dynamic host resolution
+                    # packets arrive, plus the OOB virtual interface for dynamic host resolution
                     uplink_interfaces = self._get_physical_uplink_interfaces(
                         device, netbox_client
                     )
-                    dnsmasq_interfaces = ["loopback0"] + uplink_interfaces
+                    dnsmasq_interfaces = [metalbox_iface_name] + uplink_interfaces
                     logger.info(f"Routed OOB dnsmasq interfaces: {dnsmasq_interfaces}")
                 else:
                     # Bridged mode: use VLAN interface-based values
