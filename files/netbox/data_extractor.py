@@ -72,7 +72,7 @@ class DeviceDataExtractor:
         """Extract netplan parameters from device interfaces.
 
         Auto-generates config and deep-merges overrides from
-        device.local_context_data["netplan_parameters"] if present.
+        device.config_context["netplan_parameters"] if present.
         """
         return self.netplan_extractor.extract(
             device,
@@ -90,7 +90,7 @@ class DeviceDataExtractor:
         """Extract FRR parameters from device.
 
         Auto-generates config and deep-merges overrides from
-        device.local_context_data["frr_parameters"] if present.
+        device.config_context["frr_parameters"] if present.
         """
         return self.frr_extractor.extract(
             device,

@@ -452,9 +452,11 @@ class FRRExtractor(BaseExtractor):
         - Loopback addresses from loopback0 interface
         - Uplinks from interfaces connected to Leaf switches
 
-        If device.local_context_data contains a "frr_parameters" key, its values
-        are deep-merged into the auto-generated parameters. Values from
-        local_context_data take precedence on conflicts.
+        If device.config_context contains a "frr_parameters" key, its values
+        are deep-merged into the auto-generated parameters. Since config_context
+        includes all Config Context sources (segments, regions, sites, roles, tags)
+        plus local_context_data, this allows defining segment-wide defaults
+        that can be overridden per device.
 
         Args:
             device: NetBox device object
@@ -503,14 +505,17 @@ class FRRExtractor(BaseExtractor):
         if not result:
             return None
 
-        # Deep-merge overrides from local_context_data if available
-        if hasattr(device, "local_context_data") and device.local_context_data:
-            lcd_frr = device.local_context_data.get("frr_parameters")
-            if lcd_frr and isinstance(lcd_frr, dict):
+        # Deep-merge overrides from config_context if available
+        # config_context includes merged data from all Config Context sources
+        # (segments, regions, sites, roles, tags, etc.) plus local_context_data,
+        # so segment-level frr_parameters defaults are also applied.
+        if hasattr(device, "config_context") and device.config_context:
+            cc_frr = device.config_context.get("frr_parameters")
+            if cc_frr and isinstance(cc_frr, dict):
                 logger.info(
-                    f"Merging frr_parameters from local_context_data for device {device.name}"
+                    f"Merging frr_parameters from config_context for device {device.name}"
                 )
-                result = deep_merge(result, lcd_frr)
+                result = deep_merge(result, cc_frr)
 
         # Write the generated parameters in the custom field
         if self.netbox_client:
