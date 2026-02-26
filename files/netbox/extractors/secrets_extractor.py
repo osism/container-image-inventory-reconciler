@@ -18,8 +18,8 @@ class SecretsExtractor(BaseExtractor):
         string.
 
         Keys prefixed with ``remote_board_`` (e.g. ``remote_board_username``,
-        ``remote_board_password``) are reserved for the Ironic integration
-        and are excluded from the inventory host vars.
+        ``remote_board_password``) or ``ironic_osism_`` are reserved for the
+        Ironic integration and are excluded from the inventory host vars.
 
         Args:
             device: NetBox device object
@@ -34,6 +34,8 @@ class SecretsExtractor(BaseExtractor):
             return None
 
         filtered = {
-            k: v for k, v in secrets.items() if not k.startswith("remote_board_")
+            k: v
+            for k, v in secrets.items()
+            if not k.startswith(("remote_board_", "ironic_osism_"))
         }
         return filtered or None
