@@ -26,6 +26,7 @@ DEFAULT_FRR_SWITCH_ROLES = [
     "storageleaf",
     "borderleaf",
     "serviceleaf",
+    "servicesleaf",
     "transferleaf",
     "computeleaf",
 ]

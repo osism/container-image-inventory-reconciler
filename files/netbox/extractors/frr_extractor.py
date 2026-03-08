@@ -530,10 +530,29 @@ class FRRExtractor(BaseExtractor):
 
         return result
 
+    def _get_frr_type(self, device: Any) -> Optional[str]:
+        """Get frr_type from device config_context frr_parameters.
+
+        Args:
+            device: NetBox device object
+
+        Returns:
+            frr_type string or None
+        """
+        if hasattr(device, "config_context") and device.config_context:
+            cc_frr = device.config_context.get("frr_parameters")
+            if cc_frr and isinstance(cc_frr, dict):
+                return cc_frr.get("frr_type")
+        return None
+
     def _build_frr_uplinks(
         self, device: Any, switch_roles: List[str], local_as_prefix: int
     ) -> List[Dict[str, Any]]:
         """Build FRR uplink configurations.
+
+        For devices with frr_type starting with "yrzn" (from config_context),
+        uplinks are included even when the remote AS number cannot be determined
+        (e.g. when the remote switch has no loopback0 or frr_local_as).
 
         Args:
             device: NetBox device object
@@ -544,6 +563,10 @@ class FRRExtractor(BaseExtractor):
             List of FRR uplink configurations
         """
         frr_uplinks = []
+
+        # Check if this device has a yrzn frr_type (allows uplinks without remote_as)
+        frr_type = self._get_frr_type(device)
+        allow_missing_remote_as = frr_type and frr_type.startswith("yrzn")
 
         # Get all potential uplinks
         uplinks = self._get_uplink_interfaces(device)
@@ -576,12 +599,14 @@ class FRRExtractor(BaseExtractor):
                 device_for_calc, remote_loopback0.get("ipv4"), local_as_prefix
             )
 
-            if remote_as:
+            if remote_as or allow_missing_remote_as:
                 # Build base uplink configuration
                 uplink_config = {
                     "interface": uplink["interface"],
-                    "remote_as": remote_as,
                 }
+
+                if remote_as:
+                    uplink_config["remote_as"] = remote_as
 
                 # Add local_pref if custom field is set on either local or remote interface
                 interface_obj = uplink.get("interface_obj")
