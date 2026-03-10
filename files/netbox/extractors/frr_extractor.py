@@ -599,6 +599,12 @@ class FRRExtractor(BaseExtractor):
                 device_for_calc, remote_loopback0.get("ipv4"), local_as_prefix
             )
 
+            # Check if the remote device has a yrzn frr_type
+            remote_frr_type = self._get_frr_type(device_for_calc)
+            remote_allow_missing_as = remote_frr_type and remote_frr_type.startswith(
+                "yrzn"
+            )
+
             if remote_as or allow_missing_remote_as:
                 # Build base uplink configuration
                 uplink_config = {
@@ -643,7 +649,7 @@ class FRRExtractor(BaseExtractor):
                         uplink_config["local_pref"] = local_pref_final
 
                 frr_uplinks.append(uplink_config)
-            else:
+            elif not remote_allow_missing_as:
                 logger.warning(
                     f"Could not determine remote AS for {remote_device.name} "
                     f"connected to {device.name} via {uplink['interface']}"
