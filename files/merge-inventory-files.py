@@ -70,7 +70,7 @@ def write_config_file(config: configparser.ConfigParser, filepath: Path) -> bool
     output = StringIO()
     config.write(output)
     content = output.getvalue()
-    content = re.sub(r"^(\w+)\s*=\s*$", r"\1", content, flags=re.MULTILINE)
+    content = re.sub(r"^([\w-]+)\s*=\s*$", r"\1", content, flags=re.MULTILINE)
 
     try:
         with open(filepath, "w") as fp:
