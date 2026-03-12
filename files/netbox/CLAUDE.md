@@ -41,7 +41,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 - `INVENTORY_PATH` - Output path for inventory files (default: "/inventory.pre")
 - `DEFAULT_MTU` - Default MTU value for interfaces without explicit MTU (default: 9100)
 - `DEFAULT_LOCAL_AS_PREFIX` - Default local AS prefix for FRR configuration (default: 4200)
-- `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager" or "metalbox" (default: "manager")
+- `INVENTORY_RECONCILER_MODE` - Operating mode for the reconciler: "manager", "manager-readonly", or "metalbox" (default: "manager"). "manager-readonly" behaves like "manager" but reads all parameters (netplan, FRR, dnsmasq) from existing custom fields instead of generating them, and does not write any data back to NetBox. Suitable for read-only tokens on external NetBox instances.
 - `INVENTORY_FROM_NETBOX` - Whether to write inventory files to DEFAULT_INVENTORY_PATH (default: true)
 - `INVENTORY_IGNORE_PROVISION_STATE` - Ignore cf_provision_state filter for Ironic devices (default: false)
 - `INVENTORY_IGNORE_MAINTENANCE_STATE` - Ignore maintenance state filter for devices (default: false)

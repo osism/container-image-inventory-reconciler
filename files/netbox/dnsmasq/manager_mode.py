@@ -89,3 +89,32 @@ class ManagerModeHandler(DnsmasqBase):
                 # Write to device-specific file (only if we have at least one entry)
                 if dnsmasq_data:
                     self.write_dnsmasq_to_device(device, dnsmasq_data)
+
+    def process_devices_readonly(self, devices: List[Any]) -> None:
+        """Process devices in read-only mode.
+
+        Reads dnsmasq_parameters from custom fields and writes per-device files.
+        Does not generate parameters or write to NetBox.
+
+        Args:
+            devices: List of devices to process
+        """
+        for device in devices:
+            cached_params = (device.custom_fields or {}).get("dnsmasq_parameters")
+            if not cached_params:
+                continue
+
+            hostname = get_inventory_hostname(device)
+            dnsmasq_data = {}
+
+            if cached_params.get("dnsmasq_dhcp_hosts"):
+                dnsmasq_data[f"dnsmasq_dhcp_hosts__{hostname}"] = cached_params[
+                    "dnsmasq_dhcp_hosts"
+                ]
+            if cached_params.get("dnsmasq_dhcp_macs"):
+                dnsmasq_data[f"dnsmasq_dhcp_macs__{hostname}"] = cached_params[
+                    "dnsmasq_dhcp_macs"
+                ]
+
+            if dnsmasq_data:
+                self.write_dnsmasq_to_device(device, dnsmasq_data)

@@ -250,6 +250,13 @@ class NetBoxClient(BaseNetBoxClient):
         Returns:
             True if update was successful, False otherwise
         """
+        if self.config.reconciler_mode == "manager-readonly":
+            logger.debug(
+                f"Read-only mode: skipping update of custom field "
+                f"'{field_name}' for device {device.name}"
+            )
+            return True
+
         with self.api_operation(
             f"update_device_custom_field '{field_name}' for {device.name}"
         ):
