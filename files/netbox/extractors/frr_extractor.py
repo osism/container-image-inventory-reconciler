@@ -496,6 +496,18 @@ class FRRExtractor(BaseExtractor):
         if frr_uplinks:
             result["frr_uplinks"] = frr_uplinks
 
+            # Build per-label-prefix uplink lists (e.g. frr_uplinks_data, frr_uplinks_bmc)
+            prefix_groups: Dict[str, List[Dict[str, Any]]] = {}
+            for uplink in frr_uplinks:
+                label = uplink.get("interface", "")
+                # Extract prefix by stripping trailing digits
+                prefix = re.sub(r"\d+$", "", label)
+                if prefix:
+                    prefix_groups.setdefault(prefix, []).append(uplink)
+
+            for prefix, uplinks in prefix_groups.items():
+                result[f"frr_uplinks_{prefix}"] = uplinks
+
         # Get VRF loopback addresses for router IDs
         vrf_loopbacks = self._get_vrf_loopback_addresses(device)
         if vrf_loopbacks:
