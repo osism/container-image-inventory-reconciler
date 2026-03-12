@@ -31,5 +31,6 @@ class ConfigContextExtractor(BaseExtractor):
                 k: v
                 for k, v in ctx.items()
                 if k not in ("frr_parameters", "netplan_parameters")
+                and k != ""
             }
         return ctx
