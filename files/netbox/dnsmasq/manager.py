@@ -33,8 +33,9 @@ class DnsmasqManager:
             devices: List of devices to write configurations for
             all_devices: List of all devices (used in metalbox mode to collect all OOB configs)
         """
-        # In metalbox mode, collect all dnsmasq entries to write to metalbox device
-        if self.config.reconciler_mode == "metalbox" and all_devices:
+        if self.config.reconciler_mode == "manager-readonly":
+            self.manager_handler.process_devices_readonly(devices)
+        elif self.config.reconciler_mode == "metalbox" and all_devices:
             self.metalbox_handler.process_devices(netbox_client, devices, all_devices)
         else:
             # Original behavior for manager mode

@@ -121,16 +121,30 @@ class DeviceDataExtractor:
         reconciler_mode: str = "manager",
     ) -> Dict[str, Any]:
         """Extract all configured data types from a device."""
-        return {
+        result = {
             "config_context": self.extract_config_context(device),
             "primary_ip": self.extract_primary_ip(device),
-            "netplan_parameters": self.extract_netplan_parameters(
-                device, default_mtu, switch_roles, reconciler_mode
-            ),
-            "frr_parameters": self.extract_frr_parameters(
-                device, local_as_prefix, switch_roles
-            ),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
-            "gnmic_parameters": self.extract_gnmic_parameters(device),
             "secrets": self.extract_secrets(device),
         }
+
+        if reconciler_mode == "manager-readonly":
+            # Read-only: read from custom fields instead of generating
+            result["netplan_parameters"] = self.custom_field_extractor.extract(
+                device, field_name="netplan_parameters"
+            )
+            result["frr_parameters"] = self.custom_field_extractor.extract(
+                device, field_name="frr_parameters"
+            )
+            result["gnmic_parameters"] = None
+        else:
+            # Normal mode: auto-generate from interfaces
+            result["netplan_parameters"] = self.extract_netplan_parameters(
+                device, default_mtu, switch_roles, reconciler_mode
+            )
+            result["frr_parameters"] = self.extract_frr_parameters(
+                device, local_as_prefix, switch_roles
+            )
+            result["gnmic_parameters"] = self.extract_gnmic_parameters(device)
+
+        return result

@@ -44,7 +44,7 @@ DEFAULT_DNSMASQ_SWITCH_ROLES = [
 ]
 DEFAULT_DNSMASQ_LEASE_TIME = "28d"
 DEFAULT_RECONCILER_MODE = "manager"
-ALLOWED_RECONCILER_MODES = ["manager", "metalbox"]
+ALLOWED_RECONCILER_MODES = ["manager", "manager-readonly", "metalbox"]
 
 # Initialize settings once at module level
 SETTINGS = Dynaconf(
@@ -73,7 +73,7 @@ class Config:
         frr_switch_roles: Device roles considered as switches for FRR uplinks
         dnsmasq_switch_roles: Device roles considered as switches for dnsmasq operations
         dnsmasq_lease_time: DHCP lease time for dnsmasq DHCP ranges (e.g. "28d", "12h", "infinite")
-        reconciler_mode: Operating mode for the reconciler (manager or metalbox)
+        reconciler_mode: Operating mode for the reconciler (manager, manager-readonly, or metalbox)
         inventory_from_netbox: Whether to write inventory files to DEFAULT_INVENTORY_PATH
         ignore_provision_state: Ignore cf_provision_state filter for Ironic devices
         ignore_maintenance_state: Ignore maintenance state filter for devices
