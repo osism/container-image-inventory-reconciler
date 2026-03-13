@@ -73,6 +73,7 @@ python3 /merge-inventory-files.py
 # The intermediate step via the inventory.merge directory
 # is necessary to remove other files in /inventory via -delete.
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
+python3 /generate-minified-hosts.py
 rsync -q -a --delete --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null || exit 1

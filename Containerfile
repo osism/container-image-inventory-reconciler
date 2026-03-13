@@ -72,6 +72,7 @@ COPY --link files/ansible /ansible
 COPY --link files/change.sh /change.sh
 COPY --link files/entrypoint.sh /entrypoint.sh
 COPY --link files/generate-clustershell-ansible-file.py /generate-clustershell-ansible-file.py
+COPY --link files/generate-minified-hosts.py /generate-minified-hosts.py
 COPY --link files/handle-inventory-overwrite.py /handle-inventory-overwrite.py
 COPY --link files/merge-ansible-cfg.py /merge-ansible-cfg.py
 COPY --link files/merge-inventory-files.py /merge-inventory-files.py
