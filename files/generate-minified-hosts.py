@@ -53,10 +53,12 @@ def strip_hostvars(data: Dict[str, Any]) -> Dict[str, Any]:
                 group: strip_hostvars(group_data) for group, group_data in value.items()
             }
         elif key == "vars":
-            # Drop group variables entirely — only hosts and structure are needed
             continue
         else:
-            result[key] = value
+            if isinstance(value, dict):
+                result[key] = strip_hostvars(value)
+            else:
+                result[key] = value
     return result
 
 
