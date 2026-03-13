@@ -13,6 +13,12 @@ from utils import get_inventory_hostname
 from .base import BaseInventoryComponent
 
 
+# Allow safe_load to handle Ansible Vault !vault tags
+yaml.SafeLoader.add_constructor(
+    "!vault", lambda loader, node: loader.construct_scalar(node)
+)
+
+
 def _vault_string_representer(dumper, data):
     """YAML representer that emits Ansible Vault strings with !vault tag."""
     return dumper.represent_scalar("!vault", data, style="|")
