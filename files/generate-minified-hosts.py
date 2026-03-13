@@ -12,6 +12,12 @@ from loguru import logger
 import yaml
 
 
+# Allow safe_load to handle Ansible Vault !vault tags
+yaml.SafeLoader.add_constructor(
+    "!vault", lambda loader, node: loader.construct_scalar(node)
+)
+
+
 # Configure logging
 LOG_LEVEL = os.getenv("OSISM_LOG_LEVEL", "INFO")
 LOG_FORMAT = (
