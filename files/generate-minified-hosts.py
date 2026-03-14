@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 
-"""Generate a minified hosts.yml containing only hosts and their group memberships."""
+"""Generate a minified hosts.yml containing only hosts and their group memberships.
 
+Also generates a fast inventory directory with a JSON-based inventory file
+and separate host_vars/group_vars directories for lazy loading by Ansible.
+"""
+
+import json
 import os
 import sys
 from pathlib import Path
@@ -62,8 +67,34 @@ def strip_hostvars(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def generate_fast_inventory(minified: Dict[str, Any]) -> None:
+    """Generate JSON-based fast inventory file.
+
+    Writes the minified inventory structure as JSON to the fast inventory
+    directory. This file is used together with host_vars/ and group_vars/
+    directories (copied by run.sh) to provide a fast inventory that Ansible
+    can parse significantly faster than the monolithic YAML hosts.yml.
+
+    JSON parsing is 26-200x faster than YAML parsing in Python.
+    Combined with Ansible's lazy loading of host_vars/ files, this
+    dramatically reduces inventory ramp-up time for large environments.
+
+    Args:
+        minified: Inventory structure with hostvars/groupvars stripped
+    """
+    fast_dir = Path("/inventory.merge/fast")
+    fast_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = fast_dir / "hosts.json"
+
+    with open(output_path, "w") as fp:
+        json.dump(minified, fp, ensure_ascii=False, separators=(",", ":"))
+
+    logger.info(f"Successfully wrote fast inventory to {output_path}")
+
+
 def main():
-    """Main function to generate minified hosts file."""
+    """Main function to generate minified hosts file and fast inventory."""
     input_path = Path("/inventory.merge/hosts.yml")
     output_path = Path("/inventory.merge/hosts-minified.yml")
 
@@ -85,6 +116,8 @@ def main():
             )
 
         logger.info(f"Successfully wrote minified hosts file to {output_path}")
+
+        generate_fast_inventory(minified)
 
     except FileNotFoundError:
         logger.error(f"Inventory file not found: {input_path}")

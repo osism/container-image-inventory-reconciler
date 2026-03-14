@@ -74,6 +74,13 @@ python3 /merge-inventory-files.py
 # is necessary to remove other files in /inventory via -delete.
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
 python3 /generate-minified-hosts.py
+
+# Build fast inventory directory with JSON index + separate host_vars/group_vars.
+# Usage: ansible-playbook -i /inventory/fast/ playbook.yml
+# This avoids parsing the monolithic YAML and enables lazy loading of host_vars.
+rsync -q -a /inventory.pre/host_vars/ /inventory.merge/fast/host_vars/ 2>/dev/null || true
+rsync -q -a /inventory.pre/group_vars/ /inventory.merge/fast/group_vars/ 2>/dev/null || true
+
 rsync -q -a --delete --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null || exit 1
