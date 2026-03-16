@@ -6,7 +6,10 @@ Move Ansible group_vars files to their appropriate subdirectories.
 This script reorganizes Ansible group_vars files when there are existing
 directory structures. If a YAML or JSON file exists in the group_vars directory
 with the same name as an existing subdirectory, the file is moved into that
-subdirectory to follow Ansible's group_vars organization conventions.
+subdirectory with a 999- prefix to ensure it has the highest precedence.
+Ansible loads files within a group_vars directory in alphabetical order,
+so the 999- prefix guarantees that operator overrides from the Configuration
+Repository are loaded last and take priority over defaults.
 """
 
 import os
@@ -130,7 +133,7 @@ def move_file_to_directory(source_file: Path, target_dir: Path) -> bool:
         True if successful, False otherwise
     """
     try:
-        target_path = target_dir / source_file.name
+        target_path = target_dir / f"999-{source_file.name}"
 
         # Check if target already exists
         if target_path.exists():
@@ -139,7 +142,7 @@ def move_file_to_directory(source_file: Path, target_dir: Path) -> bool:
 
         # Move the file
         source_file.rename(target_path)
-        logger.info(f"Moved {source_file.name} to {target_dir.name}/")
+        logger.info(f"Moved {source_file.name} to {target_dir.name}/999-{source_file.name}")
         return True
 
     except (OSError, IOError) as e:
