@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260317.0] - 2026-03-17
+
+### Added
+- Secrets extraction from device custom fields with vault-aware YAML serialization using `!vault` tags (osism/container-image-inventory-reconciler#489, osism/container-image-inventory-reconciler#490)
+- Routed OOB dnsmasq support for metalbox mode with per-prefix DHCP tags when no VLAN interfaces exist (osism/container-image-inventory-reconciler#492)
+- Configurable dnsmasq DHCP lease time via `DNSMASQ_LEASE_TIME` environment variable (osism/container-image-inventory-reconciler#497)
+- OOB-facing physical interface binding for dnsmasq in routed OOB mode (osism/container-image-inventory-reconciler#498)
+- VRF dummy interface support for netplan and FRR extractors, enabling per-VRF loopback devices for EVPN/VRF deployments (osism/container-image-inventory-reconciler#496)
+- OOB-tagged virtual interface selection for dnsmasq when loopback0 is absent (osism/container-image-inventory-reconciler#500)
+- `servicesleaf` device role for FRR switch roles and FRR uplinks without remote AS for yrzn-type devices (osism/container-image-inventory-reconciler#505)
+- Per-label-prefix FRR uplink lists (e.g. `frr_uplinks_data`, `frr_uplinks_bmc`) (osism/container-image-inventory-reconciler#507)
+- `manager-readonly` reconciler mode for read-only NetBox tokens (osism/container-image-inventory-reconciler#508)
+- Minified `hosts-minified.yml` with only hosts and group memberships for faster queries (osism/container-image-inventory-reconciler#512)
+- Fast inventory directory with JSON index and lazy-loaded host_vars/group_vars for faster Ansible startup (osism/container-image-inventory-reconciler#516)
+
+### Changed
+- Deep-merge `local_context_data` overrides into auto-generated `frr_parameters` and `netplan_parameters` (osism/container-image-inventory-reconciler#488)
+- Config context extractor filters out `frr_parameters` and `netplan_parameters` keys to avoid duplication with dedicated extractors (osism/container-image-inventory-reconciler#488)
+- Dnsmasq device selection decoupled from inventory tag filter to include all active devices with qualifying OOB interfaces (osism/container-image-inventory-reconciler#491)
+- Routed OOB prefix tags assigned only after filtering to actually used prefixes for gap-free suffixes (osism/container-image-inventory-reconciler#495)
+- Only used OOB prefixes included in routed dnsmasq DHCP ranges and options (osism/container-image-inventory-reconciler#494)
+- Use `config_context` instead of `local_context_data` for netplan and FRR parameter merging, enabling segment-level Config Context defaults (osism/container-image-inventory-reconciler#503)
+- Exclude `ironic_osism_` prefixed secrets from inventory host vars (osism/container-image-inventory-reconciler#504)
+- Suppress remote AS warning for yrzn-type remote devices (osism/container-image-inventory-reconciler#506)
+- Disable Ansible deprecation warnings in inventory reconciler (osism/container-image-inventory-reconciler#509)
+- Filter out empty string keys from config context to avoid Ansible deprecation warnings (osism/container-image-inventory-reconciler#511)
+
+### Fixed
+- Prefix tag suffix overflow for more than 26 OOB prefixes sharing the same VLAN ID now uses two-letter suffixes (osism/container-image-inventory-reconciler#493)
+- Dnsmasq loopback0 interface name now uses hardcoded "loopback0" to match netplan convention (osism/container-image-inventory-reconciler#501)
+- Trailing `=` on hostnames with hyphens in merged inventory files (osism/container-image-inventory-reconciler#510)
+- YAML parsing failure on `!vault` tags in hosts.yml (osism/container-image-inventory-reconciler#513)
+- `strip_hostvars` not stripping group vars from minified hosts.yml (osism/container-image-inventory-reconciler#514)
+- `strip_hostvars` not recursing into top-level group keys like "all" (osism/container-image-inventory-reconciler#515)
+- group_vars precedence by adding `999-` prefix when moving files into directories to ensure operator overrides take priority (osism/container-image-inventory-reconciler#517)
+
+### Dependencies
+- ghcr.io/astral-sh/uv 0.9.27 → 0.10.10 (osism/container-image-inventory-reconciler#485, osism/container-image-inventory-reconciler#486, osism/container-image-inventory-reconciler#487, osism/container-image-inventory-reconciler#499, osism/container-image-inventory-reconciler#502)
+
+## [v0.20260129.0] - 2026-01-29
+
+### Dependencies
+
+- pynetbox 7.6.0 → 7.6.1 (osism/container-image-inventory-reconciler#484)
+
+## [v0.20260128.0] - 2026-01-28
+
+### Added
+- Make `ceph_rgw_default_port` configurable in RGW hosts (osism/container-image-inventory-reconciler#470)
+- Add MTU for loopback interface in netplan configuration
+- Add VXLAN interface support for VRF assignments in netplan config (osism/container-image-inventory-reconciler#477)
+- Add VXLAN tunnel support for netplan `network_tunnels` configuration (osism/container-image-inventory-reconciler#480)
+
+### Changed
+- Bump DHCP lease time from 12h to 28d (osism/container-image-inventory-reconciler#472)
+- Support arbitrary VRF naming conventions (e.g., "VrfStorage") with table ID fallback to Route Distinguisher (osism/container-image-inventory-reconciler#481)
+
+### Fixed
+- Remove redundant `effective_default_mtu` assignment in netplan extractor
+- Fix VXLAN interface detection to match by name pattern instead of type field (osism/container-image-inventory-reconciler#479)
+- Fix VRF RD parsing to accept plain numeric values (osism/container-image-inventory-reconciler#482)
+- Fix duplicate YAML keys when writing to single-file host_vars (osism/container-image-inventory-reconciler#483)
+
+### Dependencies
+- ghcr.io/astral-sh/uv 0.9.16 → 0.9.27 (osism/container-image-inventory-reconciler#471, osism/container-image-inventory-reconciler#473, osism/container-image-inventory-reconciler#475, osism/container-image-inventory-reconciler#478)
+- pynetbox 7.5.0 → 7.6.0 (osism/container-image-inventory-reconciler#476)
+
+## [v0.20251208.0] - 2025-12-08
+
+### Added
+- Initial CHANGELOG.md file with historical release notes (osism/container-image-inventory-reconciler#468)
+
+### Dependencies
+- ghcr.io/astral-sh/uv 0.9.13 → 0.9.16 (osism/container-image-inventory-reconciler#467)
+
 ## [v0.20251130.0] - 2025-11-30
 
 ### Dependencies
