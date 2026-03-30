@@ -17,6 +17,7 @@ from bulk_loader import BulkDataLoader
 from config import Config
 from device_mapping import build_device_role_mapping
 from dnsmasq import DnsmasqManager
+from exceptions import NetBoxConnectionError
 from gnmic import GnmicManager
 from inventory import InventoryManager
 from netbox_client import NetBoxClient
@@ -39,6 +40,17 @@ def main() -> None:
 
         # Initialize components
         netbox_client = NetBoxClient(config)
+
+        # Verify connectivity before proceeding
+        try:
+            netbox_client.verify_connectivity()
+        except NetBoxConnectionError as e:
+            logger.error(
+                "Netbox is not reachable or usable. "
+                "Cannot create a valid inventory."
+            )
+            logger.error(f"Details: {e}")
+            sys.exit(1)
 
         # Fetch devices
         logger.info("Getting managed devices from NetBox. This could take some time.")
