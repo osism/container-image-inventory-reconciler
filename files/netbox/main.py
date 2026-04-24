@@ -5,7 +5,7 @@
 This script reads all required systems from the NetBox and writes them
 into a form that can be evaluated by the Ansible Inventory Plugin INI.
 
-This is a workaround to use the groups defined in cfg-generics without
+This is a workaround to use the groups defined in generics without
 having to import them into NetBox.
 """
 

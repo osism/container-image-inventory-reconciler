@@ -10,7 +10,7 @@ if [[ "$1" == "defaults" ]]; then
     git clone --depth 1 -b $2 https://github.com/osism/defaults /defaults
 elif [[ "$1" == "generics" ]]; then
     rm -rf /generics
-    git clone --depth 1 -b $2 https://github.com/osism/cfg-generics /generics
+    git clone --depth 1 -b $2 https://github.com/osism/generics /generics
 
     rm -rf /inventory.generics/
     mkdir -p /inventory.generics/
