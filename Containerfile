@@ -50,7 +50,7 @@ set -x
 
 git clone https://github.com/osism/release /release
 git clone https://github.com/osism/defaults /defaults
-git clone https://github.com/osism/cfg-generics /generics
+git clone https://github.com/osism/generics /generics
 
 if [ "$VERSION" != "latest" ]; then
   ( cd /release || exit; git fetch --all --force; git checkout "inventory-reconciler-$VERSION" )
