@@ -1,0 +1,10 @@
+# Test framework
+pytest==8.4.2
+pytest-cov==6.0.0
+pytest-mock==3.14.1
+
+# Runtime dependency of files/netbox/ that is not in files/requirements.txt
+# because it is pulled in transitively via the osism package at container
+# build time. The unit-test environment installs only files/requirements.txt
+# (no osism), so we need to declare loguru explicitly here.
+loguru==0.7.3

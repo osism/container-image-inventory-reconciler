@@ -81,6 +81,10 @@
       docker_registry: osism.harbor.regio.digital
 
 - job:
+    name: container-image-inventory-reconciler-unit-tests
+    run: playbooks/test-unit.yml
+
+- job:
     name: abstract-container-image-inventory-reconciler-push
     abstract: true
     semaphores:
@@ -111,18 +115,21 @@
         - hadolint
         - yamllint
         - container-image-inventory-reconciler-build
+        - container-image-inventory-reconciler-unit-tests
     gate:
       jobs:
         - ansible-lint
         - flake8
         - hadolint
         - yamllint
+        - container-image-inventory-reconciler-unit-tests
     periodic-daily:
       jobs:
         - ansible-lint
         - flake8
         - hadolint
         - yamllint
+        - container-image-inventory-reconciler-unit-tests
     periodic-midnight:
       jobs:
         - container-image-inventory-reconciler-push

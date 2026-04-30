@@ -1,0 +1,42 @@
+---
+- name: Run unit tests for files/netbox/
+  hosts: all
+
+  vars:
+    python_venv_dir: /tmp/test-unit-venv
+
+  tasks:
+    - name: Ensure python3-venv is available
+      become: true
+      ansible.builtin.package:
+        name:
+          - python3-venv
+        state: present
+
+    - name: Create virtualenv and install dependencies
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          python3 -m venv "{{ python_venv_dir }}"
+          "{{ python_venv_dir }}/bin/pip" install --upgrade pip
+          "{{ python_venv_dir }}/bin/pip" install \
+              -r files/requirements.txt \
+              -r files/test-requirements.txt
+      changed_when: true
+
+    - name: Run pytest
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          "{{ python_venv_dir }}/bin/pytest" tests/unit
+      changed_when: true
