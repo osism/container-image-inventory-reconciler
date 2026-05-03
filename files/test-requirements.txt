@@ -1,6 +1,6 @@
 # Test framework
 pytest==9.0.3
-pytest-cov==6.3.0
+pytest-cov==7.1.0
 pytest-mock==3.14.1
 
 # Runtime dependency of files/netbox/ that is not in files/requirements.txt
