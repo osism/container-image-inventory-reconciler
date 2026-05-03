@@ -1,7 +1,7 @@
 # Test framework
 pytest==9.0.3
 pytest-cov==7.1.0
-pytest-mock==3.14.1
+pytest-mock==3.15.1
 
 # Runtime dependency of files/netbox/ that is not in files/requirements.txt
 # because it is pulled in transitively via the osism package at container
