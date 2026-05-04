@@ -19,7 +19,7 @@ from loguru import logger
 # Constants
 DEFAULT_CONFIG_PATH = Path("/defaults/ansible.cfg")
 USER_CONFIG_PATH = Path("/opt/configuration/environments/ansible.cfg")
-OUTPUT_CONFIG_PATH = Path("/inventory/ansible/ansible.cfg")
+OUTPUT_CONFIG_PATH = Path("/inventory.merge/ansible/ansible.cfg")
 
 # Logger configuration
 LOGGER_FORMAT = (

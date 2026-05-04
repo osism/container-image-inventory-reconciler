@@ -81,7 +81,11 @@ python3 /generate-minified-hosts.py
 rsync -q -a /inventory.pre/host_vars/ /inventory.merge/fast/host_vars/ 2>/dev/null || true
 rsync -q -a /inventory.pre/group_vars/ /inventory.merge/fast/group_vars/ 2>/dev/null || true
 
-rsync -q -a --delete --exclude .git /inventory.merge/ /inventory
+# Render ansible.cfg into the staging tree so it arrives atomically via
+# the rsync below (no absent-window for concurrent readers).
+python3 /merge-ansible-cfg.py
+
+rsync -q -a --delete --delay-updates --exclude .git /inventory.merge/ /inventory
 
 pushd /inventory > /dev/null || exit 1
 
@@ -100,9 +104,6 @@ if [[ $(git status --porcelain --untracked-files=no | wc -l) != 0 || ! -e /inven
     mkdir -p /inventory/clustershell
     python3 /generate-clustershell-ansible-file.py
 fi
-
-mkdir -p /inventory/ansible
-python3 /merge-ansible-cfg.py
 
 if [[ $(git status --porcelain) ]]; then
     git add -A
