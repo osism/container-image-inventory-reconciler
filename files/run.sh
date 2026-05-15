@@ -70,6 +70,13 @@ if [[ -e /inventory.pre/99-overwrite ]]; then
 fi
 python3 /merge-inventory-files.py
 
+# Publish ansible.cfg before the slow ansible-inventory render so cycle=0
+# consumers do not fall through to the image-default config while /inventory is
+# still empty. The final rsync re-carries the file with --delay-updates for
+# cycle>=1 atomic updates.
+python3 /merge-ansible-cfg.py
+rsync -q -a --delay-updates /inventory.merge/ansible/ /inventory/ansible/
+
 # The intermediate step via the inventory.merge directory
 # is necessary to remove other files in /inventory via -delete.
 ansible-inventory -i /inventory.pre --list -y --output /inventory.merge/hosts.yml
@@ -80,10 +87,6 @@ python3 /generate-minified-hosts.py
 # This avoids parsing the monolithic YAML and enables lazy loading of host_vars.
 rsync -q -a /inventory.pre/host_vars/ /inventory.merge/fast/host_vars/ 2>/dev/null || true
 rsync -q -a /inventory.pre/group_vars/ /inventory.merge/fast/group_vars/ 2>/dev/null || true
-
-# Render ansible.cfg into the staging tree so it arrives atomically via
-# the rsync below (no absent-window for concurrent readers).
-python3 /merge-ansible-cfg.py
 
 rsync -q -a --delete --delay-updates --exclude .git /inventory.merge/ /inventory
 
