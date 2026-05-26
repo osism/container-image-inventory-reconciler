@@ -38,14 +38,11 @@ def retry_on_api_error(
         @wraps(func)
         def wrapper(*args, **kwargs):
             delay = initial_delay
-            last_exception = None
 
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
-                    last_exception = e
-
                     if attempt < max_retries and _is_retryable_error(e):
                         logger.warning(
                             f"{func.__name__}: Attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
@@ -63,8 +60,6 @@ def retry_on_api_error(
                             f"{func.__name__}: All {max_retries + 1} attempts failed: {e}"
                         )
                         raise
-
-            raise last_exception
 
         return wrapper
 
