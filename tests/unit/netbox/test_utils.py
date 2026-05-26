@@ -9,19 +9,7 @@ import pytest
 
 import utils
 
-
-class FakeSettings:
-    """Minimal stand-in for the dynaconf SETTINGS object.
-
-    ``setup_logging`` only ever calls ``.get(key, default)``, so a thin dict
-    wrapper is enough to drive the test without touching real env vars.
-    """
-
-    def __init__(self, values=None):
-        self._values = dict(values or {})
-
-    def get(self, key, default=None):
-        return self._values.get(key, default)
+from .conftest import FakeSettings
 
 
 class TestGetInventoryHostname:

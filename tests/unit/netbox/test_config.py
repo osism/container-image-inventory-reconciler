@@ -14,20 +14,7 @@ import pytest
 import config
 from config import Config
 
-
-class FakeSettings:
-    """Minimal stand-in for the dynaconf SETTINGS object.
-
-    ``Config.from_environment`` only ever calls ``.get(key, default)``, so a
-    thin dict wrapper is sufficient and keeps tests isolated from real env
-    vars.
-    """
-
-    def __init__(self, values=None):
-        self._values = dict(values or {})
-
-    def get(self, key, default=None):
-        return self._values.get(key, default)
+from .conftest import FakeSettings
 
 
 @pytest.fixture(autouse=True)
@@ -185,17 +172,77 @@ class TestFromEnvironment:
         assert cfg.data_types == config.DEFAULT_DATA_TYPES
         assert cfg.ignored_roles == config.DEFAULT_IGNORED_ROLES
         assert cfg.filter_inventory == config.DEFAULT_FILTER_INVENTORY
+        assert cfg.frr_switch_roles == config.DEFAULT_FRR_SWITCH_ROLES
+        assert cfg.dnsmasq_switch_roles == config.DEFAULT_DNSMASQ_SWITCH_ROLES
         assert cfg.default_mtu == 9100
         assert cfg.default_local_as_prefix == 4200
         assert cfg.dnsmasq_lease_time == "28d"
         assert cfg.reconciler_mode == "manager"
         assert cfg.inventory_from_netbox is True
+        assert cfg.ignore_provision_state is False
+        assert cfg.ignore_maintenance_state is False
         assert cfg.parallel_processing_enabled is True
         assert cfg.max_workers == 10
         assert cfg.max_retries == 3
         assert cfg.retry_delay == 1.0
         assert cfg.retry_backoff == 2.0
         assert cfg.api_timeout == 30
+
+    def test_retry_attempts_is_fixed_default(self, set_settings):
+        # retry_attempts is the connection-level retry knob consumed by
+        # ConnectionManager.connect() and is intentionally not overridable
+        # via the environment. The two retry controls are distinct:
+        # `retry_attempts` governs the initial NetBox connection, while
+        # `max_retries` / `retry_delay` / `retry_backoff` govern the
+        # per-API-call retry decorator (see retry_utils.py).
+        set_settings({"NETBOX_API": "http://netbox", "NETBOX_TOKEN": "tok"})
+        cfg = Config.from_environment()
+        assert cfg.retry_attempts == config.DEFAULT_RETRY_ATTEMPTS == 10
+
+    def test_env_token_does_not_trigger_secret_file_read(
+        self, set_settings, monkeypatch
+    ):
+        # Regression guard: ``from_environment`` previously evaluated
+        # ``_read_secret("NETBOX_TOKEN")`` eagerly as the default argument to
+        # ``SETTINGS.get(...)``, so the secrets file was read even when the
+        # environment already supplied the token. The fallback must be lazy.
+        set_settings({"NETBOX_API": "http://netbox", "NETBOX_TOKEN": "tok"})
+        calls = []
+        monkeypatch.setattr(
+            Config,
+            "_read_secret",
+            staticmethod(lambda name: calls.append(name) or ""),
+        )
+        Config.from_environment()
+        assert calls == []
+
+    def test_returned_lists_are_isolated_from_module_defaults(self, set_settings):
+        # Regression guard: ``from_environment`` previously returned the
+        # module-level DEFAULT_* lists/dicts by reference, so mutating one
+        # returned Config could leak into the shared defaults and into a
+        # subsequent Config. The dataclass field factories use ``.copy()``
+        # already, but ``from_environment`` is what produces the Config here,
+        # so the isolation has to come from the classmethod.
+        set_settings({"NETBOX_API": "http://netbox", "NETBOX_TOKEN": "tok"})
+        cfg1 = Config.from_environment()
+
+        cfg1.data_types.append("MUTATED")
+        cfg1.filter_inventory["MUTATED"] = True
+        cfg1.frr_switch_roles.append("MUTATED")
+        cfg1.dnsmasq_switch_roles.append("MUTATED")
+
+        # Module defaults are untouched.
+        assert "MUTATED" not in config.DEFAULT_DATA_TYPES
+        assert "MUTATED" not in config.DEFAULT_FILTER_INVENTORY
+        assert "MUTATED" not in config.DEFAULT_FRR_SWITCH_ROLES
+        assert "MUTATED" not in config.DEFAULT_DNSMASQ_SWITCH_ROLES
+
+        # A second Config built from the same SETTINGS sees pristine defaults.
+        cfg2 = Config.from_environment()
+        assert cfg2.data_types == config.DEFAULT_DATA_TYPES
+        assert cfg2.filter_inventory == config.DEFAULT_FILTER_INVENTORY
+        assert cfg2.frr_switch_roles == config.DEFAULT_FRR_SWITCH_ROLES
+        assert cfg2.dnsmasq_switch_roles == config.DEFAULT_DNSMASQ_SWITCH_ROLES
 
     @pytest.mark.parametrize("mode", ["manager", "manager-readonly", "metalbox"])
     def test_valid_reconciler_modes_accepted(self, set_settings, mode):
