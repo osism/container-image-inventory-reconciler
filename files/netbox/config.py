@@ -15,7 +15,6 @@ DEFAULT_DATA_TYPES = ["primary_ip", "config_context", "netplan_parameters", "sec
 DEFAULT_IGNORED_ROLES = ["housing", "pdu", "other", "oob"]
 DEFAULT_FILTER_INVENTORY = {"status": "active", "tag": "managed-by-osism"}
 DEFAULT_RETRY_ATTEMPTS = 10
-DEFAULT_RETRY_DELAY = 1
 DEFAULT_MTU = 9100
 DEFAULT_LOCAL_AS_PREFIX = 4200
 DEFAULT_METALBOX_IPV6 = "fd33:fd0e:2aee::42/128"
@@ -62,8 +61,7 @@ class Config:
         netbox_url: NetBox API URL
         netbox_token: Authentication token for NetBox API
         ignore_ssl_errors: Whether to ignore SSL certificate errors
-        retry_attempts: Number of retry attempts for API calls
-        retry_delay: Delay in seconds between retry attempts
+        retry_attempts: Number of retry attempts for the initial NetBox connection
         inventory_path: Path where inventory files will be written
         template_path: Path to Jinja2 templates
         data_types: List of data types to extract from devices
@@ -89,7 +87,6 @@ class Config:
     netbox_token: str
     ignore_ssl_errors: bool = True
     retry_attempts: int = DEFAULT_RETRY_ATTEMPTS
-    retry_delay: int = DEFAULT_RETRY_DELAY
     inventory_path: Path = field(default_factory=lambda: Path(DEFAULT_INVENTORY_PATH))
     template_path: Path = field(default_factory=lambda: Path(DEFAULT_TEMPLATE_PATH))
     data_types: List[str] = field(default_factory=lambda: DEFAULT_DATA_TYPES.copy())
@@ -137,23 +134,32 @@ class Config:
         # Ensure URL is always treated as a string and strip whitespace
         netbox_url = str(netbox_url).strip()
 
-        netbox_token = SETTINGS.get("NETBOX_TOKEN", cls._read_secret("NETBOX_TOKEN"))
+        netbox_token = SETTINGS.get("NETBOX_TOKEN")
+        if not netbox_token:
+            netbox_token = cls._read_secret("NETBOX_TOKEN")
         if not netbox_token:
             raise ValueError("NETBOX_TOKEN not found in environment or secrets")
         # Ensure token is always treated as a string and strip whitespace
         netbox_token = str(netbox_token).strip()
 
-        # Optional settings with defaults
-        data_types = SETTINGS.get("NETBOX_DATA_TYPES", DEFAULT_DATA_TYPES)
+        # Optional settings with defaults. The list/dict values are copied
+        # before being passed to the Config dataclass, otherwise the module
+        # DEFAULT_* constants would be returned by reference and mutating one
+        # returned Config could leak into the shared defaults / a later Config.
+        data_types = list(SETTINGS.get("NETBOX_DATA_TYPES", DEFAULT_DATA_TYPES))
 
         ignored_roles = SETTINGS.get("NETBOX_IGNORED_ROLES", DEFAULT_IGNORED_ROLES)
         ignored_roles = [
             role.lower() for role in ignored_roles
-        ]  # Normalize to lowercase
+        ]  # list comprehension already yields a fresh list
 
-        filter_inventory = SETTINGS.get(
-            "NETBOX_FILTER_INVENTORY", DEFAULT_FILTER_INVENTORY
-        )
+        raw_filter = SETTINGS.get("NETBOX_FILTER_INVENTORY", DEFAULT_FILTER_INVENTORY)
+        if isinstance(raw_filter, list):
+            filter_inventory: Union[Dict[str, Any], List[Dict[str, Any]]] = list(
+                raw_filter
+            )
+        else:
+            filter_inventory = dict(raw_filter)
 
         # Get reconciler mode and validate it
         reconciler_mode = SETTINGS.get(
@@ -180,9 +186,11 @@ class Config:
             default_local_as_prefix=SETTINGS.get(
                 "DEFAULT_LOCAL_AS_PREFIX", DEFAULT_LOCAL_AS_PREFIX
             ),
-            frr_switch_roles=SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES),
-            dnsmasq_switch_roles=SETTINGS.get(
-                "DNSMASQ_SWITCH_ROLES", DEFAULT_DNSMASQ_SWITCH_ROLES
+            frr_switch_roles=list(
+                SETTINGS.get("FRR_SWITCH_ROLES", DEFAULT_FRR_SWITCH_ROLES)
+            ),
+            dnsmasq_switch_roles=list(
+                SETTINGS.get("DNSMASQ_SWITCH_ROLES", DEFAULT_DNSMASQ_SWITCH_ROLES)
             ),
             dnsmasq_lease_time=SETTINGS.get(
                 "DNSMASQ_LEASE_TIME", DEFAULT_DNSMASQ_LEASE_TIME
