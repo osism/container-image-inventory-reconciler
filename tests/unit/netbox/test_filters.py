@@ -236,6 +236,18 @@ class TestBuildIronicFilter:
         result = df.build_ironic_filter({"status": "active"})
         assert result["cf_provision_state"] == ["active"]
 
+    def test_provision_state_added_in_manager_readonly_mode(self):
+        # manager-readonly is a documented production mode that must satisfy
+        # the same provision-state guard as ``manager``. A regression that
+        # tightened the check to ``== 'manager'`` would silently break it.
+        df = DeviceFilter(
+            _config(
+                reconciler_mode="manager-readonly", ignore_provision_state=False
+            )
+        )
+        result = df.build_ironic_filter({"status": "active"})
+        assert result["cf_provision_state"] == ["active"]
+
     def test_provision_state_skipped_in_metalbox_mode(self):
         df = DeviceFilter(
             _config(reconciler_mode="metalbox", ignore_provision_state=False)
