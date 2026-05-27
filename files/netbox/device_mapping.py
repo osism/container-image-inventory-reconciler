@@ -10,21 +10,6 @@ from config import SETTINGS
 from utils import get_inventory_hostname
 
 
-def build_device_tag_mapping(devices: List[Any]) -> Dict[str, List[Any]]:
-    """Build mapping of tags to devices (legacy function)."""
-    devices_to_tags = {}
-    excluded_tags = {"managed-by-osism", "managed-by-ironic"}
-
-    for device in devices:
-        for tag in device.tags:
-            if tag.slug not in excluded_tags:
-                if tag.slug not in devices_to_tags:
-                    devices_to_tags[tag.slug] = []
-                devices_to_tags[tag.slug].append(device)
-
-    return devices_to_tags
-
-
 def build_device_role_mapping(
     devices: List[Any], ignored_roles: List[str] = None
 ) -> Dict[str, List[str]]:

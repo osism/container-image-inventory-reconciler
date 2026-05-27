@@ -83,6 +83,27 @@ class TestProcessDevicesDispatch:
             "failures": [],
         }
 
+    @pytest.mark.parametrize(
+        "enabled,max_workers",
+        [(False, 10), (True, 1), (True, 4)],
+        ids=["sequential", "single-worker", "parallel"],
+    )
+    def test_public_dispatch_forwards_args_and_kwargs(self, enabled, max_workers):
+        # Exercise the real ``*args, **kwargs`` forwarding through the public
+        # dispatch -- the monkeypatched tests above never execute lines 44/46
+        # of parallel_processor.py.
+        p = ParallelDeviceProcessor(enabled=enabled, max_workers=max_workers)
+        d = make_device(1, "d1")
+        captured = []
+
+        def func(device, marker, *, flag):
+            captured.append((device.id, marker, flag))
+            return device.id
+
+        p.process_devices([d], func, "x", flag=True)
+
+        assert captured == [(1, "x", True)]
+
 
 # ---------------------------------------------------------------------------
 # _process_sequential
