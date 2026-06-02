@@ -117,6 +117,15 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - All IPv4 and IPv6 addresses assigned to the interface are included
     - If the VRF has a table ID, the interface is added to the VRF's interface list in `network_vrfs`
     - The interface is configured in `network_dummy_devices`
+  - **Bond / Port Channel interfaces (LAG)**: Interfaces of type `lag` with the `managed-by-osism` tag (uses the same NetBox modelling as SONiC port channel detection)
+    - The label (or name if no label) becomes the bond name in `network_bonds`
+    - Member interfaces are detected via their `lag` back-reference (i.e. the interface's `lag` field points at the LAG interface)
+    - Members are rendered as regular `network_ethernets` entries (MAC `match` + `set-name`) but carry **no** addresses, DHCP or leaf link-local settings — the bond interface holds the IP configuration
+    - IP addresses and MTU are taken from the LAG interface itself
+    - Defaults to an LACP (802.3ad) port channel: `mode: 802.3ad`, `lacp-rate: fast`, `mii-monitor-interval: 100`, `transmit-hash-policy: layer3+4`
+    - The parameters (and any other bond key) can be overridden per LAG via the `netplan_parameters` custom field on the LAG interface. Providing a `parameters` dict replaces the auto-generated defaults entirely (e.g. to switch to `active-backup` with a `primary` member)
+    - If the LAG interface is assigned to a VRF, the bond is added to the VRF's interface list in `network_vrfs`
+    - The interface is configured in `network_bonds`
   - Example output:
     ```yaml
     network_dummy_devices:
@@ -137,6 +146,29 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
         addresses:
           - 10.0.0.5/24
           - 2001:db8::5/64
+      eno8303:
+        match:
+          macaddress: "aa:bb:cc:00:00:01"
+        set-name: eno8303
+        mtu: 9100
+      eno8403:
+        match:
+          macaddress: "aa:bb:cc:00:00:02"
+        set-name: eno8403
+        mtu: 9100
+    network_bonds:
+      bond0:
+        interfaces:
+          - eno8303
+          - eno8403
+        parameters:
+          mode: 802.3ad
+          lacp-rate: fast
+          mii-monitor-interval: 100
+          transmit-hash-policy: layer3+4
+        mtu: 9100
+        addresses:
+          - 10.0.0.5/24
     network_vlans:
       vlan100:
         id: 100
