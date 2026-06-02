@@ -95,6 +95,13 @@ class NetplanExtractor(BaseExtractor):
         - Must have "managed-by-osism" tag
         - If assigned to a VRF, the interface is added to the VRF's interface list
 
+        For LAG / bond / port channel interfaces (type=lag):
+        - Must have "managed-by-osism" tag
+        - Generates a network_bonds entry; member interfaces (those whose "lag"
+          field points at the LAG) are renamed via their MAC but carry no IPs
+        - Defaults to an LACP (802.3ad) bond; override the parameters per LAG via
+          the netplan_parameters custom field (e.g. to switch to active-backup)
+
         If device.config_context contains a "netplan_parameters" key, its values
         are deep-merged into the auto-generated parameters. Since config_context
         includes all Config Context sources (segments, regions, sites, roles, tags)
@@ -141,6 +148,7 @@ class NetplanExtractor(BaseExtractor):
         network_vlans = {}
         network_vrfs = {}
         network_tunnels = {}
+        network_bonds = {}
         loopback0_interface = None
 
         # Track VXLAN interfaces for later processing (need loopback0 IP first)
@@ -154,6 +162,25 @@ class NetplanExtractor(BaseExtractor):
         # Track VRF assignments during interface processing
         # Format: {interface_id: (vrf_name, vrf_table)}
         interface_vrf_assignments = {}
+
+        # Track LAG / bond / port channel members per LAG interface id
+        # Format: {lag_interface_id: [member_label, ...]}
+        bond_members = {}
+
+        # Identify LAG (bond / port channel) interfaces up front so that member
+        # interfaces can be linked to them regardless of interface ordering. A LAG
+        # is modelled as a NetBox interface of type "lag" carrying the
+        # managed-by-osism tag - the same NetBox modelling that SONiC port channel
+        # detection relies on.
+        lag_interfaces_by_id = {}
+        for interface in interfaces:
+            if (
+                interface.type
+                and interface.type.value == "lag"
+                and getattr(interface, "tags", None)
+                and "managed-by-osism" in [tag.slug for tag in interface.tags]
+            ):
+                lag_interfaces_by_id[interface.id] = interface
 
         for interface in interfaces:
             # Check if interface has managed-by-osism tag
@@ -268,6 +295,11 @@ class NetplanExtractor(BaseExtractor):
                         logger.debug(
                             f"Added VXLAN interface {interface_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
                         )
+                continue
+
+            # LAG / bond / port channel interfaces are processed after the main
+            # loop (members may appear before or after the LAG interface itself).
+            if interface.id in lag_interfaces_by_id:
                 continue
 
             # Check if this is a virtual interface (VLAN or VRF dummy)
@@ -404,6 +436,25 @@ class NetplanExtractor(BaseExtractor):
                 interface_config["mtu"] = interface.mtu
             else:
                 interface_config["mtu"] = effective_default_mtu
+
+            # Bond / port channel members only need the MAC-based rename and the
+            # MTU here. The bond interface itself carries the IP configuration, so
+            # members must not get addresses, DHCP or leaf link-local settings.
+            lag_parent_id = (
+                interface.lag.id if getattr(interface, "lag", None) else None
+            )
+            if lag_parent_id is not None and lag_parent_id in lag_interfaces_by_id:
+                if hasattr(interface, "custom_fields") and interface.custom_fields:
+                    member_params = interface.custom_fields.get("netplan_parameters")
+                    if member_params and isinstance(member_params, dict):
+                        interface_config.update(member_params)
+                network_ethernets[label] = interface_config
+                bond_members.setdefault(lag_parent_id, []).append(label)
+                logger.debug(
+                    f"Interface {label} is a member of LAG "
+                    f"{lag_interfaces_by_id[lag_parent_id].name} on device {device.name}"
+                )
+                continue
 
             # Get IP addresses for this interface
             addresses = []
@@ -672,6 +723,81 @@ class NetplanExtractor(BaseExtractor):
                         f"Added VRF dummy interface {vrf_dummy_name} to VRF {vrf_name} (table {vrf_table}) for device {device.name}"
                     )
 
+        # Process LAG / bond / port channel interfaces now that all members are
+        # known. The default parameters configure an LACP (802.3ad) port channel;
+        # they can be overridden per LAG via the netplan_parameters custom field on
+        # the LAG interface (e.g. to switch to active-backup).
+        for lag_id, lag_interface in lag_interfaces_by_id.items():
+            bond_name = (
+                lag_interface.label if lag_interface.label else lag_interface.name
+            )
+            if not bond_name:
+                continue
+
+            bond_config = {
+                "interfaces": bond_members.get(lag_id, []),
+                "parameters": {
+                    "mode": "802.3ad",
+                    "lacp-rate": "fast",
+                    "mii-monitor-interval": 100,
+                    "transmit-hash-policy": "layer3+4",
+                },
+            }
+
+            # Add MTU - use interface MTU if set, otherwise use effective default
+            if hasattr(lag_interface, "mtu") and lag_interface.mtu:
+                bond_config["mtu"] = lag_interface.mtu
+            else:
+                bond_config["mtu"] = effective_default_mtu
+
+            # IP addresses are assigned to the LAG interface itself
+            addresses = []
+            try:
+                ip_addresses = self.bulk_loader.get_interface_ip_addresses(
+                    lag_interface
+                )
+                for ip in ip_addresses:
+                    if ip.address:
+                        addresses.append(ip.address)
+            except Exception:
+                pass
+
+            if addresses:
+                bond_config["addresses"] = addresses
+
+            # Per-LAG override via the netplan_parameters custom field. A shallow
+            # update mirrors the behaviour for other interface types: providing a
+            # "parameters" dict replaces the auto-generated defaults entirely (so
+            # e.g. an active-backup bond does not keep LACP-only options).
+            if (
+                hasattr(lag_interface, "custom_fields")
+                and lag_interface.custom_fields
+            ):
+                lag_params = lag_interface.custom_fields.get("netplan_parameters")
+                if lag_params and isinstance(lag_params, dict):
+                    bond_config.update(lag_params)
+
+            network_bonds[bond_name] = bond_config
+            logger.debug(
+                f"Added bond {bond_name} with members "
+                f"{bond_config['interfaces']} for device {device.name}"
+            )
+
+            # Process VRF assignment for the LAG interface if present
+            if lag_id in interface_vrf_assignments:
+                vrf_name, vrf_table = interface_vrf_assignments[lag_id]
+                if vrf_name not in network_vrfs:
+                    network_vrfs[vrf_name] = {
+                        "table": vrf_table,
+                        "interfaces": [],
+                    }
+                if bond_name not in network_vrfs[vrf_name]["interfaces"]:
+                    network_vrfs[vrf_name]["interfaces"].append(bond_name)
+                    logger.debug(
+                        f"Added bond {bond_name} to VRF {vrf_name} "
+                        f"(table {vrf_table}) for device {device.name}"
+                    )
+
         # Add metalbox dummy device if in metalbox mode and device has metalbox role
         reconciler_mode = kwargs.get("reconciler_mode", "manager")
         if reconciler_mode == "metalbox" and hasattr(device, "role") and device.role:
@@ -688,6 +814,7 @@ class NetplanExtractor(BaseExtractor):
             and not network_dummy_devices
             and not network_vlans
             and not network_tunnels
+            and not network_bonds
         ):
             return None
 
@@ -700,6 +827,8 @@ class NetplanExtractor(BaseExtractor):
             result["network_vlans"] = network_vlans
         if network_tunnels:
             result["network_tunnels"] = network_tunnels
+        if network_bonds:
+            result["network_bonds"] = network_bonds
         if network_vrfs:
             result["network_vrfs"] = network_vrfs
 
