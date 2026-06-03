@@ -118,13 +118,16 @@ The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
     - If the VRF has a table ID, the interface is added to the VRF's interface list in `network_vrfs`
     - The interface is configured in `network_dummy_devices`
   - **Bond / Port Channel interfaces (LAG)**: Interfaces of type `lag` with the `managed-by-osism` tag (uses the same NetBox modelling as SONiC port channel detection)
+    - **LAG eligibility**: the LAG interface must have the `managed-by-osism` tag, be **enabled**, **not** `mgmt_only`, and have a label or name. A `mgmt_only` or disabled LAG is not emitted as a bond
     - The label (or name if no label) becomes the bond name in `network_bonds`
-    - Member interfaces are detected via their `lag` back-reference (i.e. the interface's `lag` field points at the LAG interface)
-    - Members are rendered as regular `network_ethernets` entries (MAC `match` + `set-name`) but carry **no** addresses, DHCP or leaf link-local settings — the bond interface holds the IP configuration
-    - IP addresses and MTU are taken from the LAG interface itself
+    - **Member eligibility**: a member is detected via its `lag` back-reference (its `lag` field points at the LAG interface), but the back-reference alone is **not** sufficient — the member must *independently* pass the same gates as a regular ethernet: it must carry the `managed-by-osism` tag, have a MAC address **and** label, be **enabled**, and **not** be `mgmt_only`
+      - A member that fails any gate is dropped from the bond (and logged); a disabled member is dropped entirely rather than emitted as a standalone `activation-mode: off` ethernet
+      - If a managed LAG ends up with **no** eligible members, the bond is skipped with a warning (an empty `interfaces` list is invalid netplan)
+    - Members are rendered as regular `network_ethernets` entries (MAC `match` + `set-name`) but carry **no** addresses, DHCP or leaf link-local settings — the bond interface holds the IP configuration. A member's `netplan_parameters` custom field may tune other keys, but `match`/`set-name` and any L3/link-local keys (`addresses`, `dhcp4`, `dhcp6`, `link-local`) are ignored for members
+    - IP addresses and MTU are taken from the LAG interface itself. Bonds are always expected to be IP-carrying and therefore — unlike regular ethernets — never receive the leaf / unnumbered treatment (`link-local: [ipv6]`, `dhcp4/6: false`)
     - Defaults to an LACP (802.3ad) port channel: `mode: 802.3ad`, `lacp-rate: fast`, `mii-monitor-interval: 100`, `transmit-hash-policy: layer3+4`
-    - The parameters (and any other bond key) can be overridden per LAG via the `netplan_parameters` custom field on the LAG interface. Providing a `parameters` dict replaces the auto-generated defaults entirely (e.g. to switch to `active-backup` with a `primary` member)
-    - If the LAG interface is assigned to a VRF, the bond is added to the VRF's interface list in `network_vrfs`
+    - The parameters (and any other bond key except `interfaces`) can be overridden per LAG via the `netplan_parameters` custom field on the LAG interface. Providing a `parameters` dict replaces the auto-generated defaults entirely (e.g. to switch to `active-backup` with a `primary` member). The auto-detected `interfaces` membership is authoritative and cannot be overridden by the custom field
+    - If the LAG interface is assigned to a VRF, the bond is added to the VRF's interface list in `network_vrfs` (a VRF assigned to a *member* is ignored — only the bond carries L3 config)
     - The interface is configured in `network_bonds`
   - Example output:
     ```yaml
