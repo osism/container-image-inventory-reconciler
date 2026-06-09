@@ -12,6 +12,11 @@ Provides:
   stand-ins for the pynetbox device and tag objects exercised by the tier-2
   modules (filters, device_mapping, parallel_processor). The factories
   intentionally model only the attributes those modules read.
+* ``make_ip`` / ``make_interface`` / ``make_fake_api`` -- factories for the
+  IP-address, interface and pynetbox-session shapes used by the tier-3
+  extractors (primary_ip and gnmic). ``make_interface`` / ``make_fake_api``
+  model the ``dcim.interfaces.filter`` / ``ipam.ip_addresses.filter`` lookups
+  performed by ``gnmic_extractor`` and are reused by tiers 4-9.
 """
 
 from types import SimpleNamespace
@@ -48,4 +53,46 @@ def make_device(id, name, *, role=None, site=None, tags=(), custom_fields=None):
         site=site,
         tags=[make_tag(t) for t in tags],
         custom_fields=custom_fields if custom_fields is not None else {},
+    )
+
+
+def make_ip(address):
+    """Build a NetBox-shaped IP-address stub with the ``.address`` attribute."""
+    return SimpleNamespace(address=address)
+
+
+def make_interface(*, id, mgmt_only, tags=()):
+    """Build a NetBox-shaped interface stub.
+
+    Models only the attributes ``gnmic_extractor`` reads off an interface:
+    ``id``, ``mgmt_only`` and ``tags`` (list of tag stubs).
+    """
+    return SimpleNamespace(
+        id=id,
+        mgmt_only=mgmt_only,
+        tags=[make_tag(t) for t in tags],
+    )
+
+
+def make_fake_api(interfaces=(), ips_by_interface=None):
+    """Build a pynetbox-shaped API session stub.
+
+    Exposes ``dcim.interfaces.filter(device_id=...)`` returning ``interfaces``
+    and ``ipam.ip_addresses.filter(interface_id=...)`` returning the addresses
+    registered for that interface id in ``ips_by_interface`` (default empty).
+    """
+    ips_by_interface = ips_by_interface or {}
+    return SimpleNamespace(
+        dcim=SimpleNamespace(
+            interfaces=SimpleNamespace(
+                filter=lambda device_id: list(interfaces),
+            ),
+        ),
+        ipam=SimpleNamespace(
+            ip_addresses=SimpleNamespace(
+                filter=lambda interface_id: list(
+                    ips_by_interface.get(interface_id, [])
+                ),
+            ),
+        ),
     )
