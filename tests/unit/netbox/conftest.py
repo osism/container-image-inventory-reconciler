@@ -12,11 +12,15 @@ Provides:
   stand-ins for the pynetbox device and tag objects exercised by the tier-2
   modules (filters, device_mapping, parallel_processor). The factories
   intentionally model only the attributes those modules read.
-* ``make_ip`` / ``make_interface`` / ``make_fake_api`` -- factories for the
-  IP-address, interface and pynetbox-session shapes used by the tier-3
-  extractors (primary_ip and gnmic). ``make_interface`` / ``make_fake_api``
+* ``make_ip`` / ``make_interface`` / ``make_vlan`` / ``make_fake_api`` --
+  factories for the IP-address, interface, VLAN and pynetbox-session shapes
+  used by the tier-3 extractors (primary_ip and gnmic) and the tier-4
+  bulk-loader / connection modules. ``make_interface`` / ``make_fake_api``
   model the ``dcim.interfaces.filter`` / ``ipam.ip_addresses.filter`` lookups
-  performed by ``gnmic_extractor`` and are reused by tiers 4-9.
+  performed by ``gnmic_extractor`` and are reused by tiers 4-9. The tier-4
+  attributes (interface ``name`` / ``mac_address`` / ``untagged_vlan`` /
+  ``device`` and IP ``assigned_object_id``) are keyword-only and defaulted so
+  the tier-3 call sites keep working unchanged.
 """
 
 from types import SimpleNamespace
@@ -56,21 +60,49 @@ def make_device(id, name, *, role=None, site=None, tags=(), custom_fields=None):
     )
 
 
-def make_ip(address):
-    """Build a NetBox-shaped IP-address stub with the ``.address`` attribute."""
-    return SimpleNamespace(address=address)
+def make_ip(address, *, assigned_object_id=None):
+    """Build a NetBox-shaped IP-address stub.
+
+    Exposes ``.address`` (read by the primary-IP / gnmic extractors and
+    ``interfaces``) and ``.assigned_object_id`` -- the interface id that
+    ``bulk_loader`` groups IP addresses by. ``assigned_object_id`` is
+    keyword-only and defaulted so the tier-3 call sites keep working.
+    """
+    return SimpleNamespace(address=address, assigned_object_id=assigned_object_id)
 
 
-def make_interface(*, id, mgmt_only, tags=()):
+def make_vlan(vid):
+    """Build a NetBox-shaped VLAN stub with the ``.vid`` attribute."""
+    return SimpleNamespace(vid=vid)
+
+
+def make_interface(
+    *,
+    id,
+    mgmt_only=False,
+    tags=(),
+    name=None,
+    mac_address=None,
+    untagged_vlan=None,
+    device=None,
+):
     """Build a NetBox-shaped interface stub.
 
-    Models only the attributes ``gnmic_extractor`` reads off an interface:
-    ``id``, ``mgmt_only`` and ``tags`` (list of tag stubs).
+    Models the attributes consulted across the interface-handling modules:
+    ``id``, ``mgmt_only`` and ``tags`` (read by ``gnmic_extractor``) plus
+    ``name``, ``mac_address``, ``untagged_vlan`` and ``device`` (read by
+    ``interfaces`` and ``bulk_loader``). The tier-4 additions are keyword-only
+    and defaulted -- including ``mgmt_only`` -- so the tier-3 call sites keep
+    working unchanged. ``name`` defaults to ``eth{id}`` when not given.
     """
     return SimpleNamespace(
         id=id,
         mgmt_only=mgmt_only,
         tags=[make_tag(t) for t in tags],
+        name=name or f"eth{id}",
+        mac_address=mac_address,
+        untagged_vlan=untagged_vlan,
+        device=device,
     )
 
 
