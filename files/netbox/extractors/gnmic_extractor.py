@@ -12,15 +12,13 @@ from .base_extractor import BaseExtractor
 class GnmicExtractor(BaseExtractor):
     """Extracts Gnmic parameters for switches managed by metalbox."""
 
-    def __init__(self, api=None, netbox_client=None):
+    def __init__(self, api=None):
         """Initialize the extractor.
 
         Args:
             api: NetBox API instance (required for interface fetching)
-            netbox_client: NetBox client instance for updating custom fields
         """
         self.api = api
-        self.netbox_client = netbox_client
 
     def extract(self, device: Any, **kwargs) -> Optional[Dict[str, Any]]:
         """Extract Gnmic parameters for metalbox-managed switches.

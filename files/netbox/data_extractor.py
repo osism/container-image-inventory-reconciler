@@ -45,7 +45,7 @@ class DeviceDataExtractor:
             netbox_client=netbox_client,
             bulk_loader=bulk_loader,
         )
-        self.gnmic_extractor = GnmicExtractor(api=api, netbox_client=netbox_client)
+        self.gnmic_extractor = GnmicExtractor(api=api)
         self.secrets_extractor = SecretsExtractor()
         self.netbox_client = netbox_client
         self.bulk_loader = bulk_loader

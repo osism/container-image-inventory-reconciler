@@ -42,14 +42,11 @@ class TestInit:
     def test_defaults(self):
         extractor = GnmicExtractor()
         assert extractor.api is None
-        assert extractor.netbox_client is None
 
     def test_custom_values_are_stored(self):
         api = object()
-        client = object()
-        extractor = GnmicExtractor(api=api, netbox_client=client)
+        extractor = GnmicExtractor(api=api)
         assert extractor.api is api
-        assert extractor.netbox_client is client
 
 
 # ---------------------------------------------------------------------------
