@@ -24,9 +24,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from bulk_loader import BulkDataLoader
+from config import DEFAULT_METALBOX_IPV6
 from extractors.netplan_extractor import NetplanExtractor
 
-from .conftest import make_device, make_fake_api, make_interface, make_ip, make_tag
+from .conftest import (
+    make_device,
+    make_fake_api,
+    make_iface_type,
+    make_interface,
+    make_ip,
+    make_tag,
+    make_vrf,
+)
 
 
 def _tag(slug="managed-by-osism"):
@@ -645,3 +654,469 @@ class TestRegisterVrfMembership:
             1, "eth0", {1: ("vrf42", 42)}, network_vrfs, "d1"
         )
         assert network_vrfs["vrf42"]["interfaces"] == ["eth0"]
+
+
+# ===========================================================================
+# NetplanExtractor.extract -- per-interface-kind coverage.
+#
+# The LAG / bond kind is intentionally not re-tested here: the TestBond*
+# classes above already exercise every documented bond branch.
+# ===========================================================================
+
+
+def _eth(id, label, *, mac="AA:BB:CC:00:00:01", tags=("managed-by-osism",), **kwargs):
+    """A managed regular ethernet (type 1000base-t) with a MAC and label."""
+    return make_interface(
+        id=id,
+        label=label,
+        mac_address=mac,
+        tags=tags,
+        type=make_iface_type("1000base-t"),
+        **kwargs,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Top-level guards & MTU
+# ---------------------------------------------------------------------------
+
+
+class TestExtractGuards:
+    def test_no_api_returns_none(self):
+        assert _extractor(api=None).extract(make_device(1, "d1")) is None
+
+    def test_loader_raising_returns_none(self, monkeypatch):
+        device = make_device(1, "d1")
+        loader = BulkDataLoader(make_fake_api())
+        monkeypatch.setattr(loader, "get_device_interfaces", _raise)
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_no_interfaces_returns_none(self):
+        assert _extractor(api=object()).extract(make_device(1, "d1")) is None
+
+    def test_all_collections_empty_returns_none_no_write(self):
+        device = make_device(1, "d1")
+        iface = make_interface(id=1, tags=())  # no managed tag -> nothing collected
+        loader = _loader_with(device, [iface])
+        client = MagicMock()
+        ex = _extractor(api=object(), netbox_client=client, loader=loader)
+        assert ex.extract(device) is None
+        client.update_device_custom_field.assert_not_called()
+
+
+class TestSegmentDefaultMtu:
+    def test_segment_default_mtu_overrides_default(self):
+        device = make_device(1, "d1", config_context={"_segment_default_mtu": "9000"})
+        iface = _eth(1, "eth1")  # mtu unset -> falls back to effective default
+        loader = _loader_with(device, [iface])
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_ethernets"]["eth1"]["mtu"] == 9000
+
+    def test_non_numeric_segment_mtu_warns_and_keeps_default(self, mock_logger):
+        device = make_device(1, "d1", config_context={"_segment_default_mtu": "abc"})
+        iface = _eth(1, "eth1")
+        loader = _loader_with(device, [iface])
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_ethernets"]["eth1"]["mtu"] == 9100
+        assert mock_logger.warning.called
+
+
+# ---------------------------------------------------------------------------
+# Regular ethernets
+# ---------------------------------------------------------------------------
+
+
+class TestRegularEthernets:
+    def test_full_shape_with_lowercased_mac(self):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", mac="AA:BB:CC:DD:EE:FF", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_ethernets"]["leaf1"] == {
+            "match": {"macaddress": "aa:bb:cc:dd:ee:ff"},
+            "set-name": "leaf1",
+            "mtu": 9100,
+            "addresses": ["10.0.0.5/24"],
+        }
+
+    def test_interface_without_tags_is_skipped(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_eth(1, "leaf1", tags=())])
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_tagged_but_unmanaged_interface_is_skipped(self):
+        # Tags present but none is managed-by-osism -> still skipped.
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_eth(1, "leaf1", tags=("production",))])
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_mgmt_only_interface_is_skipped(self, mock_logger):
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_eth(1, "leaf1", mgmt_only=True)])
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+        assert mock_logger.debug.called
+
+    def test_missing_mac_is_skipped(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_eth(1, "leaf1", mac=None)])
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_missing_label_is_skipped(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_eth(1, None, mac="AA:BB:CC:DD:EE:FF")])
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_disabled_non_member_marks_activation_off(self):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", enabled=False)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        # Only the rename identity and the down marker - no MTU / addresses.
+        assert result["network_ethernets"]["leaf1"] == {
+            "match": {"macaddress": "aa:bb:cc:00:00:01"},
+            "set-name": "leaf1",
+            "activation-mode": "off",
+        }
+
+    def test_leaf_interface_gets_link_local(self):
+        device = make_device(1, "d1")
+        ep = SimpleNamespace(device=make_device(2, "sw", role=make_tag("leaf")))
+        iface = _eth(1, "leaf1", connected_endpoints=[ep])  # no IPs -> leaf
+        loader = _loader_with(device, [iface])
+        result = _extractor(api=object(), loader=loader).extract(device)
+        cfg = result["network_ethernets"]["leaf1"]
+        assert cfg["link-local"] == ["ipv6"]
+        assert cfg["dhcp4"] is False
+        assert cfg["dhcp6"] is False
+
+    def test_switch_connected_with_ips_is_not_a_leaf(self):
+        device = make_device(1, "d1")
+        ep = SimpleNamespace(device=make_device(2, "sw", role=make_tag("leaf")))
+        iface = _eth(1, "leaf1", connected_endpoints=[ep])
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        cfg = result["network_ethernets"]["leaf1"]
+        assert "link-local" not in cfg
+        assert "dhcp4" not in cfg
+
+    def test_per_interface_netplan_params_override(self):
+        device = make_device(1, "d1")
+        iface = _eth(
+            1,
+            "leaf1",
+            custom_fields={"netplan_parameters": {"mtu": 1500, "wakeonlan": True}},
+        )
+        loader = _loader_with(device, [iface])
+        result = _extractor(api=object(), loader=loader).extract(device)
+        cfg = result["network_ethernets"]["leaf1"]
+        assert cfg["mtu"] == 1500
+        assert cfg["wakeonlan"] is True
+
+
+# ---------------------------------------------------------------------------
+# loopback0
+# ---------------------------------------------------------------------------
+
+
+def _loopback0(**kwargs):
+    return make_interface(
+        id=10, name="loopback0", tags=("managed-by-osism",), mtu=9100, **kwargs
+    )
+
+
+class TestLoopback0:
+    def test_addresses_and_mtu(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(
+            device, [_loopback0()], {10: [make_ip("192.168.45.123/32")]}
+        )
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_dummy_devices"]["loopback0"] == {
+            "addresses": ["192.168.45.123/32"],
+            "mtu": 9100,
+        }
+
+    def test_metalbox_mode_appends_default_ipv6(self):
+        device = make_device(1, "d1", role=make_tag("metalbox"))
+        loader = _loader_with(
+            device, [_loopback0()], {10: [make_ip("192.168.45.123/32")]}
+        )
+        result = _extractor(api=object(), loader=loader).extract(
+            device, reconciler_mode="metalbox"
+        )
+        assert result["network_dummy_devices"]["loopback0"]["addresses"] == [
+            "192.168.45.123/32",
+            DEFAULT_METALBOX_IPV6,
+        ]
+
+    def test_custom_field_addresses_are_unioned(self):
+        device = make_device(1, "d1")
+        lo = _loopback0(
+            custom_fields={
+                "netplan_parameters": {
+                    "addresses": ["192.168.45.123/32", "10.9.9.9/32"],
+                    "mtu": 1500,
+                }
+            }
+        )
+        loader = _loader_with(device, [lo], {10: [make_ip("192.168.45.123/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        cfg = result["network_dummy_devices"]["loopback0"]
+        # The collected address is not duplicated; other keys replace normally.
+        assert cfg["addresses"] == ["192.168.45.123/32", "10.9.9.9/32"]
+        assert cfg["mtu"] == 1500
+
+
+# ---------------------------------------------------------------------------
+# VLAN sub-interfaces
+# ---------------------------------------------------------------------------
+
+
+def _vlan(id, *, label, parent, vrf=None):
+    return make_interface(
+        id=id,
+        label=label,
+        tags=("managed-by-osism",),
+        type=make_iface_type("virtual"),
+        untagged_vlan=SimpleNamespace(vid=100),
+        parent=parent,
+        vrf=vrf,
+    )
+
+
+class TestVlans:
+    def test_vlan_with_managed_parent(self):
+        device = make_device(1, "d1")
+        parent = make_interface(
+            id=5, label="oob1", tags=("managed-by-osism",), mtu=9000
+        )
+        vlan = _vlan(6, label="vlan100", parent=parent)
+        loader = _loader_with(device, [vlan], {6: [make_ip("172.16.10.5/20")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_vlans"]["vlan100"] == {
+            "id": 100,
+            "link": "oob1",
+            "mtu": 9000,
+            "addresses": ["172.16.10.5/20"],
+        }
+
+    def test_vlan_parent_without_tag_is_skipped(self):
+        device = make_device(1, "d1")
+        parent = make_interface(id=5, label="oob1", tags=(), mtu=9000)
+        vlan = _vlan(6, label="vlan100", parent=parent)
+        loader = _loader_with(device, [vlan], {6: [make_ip("172.16.10.5/20")]})
+        assert _extractor(api=object(), loader=loader).extract(device) is None
+
+    def test_vlan_with_vrf_is_registered(self):
+        device = make_device(1, "d1")
+        parent = make_interface(
+            id=5, label="oob1", tags=("managed-by-osism",), mtu=9000
+        )
+        vlan = _vlan(6, label="vlan100", parent=parent, vrf=make_vrf("vrf42"))
+        loader = _loader_with(device, [vlan], {6: [make_ip("172.16.10.5/20")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_vrfs"]["vrf42"]["interfaces"] == ["vlan100"]
+
+
+# ---------------------------------------------------------------------------
+# VXLAN tunnels
+# ---------------------------------------------------------------------------
+
+
+def _vxlan(id=20, *, vrf=None):
+    return make_interface(
+        id=id,
+        name="vxlan42",
+        label="vxlan42",
+        tags=("managed-by-osism",),
+        type=make_iface_type("virtual"),
+        mtu=1500,
+        vrf=vrf,
+    )
+
+
+class TestVxlans:
+    def test_vxlan_full_shape(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(
+            device,
+            [_loopback0(), _vxlan()],
+            {10: [make_ip("192.168.45.123/32")], 20: [make_ip("10.170.64.2/24")]},
+        )
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_tunnels"]["vxlan42"] == {
+            "mode": "vxlan",
+            "link": "loopback0",
+            "id": 42,
+            "accept-ra": False,
+            "mac-learning": True,
+            "port": 4789,
+            "mtu": 1500,
+            "local": "192.168.45.123",
+            "addresses": ["10.170.64.2/24"],
+        }
+
+    def test_vxlan_without_loopback0_ipv4_omits_local(self, mock_logger):
+        device = make_device(1, "d1")
+        loader = _loader_with(device, [_vxlan()], {20: [make_ip("10.170.64.2/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert "local" not in result["network_tunnels"]["vxlan42"]
+        assert mock_logger.warning.called
+
+    def test_vxlan_with_vrf_is_registered(self):
+        device = make_device(1, "d1")
+        loader = _loader_with(
+            device,
+            [_loopback0(), _vxlan(vrf=make_vrf("vrf42"))],
+            {10: [make_ip("192.168.45.123/32")], 20: [make_ip("10.170.64.2/24")]},
+        )
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert "vxlan42" in result["network_vrfs"]["vrf42"]["interfaces"]
+
+
+# ---------------------------------------------------------------------------
+# VRF dummy interfaces
+# ---------------------------------------------------------------------------
+
+
+def _vrf_dummy(id=30, *, label, vrf):
+    return make_interface(
+        id=id,
+        label=label,
+        tags=("managed-by-osism",),
+        type=make_iface_type("virtual"),
+        vrf=vrf,
+        mtu=9100,
+    )
+
+
+class TestVrfDummies:
+    def test_table_from_vrf_name(self):
+        device = make_device(1, "d1")
+        dummy = _vrf_dummy(label="lo-vrf-a", vrf=make_vrf("vrf42"))
+        loader = _loader_with(device, [dummy], {30: [make_ip("192.168.42.10/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_dummy_devices"]["lo-vrf-a"] == {
+            "addresses": ["192.168.42.10/32"],
+            "mtu": 9100,
+        }
+        assert result["network_vrfs"]["vrf42"] == {
+            "table": 42,
+            "interfaces": ["lo-vrf-a"],
+        }
+
+    def test_table_from_rd_with_colon(self):
+        device = make_device(1, "d1")
+        dummy = _vrf_dummy(
+            label="lo-vrf-s", vrf=make_vrf("vrf-storage", rd="65000:1042")
+        )
+        loader = _loader_with(device, [dummy], {30: [make_ip("192.168.42.10/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_vrfs"]["vrf-storage"]["table"] == 1042
+
+    def test_table_from_plain_rd(self):
+        device = make_device(1, "d1")
+        dummy = _vrf_dummy(label="lo-vrf-p", vrf=make_vrf("vrf-plain", rd="77"))
+        loader = _loader_with(device, [dummy], {30: [make_ip("192.168.42.10/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert result["network_vrfs"]["vrf-plain"]["table"] == 77
+
+    def test_unresolvable_table_warns_and_excludes_from_vrfs(self, mock_logger):
+        device = make_device(1, "d1")
+        dummy = _vrf_dummy(label="lo-vrf-x", vrf=make_vrf("vrf-none", rd=None))
+        loader = _loader_with(device, [dummy], {30: [make_ip("192.168.42.10/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        # The dummy device is still emitted, but no VRF entry is created for it.
+        assert "lo-vrf-x" in result["network_dummy_devices"]
+        assert "network_vrfs" not in result
+        assert mock_logger.warning.called
+
+    def test_unparseable_rd_warns_and_excludes_from_vrfs(self, mock_logger):
+        device = make_device(1, "d1")
+        dummy = _vrf_dummy(label="lo-vrf-b", vrf=make_vrf("vrf-bad", rd="abc:def"))
+        loader = _loader_with(device, [dummy], {30: [make_ip("192.168.42.10/32")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert "lo-vrf-b" in result["network_dummy_devices"]
+        assert "network_vrfs" not in result
+        assert mock_logger.warning.called
+
+
+# ---------------------------------------------------------------------------
+# Metalbox dummy, result assembly & caching
+# ---------------------------------------------------------------------------
+
+
+class TestResultAssemblyAndCaching:
+    def test_metalbox_dummy_device(self):
+        device = make_device(1, "d1", role=make_tag("metalbox"))
+        loader = _loader_with(
+            device, [_loopback0()], {10: [make_ip("192.168.45.123/32")]}
+        )
+        result = _extractor(api=object(), loader=loader).extract(
+            device, reconciler_mode="metalbox"
+        )
+        assert result["network_dummy_devices"]["metalbox"] == {
+            "addresses": ["192.168.42.10/24"]
+        }
+
+    def test_only_nonempty_collections_are_present(self):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        assert set(result.keys()) == {"network_ethernets"}
+
+    def test_config_context_overrides_are_deep_merged(self, mock_logger):
+        device = make_device(
+            1,
+            "d1",
+            config_context={
+                "netplan_parameters": {
+                    "network_ethernets": {"leaf1": {"mtu": 1500}},
+                    "extra": "x",
+                }
+            },
+        )
+        iface = _eth(1, "leaf1", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), loader=loader).extract(device)
+        leaf1 = result["network_ethernets"]["leaf1"]
+        assert leaf1["mtu"] == 1500  # override wins
+        assert leaf1["addresses"] == ["10.0.0.5/24"]  # untouched auto key survives
+        assert result["extra"] == "x"  # new key from config_context
+        assert mock_logger.info.called
+
+    def test_netbox_client_write_called_once(self):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        client = MagicMock()
+        client.update_device_custom_field.return_value = True
+        result = _extractor(api=object(), netbox_client=client, loader=loader).extract(
+            device
+        )
+        client.update_device_custom_field.assert_called_once_with(
+            device, "netplan_parameters", result
+        )
+
+    def test_netbox_client_falsy_return_warns(self, mock_logger):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        client = MagicMock()
+        client.update_device_custom_field.return_value = False
+        _extractor(api=object(), netbox_client=client, loader=loader).extract(device)
+        assert mock_logger.warning.called
+
+    def test_netbox_client_none_no_write(self):
+        device = make_device(1, "d1")
+        iface = _eth(1, "leaf1", mtu=9100)
+        loader = _loader_with(device, [iface], {1: [make_ip("10.0.0.5/24")]})
+        result = _extractor(api=object(), netbox_client=None, loader=loader).extract(
+            device
+        )
+        assert "network_ethernets" in result
+
+
+if __name__ == "__main__":  # pragma: no cover - convenience entry point
+    pytest.main([__file__, "-v"])
