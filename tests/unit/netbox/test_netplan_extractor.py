@@ -1,17 +1,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for the LAG / bond (port channel) handling in NetplanExtractor.
+"""Unit tests for files/netbox/extractors/netplan_extractor.py.
 
-The extractor reads device interfaces through a ``BulkDataLoader`` and writes
-the generated parameters back through a ``NetBoxClient``. Both collaborators are
-replaced by thin stubs here; only the attributes the extractor actually reads
-off interface / IP objects are modelled (mirroring the SONiC NetBox modelling:
-a LAG is an interface of ``type == "lag"`` and members carry a ``lag`` back-ref).
+The extractor turns a device's NetBox interfaces into the auto-generated
+``netplan_parameters`` (network_ethernets / dummy_devices / vlans / tunnels /
+bonds / vrfs). It reads interfaces and IP addresses through a ``BulkDataLoader``
+and writes the result back through a ``NetBoxClient``.
+
+The original LAG / bond section (``TestBond*``) predates the shared conftest
+factories and keeps its own thin file-local stubs (``_iface`` /
+``_FakeBulkLoader`` / ``_FakeNetBoxClient``); a LAG is modelled as an interface
+of ``type == "lag"`` whose members carry a ``lag`` back-ref. The newer helper
+and full-``extract`` sections below use the shared ``make_*`` factories with a
+pre-seeded real ``BulkDataLoader`` and a ``MagicMock`` netbox client, consistent
+with the tier-5 frr_extractor tests. The module-level ``loguru`` logger is
+patched with a ``MagicMock`` only where a log assertion documents the branch
+taken.
 """
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
+import pytest
+
+from bulk_loader import BulkDataLoader
 from extractors.netplan_extractor import NetplanExtractor
+
+from .conftest import make_device, make_fake_api, make_interface, make_ip, make_tag
 
 
 def _tag(slug="managed-by-osism"):
@@ -376,3 +391,257 @@ class TestBondVrfMembership:
             for vrf in result["network_vrfs"].values()
             for iface in vrf["interfaces"]
         ]
+
+
+# ===========================================================================
+# Tier-5 helper- and full-extract coverage (shared conftest factories).
+#
+# The classes below use the shared make_* factories with a pre-seeded real
+# BulkDataLoader and a MagicMock netbox client, rather than the file-local
+# bond stubs above.
+# ===========================================================================
+
+
+@pytest.fixture
+def mock_logger(monkeypatch):
+    """Replace the module-level loguru logger with a MagicMock."""
+    logger = MagicMock()
+    monkeypatch.setattr("extractors.netplan_extractor.logger", logger)
+    return logger
+
+
+def _raise(*args, **kwargs):
+    raise RuntimeError("boom")
+
+
+def _extractor(*, api=None, netbox_client=None, loader=None):
+    """Build a NetplanExtractor with a fresh, empty BulkDataLoader by default."""
+    if loader is None:
+        loader = BulkDataLoader(make_fake_api())
+    return NetplanExtractor(api=api, netbox_client=netbox_client, bulk_loader=loader)
+
+
+def _loader_with(device, interfaces, ips_by_id=None):
+    """Build a real BulkDataLoader pre-seeded for a single device."""
+    loader = BulkDataLoader(make_fake_api())
+    loader.device_interfaces[device.id] = list(interfaces)
+    for iface_id, ips in (ips_by_id or {}).items():
+        loader.interface_ips[iface_id] = list(ips)
+    return loader
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor.__init__
+# ---------------------------------------------------------------------------
+
+
+class TestNetplanInit:
+    def test_stores_collaborators(self):
+        api = object()
+        client = object()
+        loader = BulkDataLoader(make_fake_api())
+        ex = NetplanExtractor(api=api, netbox_client=client, bulk_loader=loader)
+        assert ex.api is api
+        assert ex.netbox_client is client
+        assert ex.bulk_loader is loader
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._is_connected_to_switch
+# ---------------------------------------------------------------------------
+
+
+class TestIsConnectedToSwitch:
+    def test_missing_attr_returns_false(self):
+        assert (
+            _extractor()._is_connected_to_switch(SimpleNamespace(), ["leaf"]) is False
+        )
+
+    def test_empty_endpoints_returns_false(self):
+        iface = make_interface(id=1, connected_endpoints=[])
+        assert _extractor()._is_connected_to_switch(iface, ["leaf"]) is False
+
+    def test_endpoint_without_device_returns_false(self):
+        iface = make_interface(id=1, connected_endpoints=[SimpleNamespace()])
+        assert _extractor()._is_connected_to_switch(iface, ["leaf"]) is False
+
+    def test_device_without_role_returns_false(self):
+        ep = SimpleNamespace(device=SimpleNamespace())  # device present, no role
+        iface = make_interface(id=1, connected_endpoints=[ep])
+        assert _extractor()._is_connected_to_switch(iface, ["leaf"]) is False
+
+    def test_switch_role_returns_true(self):
+        ep = SimpleNamespace(device=make_device(2, "sw", role=make_tag("leaf")))
+        iface = make_interface(id=1, connected_endpoints=[ep])
+        assert _extractor()._is_connected_to_switch(iface, ["leaf"]) is True
+
+    def test_non_switch_role_returns_false(self):
+        ep = SimpleNamespace(device=make_device(2, "srv", role=make_tag("compute")))
+        iface = make_interface(id=1, connected_endpoints=[ep])
+        assert _extractor()._is_connected_to_switch(iface, ["leaf"]) is False
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._interface_has_ip_addresses
+# ---------------------------------------------------------------------------
+
+
+class TestInterfaceHasIpAddresses:
+    def test_no_api_returns_false(self):
+        iface = make_interface(id=1)
+        assert _extractor(api=None)._interface_has_ip_addresses(iface) is False
+
+    def test_ips_present_returns_true(self):
+        iface = make_interface(id=1)
+        loader = BulkDataLoader(make_fake_api())
+        loader.interface_ips[1] = [make_ip("10.0.0.1/24")]
+        assert (
+            _extractor(api=object(), loader=loader)._interface_has_ip_addresses(iface)
+            is True
+        )
+
+    def test_no_ips_returns_false(self):
+        iface = make_interface(id=1)
+        assert _extractor(api=object())._interface_has_ip_addresses(iface) is False
+
+    def test_loader_raising_returns_false(self, monkeypatch):
+        iface = make_interface(id=1)
+        loader = BulkDataLoader(make_fake_api())
+        monkeypatch.setattr(loader, "get_interface_ip_addresses", _raise)
+        assert (
+            _extractor(api=object(), loader=loader)._interface_has_ip_addresses(iface)
+            is False
+        )
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._collect_addresses
+# ---------------------------------------------------------------------------
+
+
+class TestCollectAddresses:
+    def test_returns_all_addresses_with_prefix(self):
+        iface = make_interface(id=1)
+        loader = BulkDataLoader(make_fake_api())
+        loader.interface_ips[1] = [make_ip("10.0.0.1/24"), make_ip("2001:db8::1/64")]
+        assert _extractor(loader=loader)._collect_addresses(iface) == [
+            "10.0.0.1/24",
+            "2001:db8::1/64",
+        ]
+
+    def test_falsy_address_skipped(self):
+        iface = make_interface(id=1)
+        loader = BulkDataLoader(make_fake_api())
+        loader.interface_ips[1] = [make_ip(""), make_ip("10.0.0.1/24")]
+        assert _extractor(loader=loader)._collect_addresses(iface) == ["10.0.0.1/24"]
+
+    def test_loader_raising_returns_empty(self, monkeypatch):
+        iface = make_interface(id=1)
+        loader = BulkDataLoader(make_fake_api())
+        monkeypatch.setattr(loader, "get_interface_ip_addresses", _raise)
+        assert _extractor(loader=loader)._collect_addresses(iface) == []
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._resolve_mtu
+# ---------------------------------------------------------------------------
+
+
+class TestResolveMtu:
+    def test_mtu_set_is_returned(self):
+        assert _extractor()._resolve_mtu(make_interface(id=1, mtu=1500), 9100) == 1500
+
+    def test_mtu_none_uses_default(self):
+        assert _extractor()._resolve_mtu(make_interface(id=1, mtu=None), 9100) == 9100
+
+    def test_mtu_attr_absent_uses_default(self):
+        assert _extractor()._resolve_mtu(SimpleNamespace(), 9100) == 9100
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._get_netplan_parameters
+# ---------------------------------------------------------------------------
+
+
+class TestGetNetplanParameters:
+    def test_no_custom_fields_attr_returns_none(self):
+        assert _extractor()._get_netplan_parameters(SimpleNamespace()) is None
+
+    def test_empty_custom_fields_returns_none(self):
+        iface = make_interface(id=1, custom_fields={})
+        assert _extractor()._get_netplan_parameters(iface) is None
+
+    def test_dict_value_is_returned(self):
+        iface = make_interface(
+            id=1, custom_fields={"netplan_parameters": {"mtu": 1500}}
+        )
+        assert _extractor()._get_netplan_parameters(iface) == {"mtu": 1500}
+
+    def test_non_dict_value_returns_none(self):
+        iface = make_interface(id=1, custom_fields={"netplan_parameters": "nope"})
+        assert _extractor()._get_netplan_parameters(iface) is None
+
+    def test_empty_dict_value_returns_none(self):
+        iface = make_interface(id=1, custom_fields={"netplan_parameters": {}})
+        assert _extractor()._get_netplan_parameters(iface) is None
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._apply_netplan_overrides
+# ---------------------------------------------------------------------------
+
+
+class TestApplyNetplanOverrides:
+    def test_non_protected_keys_are_copied(self):
+        config = {"mtu": 9100}
+        _extractor()._apply_netplan_overrides(config, {"mtu": 1500, "wakeonlan": True})
+        assert config == {"mtu": 1500, "wakeonlan": True}
+
+    def test_protected_keys_are_skipped_and_warned(self, mock_logger):
+        config = {}
+        _extractor()._apply_netplan_overrides(
+            config,
+            {"match": {"macaddress": "x"}, "mtu": 1500},
+            protected=frozenset({"match"}),
+            context="ctx",
+        )
+        assert config == {"mtu": 1500}
+        assert mock_logger.warning.called
+
+    def test_default_protected_applies_everything(self):
+        config = {}
+        _extractor()._apply_netplan_overrides(config, {"match": {}, "addresses": []})
+        assert config == {"match": {}, "addresses": []}
+
+
+# ---------------------------------------------------------------------------
+# NetplanExtractor._register_vrf_membership
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterVrfMembership:
+    def test_id_not_in_assignments_is_noop(self):
+        network_vrfs = {}
+        _extractor()._register_vrf_membership(1, "eth0", {}, network_vrfs, "d1")
+        assert network_vrfs == {}
+
+    def test_creates_vrf_entry(self):
+        network_vrfs = {}
+        _extractor()._register_vrf_membership(
+            1, "eth0", {1: ("vrf42", 42)}, network_vrfs, "d1"
+        )
+        assert network_vrfs == {"vrf42": {"table": 42, "interfaces": ["eth0"]}}
+
+    def test_reuses_existing_entry(self):
+        network_vrfs = {"vrf42": {"table": 42, "interfaces": ["eth0"]}}
+        _extractor()._register_vrf_membership(
+            2, "eth1", {2: ("vrf42", 42)}, network_vrfs, "d1"
+        )
+        assert network_vrfs["vrf42"]["interfaces"] == ["eth0", "eth1"]
+
+    def test_duplicate_member_not_appended_twice(self):
+        network_vrfs = {"vrf42": {"table": 42, "interfaces": ["eth0"]}}
+        _extractor()._register_vrf_membership(
+            1, "eth0", {1: ("vrf42", 42)}, network_vrfs, "d1"
+        )
+        assert network_vrfs["vrf42"]["interfaces"] == ["eth0"]
