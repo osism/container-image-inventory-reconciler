@@ -557,6 +557,7 @@ class NetplanExtractor(BaseExtractor):
             ) and not self._interface_has_ip_addresses(interface):
                 # Add leaf-specific parameters
                 interface_config["link-local"] = ["ipv6"]
+                interface_config["accept-ra"] = False
                 interface_config["dhcp4"] = False
                 interface_config["dhcp6"] = False
 
