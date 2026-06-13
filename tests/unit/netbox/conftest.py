@@ -30,6 +30,12 @@ Provides:
   mapping backing the ``dcim.devices.get(id)`` lookup ``frr_extractor`` uses for
   remote-AS resolution. All additions are keyword-only and defaulted, so the
   tier 0-4 tests keep passing unchanged.
+* ``make_vlan_group`` / ``make_prefix`` / ``make_dnsmasq_config`` -- additional
+  shapes consumed by the tier-6 dnsmasq tests. ``make_vlan`` gains an optional
+  ``group`` (a ``make_vlan_group(...)`` stub), ``make_device`` gains
+  ``device_type`` for the MAC-entry fallback and ``make_fake_api`` gains
+  ``prefixes`` to back ``ipam.prefixes.filter(tag=...)``. Every addition is
+  keyword-only and defaulted so the tier 1-5 callers keep working unchanged.
 """
 
 from types import SimpleNamespace
@@ -51,18 +57,28 @@ def make_tag(slug):
 
 
 def make_device(
-    id, name, *, role=None, site=None, tags=(), custom_fields=None, config_context=None
+    id,
+    name,
+    *,
+    role=None,
+    site=None,
+    tags=(),
+    custom_fields=None,
+    config_context=None,
+    device_type=None,
 ):
     """Build a NetBox-shaped device stub.
 
     Only the attributes consulted by the modules under test are populated:
     ``id``, ``name``, ``role``, ``site``, ``tags`` (list of tag stubs),
-    ``custom_fields`` (plain dict) and ``config_context`` (plain dict or
-    ``None``). ``role`` and ``site`` accept any object exposing a ``.slug``
-    attribute -- pass ``make_tag("...")`` for the common case or build a custom
-    ``SimpleNamespace`` when extra fields are needed. ``config_context`` carries
-    the deep-merge overrides and ``frr_type`` / ``_segment_default_mtu`` keys the
-    tier-5 extractors read.
+    ``custom_fields`` (plain dict), ``config_context`` (plain dict or ``None``)
+    and ``device_type``. ``role`` and ``site`` accept any object exposing a
+    ``.slug`` attribute -- pass ``make_tag("...")`` for the common case or build
+    a custom ``SimpleNamespace`` when extra fields are needed. ``config_context``
+    carries the deep-merge overrides and ``frr_type`` / ``_segment_default_mtu``
+    keys the tier-5 extractors read. ``device_type`` defaults to ``None`` and
+    accepts a ``SimpleNamespace(slug="...")`` for the dnsmasq MAC-entry
+    device-type fallback.
     """
     return SimpleNamespace(
         id=id,
@@ -72,6 +88,7 @@ def make_device(
         tags=[make_tag(t) for t in tags],
         custom_fields=custom_fields if custom_fields is not None else {},
         config_context=config_context,
+        device_type=device_type,
     )
 
 
@@ -86,16 +103,21 @@ def make_ip(address, *, assigned_object_id=None):
     return SimpleNamespace(address=address, assigned_object_id=assigned_object_id)
 
 
-def make_vlan(vid):
-    """Build a NetBox-shaped VLAN stub with the ``.vid`` attribute."""
-    return SimpleNamespace(vid=vid)
+def make_vlan(vid, *, group=None):
+    """Build a NetBox-shaped VLAN stub.
+
+    Exposes ``vid`` and an optional ``group`` (a ``make_vlan_group(...)`` stub)
+    used by the dnsmasq routed-group check.
+    """
+    return SimpleNamespace(vid=vid, group=group)
 
 
 def make_iface_type(value):
     """Build a NetBox interface-type stub exposing ``.value``.
 
     Mirrors ``interface.type.value`` (e.g. ``"virtual"``, ``"lag"``,
-    ``"1000base-t"``) that the tier-5 extractors branch on.
+    ``"1000base-t"``) that the tier-5 extractors branch on and the dnsmasq
+    interface gating (``interface.type.value == "virtual"``) reads.
     """
     return SimpleNamespace(value=value)
 
@@ -103,6 +125,20 @@ def make_iface_type(value):
 def make_vrf(name, *, rd=None):
     """Build a NetBox-VRF-shaped stub exposing ``.name`` and ``.rd``."""
     return SimpleNamespace(name=name, rd=rd)
+
+
+def make_vlan_group(name):
+    """Build a NetBox-shaped VLAN-group stub with the ``.name`` attribute."""
+    return SimpleNamespace(name=name)
+
+
+def make_prefix(prefix, *, vlan=None):
+    """Build a NetBox-shaped OOB network / prefix stub.
+
+    Exposes ``prefix`` (a CIDR string) and an optional ``vlan``
+    (a ``make_vlan(...)`` stub).
+    """
+    return SimpleNamespace(prefix=prefix, vlan=vlan)
 
 
 def make_interface(
@@ -137,9 +173,11 @@ def make_interface(
     :func:`make_interface` works there too), ``enabled``, ``parent`` (another
     interface stub), ``lag`` (a back-reference stub with ``.id``), ``mtu`` and
     ``custom_fields`` (plain dict); ``device`` doubles as the remote device an
-    endpoint resolves to. Every attribute beyond the tier-3 set is keyword-only
-    and defaulted -- including ``mgmt_only`` -- so the tier-3 callers keep
-    working unchanged.
+    endpoint resolves to. These same ``label`` / ``type`` / ``untagged_vlan`` /
+    ``connected_endpoints`` / ``enabled`` attributes back the tier-6 dnsmasq
+    interface gating. Every attribute beyond the tier-3 set is keyword-only and
+    defaulted -- including ``mgmt_only`` -- so the tier-3 callers keep working
+    unchanged.
     """
     return SimpleNamespace(
         id=id,
@@ -161,15 +199,17 @@ def make_interface(
     )
 
 
-def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None):
+def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, prefixes=()):
     """Build a pynetbox-shaped API session stub.
 
     Exposes ``dcim.interfaces.filter(device_id=...)`` returning ``interfaces``,
     ``ipam.ip_addresses.filter(interface_id=...)`` returning the addresses
     registered for that interface id in ``ips_by_interface`` (default empty),
-    and ``dcim.devices.get(id)`` returning the device registered in
+    ``dcim.devices.get(id)`` returning the device registered in
     ``devices_by_id`` (default empty) -- the lookup ``frr_extractor`` uses to
-    fetch a remote device's custom fields for cached-AS resolution.
+    fetch a remote device's custom fields for cached-AS resolution -- and
+    ``ipam.prefixes.filter(tag=...)`` returning ``prefixes`` (default empty),
+    used by the dnsmasq metalbox DHCP-option collector.
     """
     ips_by_interface = ips_by_interface or {}
     devices_by_id = devices_by_id or {}
@@ -188,5 +228,30 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None):
                     ips_by_interface.get(interface_id, [])
                 ),
             ),
+            prefixes=SimpleNamespace(
+                filter=lambda tag: list(prefixes),
+            ),
         ),
+    )
+
+
+def make_dnsmasq_config(
+    tmp_path,
+    *,
+    reconciler_mode="manager",
+    dnsmasq_lease_time="28d",
+    dnsmasq_switch_roles=("leaf",),
+):
+    """Build a config stub for the dnsmasq modules.
+
+    Mirrors the four ``Config`` attributes the dnsmasq package reads --
+    ``reconciler_mode``, ``inventory_path`` (the pytest ``tmp_path`` used as the
+    inventory root), ``dnsmasq_lease_time`` and ``dnsmasq_switch_roles`` -- as a
+    ``SimpleNamespace`` so tests need not import the real ``Config``.
+    """
+    return SimpleNamespace(
+        reconciler_mode=reconciler_mode,
+        inventory_path=tmp_path,
+        dnsmasq_lease_time=dnsmasq_lease_time,
+        dnsmasq_switch_roles=list(dnsmasq_switch_roles),
     )
