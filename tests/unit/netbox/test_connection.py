@@ -126,6 +126,38 @@ class TestConnect:
         assert exc_info.value.__cause__ is boom
         assert patched.sleep.call_count == 2
 
+    def test_ignore_ssl_errors_reruns_per_retry_and_leaks_old_session(
+        self, patched, disable_warnings, monkeypatch
+    ):
+        """Characterize the SSL-ignore x retry intersection.
+
+        With ``ignore_ssl_errors=True`` and a failing probe, ``connect()`` runs
+        ``_configure_ssl_ignore()`` on every attempt and rebinds
+        ``self._session = requests.Session()`` without closing the previous
+        session -- so each retry leaks the prior session (and its connection
+        pool) until GC reclaims it. This test pins that behavior; a future fix
+        that closes the old session before rebinding must update it
+        deliberately.
+        """
+        sessions = []
+
+        def session_factory():
+            session = MagicMock(name=f"session-{len(sessions)}")
+            sessions.append(session)
+            return session
+
+        monkeypatch.setattr(connection.requests, "Session", session_factory)
+        # First probe fails, second succeeds -> two attempts, two sessions.
+        patched.fake_api.dcim.sites.count.side_effect = [Exception("boom"), 5]
+        manager = ConnectionManager(_config(ignore_ssl_errors=True))
+
+        manager.connect()
+
+        assert len(sessions) == 2  # one fresh session per attempt
+        assert disable_warnings.call_count == 2
+        sessions[0].close.assert_not_called()  # the leak: never closed
+        assert manager._session is sessions[1]
+
 
 # ---------------------------------------------------------------------------
 # _configure_ssl_ignore
