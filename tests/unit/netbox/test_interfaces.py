@@ -213,8 +213,8 @@ class TestGetOobInterface:
 # ---------------------------------------------------------------------------
 # _is_managed_oob_interface
 #
-# Unlike the gnmic_extractor twin (#543), this reads interface.tags directly
-# with no hasattr guard -- interface stubs must always define tags.
+# This reads interface.tags directly with no hasattr guard -- interface stubs
+# must always define tags.
 # ---------------------------------------------------------------------------
 
 
