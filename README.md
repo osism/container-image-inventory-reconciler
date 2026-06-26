@@ -22,3 +22,6 @@ Run a single test file:
 ```bash
 .venv/bin/pytest tests/unit/netbox/test_smoke.py
 ```
+
+
+TESTING THE GITHUB WORKFLOW
