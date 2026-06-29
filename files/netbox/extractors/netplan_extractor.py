@@ -217,16 +217,21 @@ class NetplanExtractor(BaseExtractor):
                         f"Invalid _segment_default_mtu value '{segment_mtu}' in config context for device {device.name}, using default {default_mtu}"
                     )
 
-        # Get interfaces from device using bulk_loader
+        # Get interfaces from device using bulk_loader. An empty interface list
+        # is deliberately not an early exit: a device whose netplan config comes
+        # entirely from a config_context default (no auto-generatable interface)
+        # must still emit that base config, so we fall through to the
+        # config_context merge below. ConfigContextExtractor strips
+        # netplan_parameters from the generic config-context output, so this
+        # extractor is the only surface that emits them. The truly-empty case
+        # (no generated sections AND no config_context default) is caught by the
+        # final emptiness check after the merge.
         if not self.api:
             return None
 
         try:
             interfaces = self.bulk_loader.get_device_interfaces(device)
         except Exception:
-            return None
-
-        if not interfaces:
             return None
 
         network_ethernets = {}
@@ -811,16 +816,6 @@ class NetplanExtractor(BaseExtractor):
                 # Configure metalbox dummy device with IP
                 network_dummy_devices["metalbox"] = {"addresses": ["192.168.42.10/24"]}
 
-        # Return None if no interfaces found
-        if (
-            not network_ethernets
-            and not network_dummy_devices
-            and not network_vlans
-            and not network_tunnels
-            and not network_bonds
-        ):
-            return None
-
         result = {}
         if network_ethernets:
             result["network_ethernets"] = network_ethernets
@@ -835,10 +830,15 @@ class NetplanExtractor(BaseExtractor):
         if network_vrfs:
             result["network_vrfs"] = network_vrfs
 
-        # Deep-merge overrides from config_context if available
+        # Deep-merge overrides from config_context if available.
         # config_context includes merged data from all Config Context sources
         # (segments, regions, sites, roles, tags, etc.) plus local_context_data,
-        # so segment-level netplan_parameters defaults are also applied.
+        # so segment-level netplan_parameters defaults are also applied. This is
+        # done *before* the emptiness check so a device whose entire netplan
+        # config comes from a config_context default - with no auto-generatable
+        # interface - still emits that base config instead of having it silently
+        # dropped (it is stripped from the generic config-context output, so this
+        # extractor is its only emission surface).
         if hasattr(device, "config_context") and device.config_context:
             cc_netplan = device.config_context.get("netplan_parameters")
             if cc_netplan and isinstance(cc_netplan, dict):
@@ -846,6 +846,11 @@ class NetplanExtractor(BaseExtractor):
                     f"Merging netplan_parameters from config_context for device {device.name}"
                 )
                 result = deep_merge(result, cc_netplan)
+
+        # Return None only when neither interface auto-generation nor a
+        # config_context default produced any parameters.
+        if not result:
+            return None
 
         # Cache the generated parameters in the custom field
         if self.netbox_client:

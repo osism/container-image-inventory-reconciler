@@ -1086,6 +1086,46 @@ class TestResultAssemblyAndCaching:
         assert result["extra"] == "x"  # new key from config_context
         assert mock_logger.info.called
 
+    def test_config_context_only_default_is_emitted_and_written(self):
+        # An interface exists but auto-generates nothing (no managed tag), yet
+        # config_context carries a netplan_parameters default. Since
+        # ConfigContextExtractor strips netplan_parameters from the generic
+        # config-context output, this extractor is its only emission surface and
+        # must still emit (and cache) it rather than dropping it via an emptiness
+        # check that runs before the merge.
+        device = make_device(
+            1,
+            "d1",
+            config_context={
+                "netplan_parameters": {"network_ethernets": {"x": {"mtu": 1500}}}
+            },
+        )
+        iface = make_interface(id=1, tags=())  # nothing auto-collected
+        loader = _loader_with(device, [iface])
+        client = MagicMock()
+        client.update_device_custom_field.return_value = True
+        result = _extractor(api=object(), netbox_client=client, loader=loader).extract(
+            device
+        )
+        assert result == {"network_ethernets": {"x": {"mtu": 1500}}}
+        client.update_device_custom_field.assert_called_once_with(
+            device, "netplan_parameters", result
+        )
+
+    def test_no_interfaces_with_config_context_default_is_emitted(self):
+        # Even with zero interfaces an empty list is no longer an early exit, so
+        # a config_context netplan default is still emitted (symmetric with the
+        # FRR extractor).
+        device = make_device(
+            1,
+            "d1",
+            config_context={
+                "netplan_parameters": {"network_ethernets": {"x": {"mtu": 1500}}}
+            },
+        )
+        result = _extractor(api=object()).extract(device)
+        assert result == {"network_ethernets": {"x": {"mtu": 1500}}}
+
     def test_netbox_client_write_called_once(self):
         device = make_device(1, "d1")
         iface = _eth(1, "leaf1", mtu=9100)

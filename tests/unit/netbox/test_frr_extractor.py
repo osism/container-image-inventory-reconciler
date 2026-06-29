@@ -885,12 +885,30 @@ class TestExtract:
         result = _extractor(api=object(), loader=loader).extract(device)
         assert result["frr_vrfs"] == [{"name": "vrf42", "router_id": "192.168.42.10"}]
 
-    def test_nothing_found_returns_none_before_merge_and_no_write(self):
+    def test_config_context_only_default_is_emitted_and_written(self):
+        # No loopback0 and no uplinks, so interface auto-generation yields
+        # nothing - but config_context carries an frr_parameters default. Since
+        # ConfigContextExtractor strips frr_parameters from the generic
+        # config-context output, this extractor is its only emission surface and
+        # must still emit (and cache) it rather than dropping it via an
+        # emptiness check that runs before the merge.
         device = make_device(
             1,
             "d1",
             config_context={"frr_parameters": {"frr_loopback_v4": "1.2.3.4"}},
         )
+        client = MagicMock()
+        client.update_device_custom_field.return_value = True
+        ex = _extractor(api=object(), netbox_client=client)
+        result = ex.extract(device)
+        assert result == {"frr_loopback_v4": "1.2.3.4"}
+        client.update_device_custom_field.assert_called_once_with(
+            device, "frr_parameters", result
+        )
+
+    def test_nothing_found_and_no_config_context_returns_none_no_write(self):
+        # Truly empty: no generated parameters and no config_context default.
+        device = make_device(1, "d1", config_context=None)
         client = MagicMock()
         ex = _extractor(api=object(), netbox_client=client)
         assert ex.extract(device) is None
