@@ -513,14 +513,15 @@ class FRRExtractor(BaseExtractor):
         if vrf_loopbacks:
             result["frr_vrfs"] = vrf_loopbacks
 
-        # Return None if no FRR configuration found
-        if not result:
-            return None
-
-        # Deep-merge overrides from config_context if available
+        # Deep-merge overrides from config_context if available.
         # config_context includes merged data from all Config Context sources
         # (segments, regions, sites, roles, tags, etc.) plus local_context_data,
-        # so segment-level frr_parameters defaults are also applied.
+        # so segment-level frr_parameters defaults are also applied. This is done
+        # *before* the emptiness check so a device whose entire FRR config comes
+        # from a config_context default - with no loopback0 and no uplinks - still
+        # emits that base config instead of having it silently dropped (it is
+        # stripped from the generic config-context output, so this extractor is
+        # its only emission surface).
         if hasattr(device, "config_context") and device.config_context:
             cc_frr = device.config_context.get("frr_parameters")
             if cc_frr and isinstance(cc_frr, dict):
@@ -528,6 +529,11 @@ class FRRExtractor(BaseExtractor):
                     f"Merging frr_parameters from config_context for device {device.name}"
                 )
                 result = deep_merge(result, cc_frr)
+
+        # Return None only when neither interface auto-generation nor a
+        # config_context default produced any parameters.
+        if not result:
+            return None
 
         # Write the generated parameters in the custom field
         if self.netbox_client:
