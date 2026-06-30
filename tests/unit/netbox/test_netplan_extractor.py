@@ -788,6 +788,7 @@ class TestRegularEthernets:
         assert cfg["link-local"] == ["ipv6"]
         assert cfg["dhcp4"] is False
         assert cfg["dhcp6"] is False
+        assert cfg["accept-ra"] is False
 
     def test_switch_connected_with_ips_is_not_a_leaf(self):
         device = make_device(1, "d1")
