@@ -33,7 +33,7 @@ This NetBox module is part of the OSISM Container Image Inventory Reconciler. It
 
 - `NETBOX_API` - NetBox API URL (required)
 - `NETBOX_TOKEN` - Authentication token (via env or `/run/secrets/NETBOX_TOKEN`)
-- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters,secrets"). Available types: primary_ip, config_context, netplan_parameters, frr_parameters, dnsmasq_parameters, gnmic_parameters, secrets
+- `NETBOX_DATA_TYPES` - Comma-separated data types to extract (default: "primary_ip,config_context,netplan_parameters,secrets"). Available types: primary_ip, config_context, netplan_parameters, frr_parameters, dnsmasq_parameters, gnmic_parameters, secrets, ceph_parameters
 - `NETBOX_IGNORED_ROLES` - Device roles to skip (default: "housing,pdu,other,oob")
 - `NETBOX_ROLE_MAPPING` - JSON mapping of device roles to inventory groups
 - `NETBOX_FILTER_INVENTORY` - JSON filter for device selection (default: `{"status": "active", "tag": "managed-by-osism"}`)
@@ -78,6 +78,7 @@ Devices are assigned to Ansible groups based on their NetBox role:
   - `999-netbox-netplan.yml` - Netplan parameters (if configured)
   - `999-netbox-frr.yml` - FRR parameters (if configured)
   - `999-netbox-secrets.yml` - Ansible Vault encrypted secrets (if configured)
+  - `999-netbox-ceph.yml` - Ceph parameters (if configured)
 
 ### Netplan Configuration
 The `999-netbox-netplan.yml` file contains netplan_parameters which can be:
@@ -224,6 +225,13 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
         - name: VRF-B
           router_id: 192.168.23.10
     ```
+
+### Ceph Configuration
+The `999-netbox-ceph.yml` file contains ceph_parameters. Unlike netplan_parameters/frr_parameters, these are never auto-generated and never written back to NetBox - the extractor only resolves a value from one of two sources:
+- **Custom field (preferred)**: If the `ceph_parameters` custom field is set on the device, its content is used directly instead of config_context (not merged with it)
+- **Config Context (initial)**: Otherwise, the `ceph_parameters` key from config_context is used (e.g. defined as a Config Context with keys like `ceph_osd_devices`)
+- The intended workflow: initial values (e.g. `ceph_osd_devices`) are defined via Config Context; an external tool later enriches these values and writes the result to the `ceph_parameters` custom field, which then takes priority on subsequent runs
+- Add "ceph_parameters" to NETBOX_DATA_TYPES to extract it to inventory files
 
 ### Secrets
 The `999-netbox-secrets.yml` file contains Ansible Vault encrypted values from the `secrets` custom field on devices.
