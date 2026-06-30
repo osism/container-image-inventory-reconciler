@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from bulk_loader import BulkDataLoader
 from extractors import (
+    CephExtractor,
     ConfigContextExtractor,
     CustomFieldExtractor,
     FRRExtractor,
@@ -35,6 +36,7 @@ class DeviceDataExtractor:
         self.config_context_extractor = ConfigContextExtractor()
         self.primary_ip_extractor = PrimaryIPExtractor()
         self.custom_field_extractor = CustomFieldExtractor()
+        self.ceph_extractor = CephExtractor()
         self.netplan_extractor = NetplanExtractor(
             api=api,
             netbox_client=netbox_client,
@@ -112,6 +114,14 @@ class DeviceDataExtractor:
         """Extract secrets (Ansible Vault encrypted values) from device custom field."""
         return self.secrets_extractor.extract(device)
 
+    def extract_ceph_parameters(self, device: Any) -> Any:
+        """Extract Ceph parameters from device.
+
+        Uses the "ceph_parameters" custom field if set, otherwise falls back
+        to the "ceph_parameters" key in config_context. Never writes back to NetBox.
+        """
+        return self.ceph_extractor.extract(device)
+
     def extract_all_data(
         self,
         device: Any,
@@ -126,6 +136,7 @@ class DeviceDataExtractor:
             "primary_ip": self.extract_primary_ip(device),
             "dnsmasq_parameters": self.extract_dnsmasq_parameters(device),
             "secrets": self.extract_secrets(device),
+            "ceph_parameters": self.extract_ceph_parameters(device),
         }
 
         if reconciler_mode == "manager-readonly":

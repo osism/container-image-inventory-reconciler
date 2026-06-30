@@ -3,8 +3,9 @@
 """Unit tests for files/netbox/extractors/config_context_extractor.py.
 
 The extractor copies ``device.config_context`` into a new dict, dropping the
-``frr_parameters`` / ``netplan_parameters`` keys (handled by their dedicated
-extractors) and the empty-string key. Non-dict values pass straight through.
+``frr_parameters`` / ``netplan_parameters`` / ``ceph_parameters`` keys
+(handled by their dedicated extractors) and the empty-string key. Non-dict
+values pass straight through.
 """
 
 import pytest
@@ -26,6 +27,7 @@ class TestExtract:
         ctx = {
             "frr_parameters": {"frr_local_as": 1},
             "netplan_parameters": {"network_ethernets": {}},
+            "ceph_parameters": {"ceph_osd_devices": ["/dev/sdb"]},
             "ntp_servers": ["a", "b"],
             "foo": 1,
         }
@@ -45,7 +47,12 @@ class TestExtract:
         assert ctx == {"a": 1, "b": 2}
 
     def test_only_filtered_keys_returns_empty_dict(self):
-        ctx = {"frr_parameters": 1, "netplan_parameters": 2, "": 3}
+        ctx = {
+            "frr_parameters": 1,
+            "netplan_parameters": 2,
+            "ceph_parameters": 4,
+            "": 3,
+        }
         assert ConfigContextExtractor().extract(_device(ctx)) == {}
 
     @pytest.mark.parametrize("ctx", [None, ["a", "b"], "a string"])

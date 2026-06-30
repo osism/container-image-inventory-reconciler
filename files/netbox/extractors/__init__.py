@@ -3,6 +3,7 @@
 """Data extractors package for NetBox device data extraction."""
 
 from .base_extractor import BaseExtractor
+from .ceph_extractor import CephExtractor
 from .config_context_extractor import ConfigContextExtractor
 from .custom_field_extractor import CustomFieldExtractor
 from .frr_extractor import FRRExtractor
@@ -13,6 +14,7 @@ from .secrets_extractor import SecretsExtractor
 
 __all__ = [
     "BaseExtractor",
+    "CephExtractor",
     "ConfigContextExtractor",
     "CustomFieldExtractor",
     "FRRExtractor",
