@@ -56,6 +56,7 @@ class FileWriter(BaseInventoryComponent):
         "dnsmasq_parameters": "999-netbox-dnsmasq.yml",
         "gnmic_parameters": "999-netbox-gnmic.yml",
         "secrets": "999-netbox-secrets.yml",
+        "ceph_parameters": "999-netbox-ceph.yml",
     }
 
     def write_device_data(self, device: Any, data_type: str, data: Any) -> None:

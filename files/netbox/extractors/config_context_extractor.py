@@ -13,24 +13,25 @@ class ConfigContextExtractor(BaseExtractor):
     def extract(self, device: Any, **kwargs) -> Dict[str, Any]:
         """Extract config context from device.
 
-        Filters out frr_parameters and netplan_parameters keys since those
-        are handled by their dedicated extractors and written to separate files.
-        This avoids duplication because NetBox merges local_context_data into
-        config_context automatically.
+        Filters out frr_parameters, netplan_parameters and ceph_parameters
+        keys since those are handled by their dedicated extractors and
+        written to separate files. This avoids duplication because NetBox
+        merges local_context_data into config_context automatically.
 
         Args:
             device: NetBox device object
             **kwargs: Additional parameters (unused)
 
         Returns:
-            Config context dictionary without frr/netplan parameters
+            Config context dictionary without frr/netplan/ceph parameters
         """
         ctx = device.config_context
         if isinstance(ctx, dict):
             ctx = {
                 k: v
                 for k, v in ctx.items()
-                if k not in ("frr_parameters", "netplan_parameters")
+                if k
+                not in ("frr_parameters", "netplan_parameters", "ceph_parameters")
                 and k != ""
             }
         return ctx
