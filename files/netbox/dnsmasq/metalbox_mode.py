@@ -758,7 +758,20 @@ class MetalboxModeHandler(DnsmasqBase):
                 and device.role.slug.lower() == "metalbox"
             ):
                 if is_routed:
-                    # Routed mode: use virtual interface-based values
+                    # Routed mode: use virtual interface-based values.
+                    # Abort the write if no usable metalbox virtual OOB
+                    # IP/interface was resolved -- otherwise a literal ``None``
+                    # would leak into the dynamic hosts, DHCP options and
+                    # interface list (e.g. ``metalbox,None,None``), producing a
+                    # silently broken dnsmasq config.
+                    if metalbox_ip is None or metalbox_iface_name is None:
+                        logger.warning(
+                            f"Routed OOB mode: no usable metalbox virtual OOB "
+                            f"interface resolved for {device.name} "
+                            f"(IP: {metalbox_ip}, interface: {metalbox_iface_name}) "
+                            f"- skipping dnsmasq write to avoid an invalid config"
+                        )
+                        continue
                     dynamic_hosts = self._get_dynamic_hosts_routed(
                         metalbox_ip, metalbox_iface_name
                     )
