@@ -209,10 +209,22 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, pref
     ``devices_by_id`` (default empty) -- the lookup ``frr_extractor`` uses to
     fetch a remote device's custom fields for cached-AS resolution -- and
     ``ipam.prefixes.filter(tag=...)`` returning ``prefixes`` (default empty),
-    used by the dnsmasq metalbox DHCP-option collector.
+    used by the dnsmasq metalbox DHCP-option collector. The prefixes stub also
+    records each ``tag`` argument it is called with in ``prefixes.filter_calls``
+    so a test can pin the ``tag=["managed-by-osism"]`` filter (the fake itself
+    ignores the argument and returns every prefix).
     """
     ips_by_interface = ips_by_interface or {}
     devices_by_id = devices_by_id or {}
+
+    prefixes_ns = SimpleNamespace(filter_calls=[])
+
+    def _prefixes_filter(tag):
+        prefixes_ns.filter_calls.append(tag)
+        return list(prefixes)
+
+    prefixes_ns.filter = _prefixes_filter
+
     return SimpleNamespace(
         dcim=SimpleNamespace(
             interfaces=SimpleNamespace(
@@ -228,9 +240,7 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, pref
                     ips_by_interface.get(interface_id, [])
                 ),
             ),
-            prefixes=SimpleNamespace(
-                filter=lambda tag: list(prefixes),
-            ),
+            prefixes=prefixes_ns,
         ),
     )
 

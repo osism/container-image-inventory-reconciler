@@ -516,6 +516,9 @@ class TestGetDhcpOptionsForMetalbox:
             "tag:vlan100,6,192.0.2.10",
             "tag:vlan100,42,192.0.2.10",
         ]
+        # Pin the managed-by-osism prefix filter: the fake ignores the argument,
+        # so record it here to catch a regression that drops the tag filter.
+        assert client.api.ipam.prefixes.filter_calls == [["managed-by-osism"]]
 
     def test_vlan_not_in_managed_set_is_skipped(self, tmp_path):
         handler = _handler(tmp_path)
@@ -615,7 +618,12 @@ class TestGetDhcpOptionsForMetalbox:
             make_device(2, "metalbox"), client
         )
 
-        # 6 and 42 still emitted from the raw string; the gateway option is not.
+        # Characterization of existing behavior, NOT intended validation: only
+        # option 3 (gateway) is guarded by ``ip_network()``, so the malformed
+        # 192.0.2.999 is dropped there. Options 6 and 42 come from the
+        # unvalidated ``split("/")[0]`` and leak the bad address straight
+        # through -- a future reader should not mistake this for "invalid IPs
+        # are rejected".
         assert result == [
             "tag:vlan100,6,192.0.2.999",
             "tag:vlan100,42,192.0.2.999",
@@ -735,6 +743,26 @@ class TestProcessDevices:
         assert written["dnsmasq_dhcp_options__metalbox"] == ["tag:vlan100,6,192.0.2.1"]
         dyn.assert_called_once()
         opts.assert_called_once()
+
+        # No switch devices are present, so the switch-only overwrite
+        # (guarded by ``if switch_dhcp_hosts or switch_dhcp_macs``) never runs.
+        # The metalbox custom field therefore RETAINS its own collection-time
+        # params -- this is intended: "discard metalbox own parameters" only
+        # applies once there are switch params to write in their place. The
+        # single metalbox custom-field write below (and the absence of a second,
+        # switch-only one) locks that behavior in.
+        metalbox_field_calls = [
+            call
+            for call in client.update_device_custom_field.call_args_list
+            if call.args[0] is metalbox
+        ]
+        assert len(metalbox_field_calls) == 1
+        assert metalbox_field_calls[-1].args[1] == "dnsmasq_parameters"
+        assert metalbox_field_calls[-1].args[2] == {
+            "dnsmasq_dhcp_hosts": ["aa:aa:aa:aa:aa:aa,metalbox,192.0.2.1"],
+            "dnsmasq_dhcp_macs": ["set:metal,aa:aa:aa:aa:aa:aa"],
+            "dnsmasq_interfaces": ["vlan100"],
+        }
 
     def test_bridged_deduplicates_by_hostname_and_mac(self, tmp_path, monkeypatch):
         handler = _handler(tmp_path, reconciler_mode="metalbox")
@@ -865,6 +893,57 @@ class TestProcessDevices:
         ]
         bridged_dyn.assert_not_called()
         bridged_opts.assert_not_called()
+
+    def test_routed_unresolved_metalbox_interface_skips_write(
+        self, tmp_path, monkeypatch, mock_logger
+    ):
+        handler = _handler(tmp_path, reconciler_mode="metalbox")
+        write = MagicMock()
+        monkeypatch.setattr(handler, "write_dnsmasq_to_device", write)
+        # No VLAN interfaces on the metalbox -> routed mode.
+        monkeypatch.setattr(
+            handler.interface_handler,
+            "get_virtual_interfaces_for_dnsmasq",
+            MagicMock(return_value=[]),
+        )
+
+        metalbox = make_device(
+            1,
+            "metalbox",
+            role=make_tag("metalbox"),
+            device_type=SimpleNamespace(slug="metal"),
+        )
+        node = make_device(
+            2,
+            "node1",
+            role=make_tag("compute"),
+            device_type=SimpleNamespace(slug="server"),
+        )
+        client = MagicMock()
+        # Real _get_metalbox_oob_virtual_interface runs against an interface-less
+        # fake API and therefore returns its genuine (None, None) -- no
+        # loopback0, no virtual interface to resolve an IP/name from.
+        client.api = make_fake_api(interfaces=[])
+        client.get_oob_networks.return_value = [
+            make_prefix("192.0.2.0/24", vlan=make_vlan(100))
+        ]
+        client.get_device_oob_interface.side_effect = _oob(
+            {
+                1: ("192.0.2.254", "aa:aa:aa:aa:aa:aa", None),
+                2: ("192.0.2.10", "bb:bb:bb:bb:bb:bb", None),
+            }
+        )
+        client.update_device_custom_field.return_value = True
+
+        handler.process_devices(client, [metalbox], [metalbox, node])
+
+        # The routed write is aborted rather than emitting a "metalbox,None,None"
+        # config, and the skip is surfaced as a warning.
+        write.assert_not_called()
+        assert any(
+            "skipping dnsmasq write" in call.args[0]
+            for call in mock_logger.warning.call_args_list
+        )
 
     def test_switch_tracking_excludes_metalbox_own_params(self, tmp_path, monkeypatch):
         handler = _handler(tmp_path, reconciler_mode="metalbox")

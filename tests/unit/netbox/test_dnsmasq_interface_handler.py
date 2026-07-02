@@ -102,7 +102,3 @@ class TestGetVirtualInterfacesForDnsmasq:
         iface1 = _virtual(id=1, label="oob1")
         iface2 = _virtual(id=2, label="oob2")
         assert _call([iface1, iface2]) == ["oob1", "oob2"]
-
-    def test_callable_as_static_method_without_instance(self):
-        # No InterfaceHandler() instance is constructed anywhere above.
-        assert _call([_virtual()]) == ["oob1"]
