@@ -3,9 +3,9 @@
 """Unit tests for files/netbox/extractors/ceph_extractor.py.
 
 The extractor never generates data and never writes back to NetBox. It only
-resolves a value: the ``ceph_parameters`` custom field, if set to a dict,
-takes priority and is returned as-is (not merged); otherwise it falls back to
-the ``ceph_parameters`` key in ``device.config_context``.
+resolves a value: the ``ceph_parameters`` custom field, if set to a non-empty
+dict, takes priority and is returned as-is (not merged); otherwise it falls
+back to the ``ceph_parameters`` key in ``device.config_context``.
 """
 
 import pytest
@@ -48,6 +48,15 @@ class TestExtract:
         cc_value = {"ceph_osd_devices": ["/dev/sdc"]}
         device = _device(
             custom_fields={"ceph_parameters": cf_value},
+            config_context={"ceph_parameters": cc_value},
+        )
+        assert CephExtractor().extract(device) == cc_value
+
+    def test_empty_dict_custom_field_falls_back_to_config_context(self):
+        # An explicitly empty custom field ({}) is treated as unset.
+        cc_value = {"ceph_osd_devices": ["/dev/sdc"]}
+        device = _device(
+            custom_fields={"ceph_parameters": {}},
             config_context={"ceph_parameters": cc_value},
         )
         assert CephExtractor().extract(device) == cc_value
