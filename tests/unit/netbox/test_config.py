@@ -88,6 +88,7 @@ class TestDefaultConstants:
             "primary_ip",
             "config_context",
             "netplan_parameters",
+            "ceph_parameters",
             "secrets",
         ]
 
