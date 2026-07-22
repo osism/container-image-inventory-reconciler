@@ -14,8 +14,8 @@ class CephExtractor(BaseExtractor):
     Config Context under the "ceph_parameters" key and are passed straight
     through into the inventory. Once the Ceph devices are configured, the
     enriched values can be written to the "ceph_parameters" custom field
-    on the device. Once that custom field is set, it takes priority over
-    the Config Context value and is used instead.
+    on the device. Once that custom field is set to a non-empty dict, it
+    takes priority over the Config Context value and is used instead.
 
     The extractor itself never writes back to NetBox
     """
@@ -32,6 +32,8 @@ class CephExtractor(BaseExtractor):
         """
         custom_fields = device.custom_fields or {}
         custom_field_value = custom_fields.get("ceph_parameters")
+        # An explicitly empty custom field ({}) is treated as unset and
+        # falls back to the Config Context value.
         if isinstance(custom_field_value, dict) and custom_field_value:
             return custom_field_value
 
