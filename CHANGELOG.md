@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260810.0] - 2026-08-10
+
+### Added
+- Add Ceph extractor that resolves ceph_parameters from a device's custom field or config context and writes them to 999-netbox-ceph.yml (osism/container-image-inventory-reconciler#566)
+
+### Dependencies
+- ansible-core 2.19.3 → 2.19.11 (osism/container-image-inventory-reconciler#568)
+- dynaconf 3.3.2 → 3.3.5 (osism/container-image-inventory-reconciler#571, osism/container-image-inventory-reconciler#572, osism/container-image-inventory-reconciler#573)
+
 ## [v0.20260721.0] - 2026-07-21
 
 ### Added
