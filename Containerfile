@@ -1,6 +1,6 @@
 # Multi-stage build for better layer caching and smaller final image
 ARG BASE_IMAGE=python
-ARG BASE_TAG=3.14-alpine
+ARG BASE_TAG=3.15-alpine
 FROM ${BASE_IMAGE}:${BASE_TAG} AS builder
 
 # Build arguments
