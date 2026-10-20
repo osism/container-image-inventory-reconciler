@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261019.0] - 2026-10-19
+
+### Changed
+- Label the built image with the commits it contains from the osism/release, osism/defaults and osism/generics sources, pin the base image by digest, and record it via org.opencontainers.image.base.name, base.digest, documentation and url labels (osism/container-image-inventory-reconciler#581)
+
+### Dependencies
+- pynetbox 7.8.0 → 7.9.0 (osism/container-image-inventory-reconciler#580)
+
 ## [v0.20261011.0] - 2026-10-11
 
 ### Fixed
