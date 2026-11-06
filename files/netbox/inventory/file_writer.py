@@ -44,6 +44,10 @@ def _tag_vault_strings(obj):
     return obj
 
 
+# Value of a manually defined key whose YAML could not be parsed
+_UNPARSED = object()
+
+
 class FileWriter(BaseInventoryComponent):
     """Handles writing inventory data to files."""
 
@@ -75,15 +79,21 @@ class FileWriter(BaseInventoryComponent):
         base_path = self._find_device_base_path(device)
 
         # For single-file host_vars, filter out keys that are already defined
-        # manually (outside of NetBox sections) - manual definitions take priority
-        if base_path and not base_path.is_dir() and isinstance(data, dict):
-            data = self._filter_existing_manual_keys(base_path, data_type, data, device)
-            if not data:
-                logger.debug(
-                    f"All {data_type} keys for device {device} already defined "
-                    f"manually in {base_path}, skipping"
+        # manually (outside of NetBox sections) - manual definitions take priority.
+        # primary_ip is a plain string that is written as ansible_host.
+        if base_path and not base_path.is_dir():
+            keyed = {"ansible_host": data} if data_type == "primary_ip" else data
+            if isinstance(keyed, dict):
+                keyed = self._filter_existing_manual_keys(
+                    base_path, data_type, keyed, device
                 )
-                return
+                if not keyed:
+                    logger.debug(
+                        f"All {data_type} keys for device {device} already "
+                        f"defined manually in {base_path}, skipping"
+                    )
+                    return
+                data = keyed["ansible_host"] if data_type == "primary_ip" else keyed
 
         # Prepare content
         content = self._prepare_content(data_type, data)
@@ -241,41 +251,65 @@ class FileWriter(BaseInventoryComponent):
         Returns:
             Filtered dictionary with manually-defined keys removed
         """
-        manual_keys = self._get_manual_yaml_keys(file_path, data_type)
-        if not manual_keys:
+        manual_values = self._get_manual_yaml_values(file_path, data_type)
+        if not manual_values:
             return data
 
         # Filter out keys that are already defined manually
         filtered_data = {}
         for key, value in data.items():
-            if key in manual_keys:
+            if key not in manual_values:
+                filtered_data[key] = value
+                continue
+
+            manual_value = manual_values[key]
+            if manual_value == value:
+                logger.debug(
+                    f"Skipping NetBox-generated '{key}' for device {device} - "
+                    f"same value already defined manually in {file_path}"
+                )
+            elif manual_value is _UNPARSED:
                 logger.info(
                     f"Skipping NetBox-generated '{key}' for device {device} - "
-                    f"already defined manually in {file_path}"
+                    f"already defined manually in {file_path} (value not "
+                    f"compared, file does not parse as YAML)"
+                )
+            elif data_type == "secrets":
+                logger.warning(
+                    f"Skipping NetBox-generated '{key}' for device {device} - "
+                    f"a different value is defined manually in {file_path}"
                 )
             else:
-                filtered_data[key] = value
+                logger.warning(
+                    f"Skipping NetBox-generated '{key}' for device {device} - "
+                    f"defined manually in {file_path} as {manual_value!r}, "
+                    f"NetBox has {value!r}"
+                )
 
         return filtered_data
 
-    def _get_manual_yaml_keys(self, file_path: Path, data_type: str) -> set:
-        """Extract top-level YAML keys that are defined outside NetBox sections.
+    def _get_manual_yaml_values(self, file_path: Path, data_type: str) -> dict:
+        """Extract top-level YAML values that are defined outside NetBox sections.
+
+        If the manual part does not parse as YAML, the keys are found by
+        pattern matching and their values are set to ``_UNPARSED``.
 
         Args:
             file_path: Path to the YAML file
             data_type: Type of data section to exclude from manual keys
 
         Returns:
-            Set of top-level keys defined manually (outside NetBox sections)
+            Mapping of top-level keys defined manually (outside NetBox
+            sections) to their values
         """
         try:
             with open(file_path, "r", encoding="utf-8") as fp:
                 content = fp.read()
         except FileNotFoundError:
-            return set()
+            return {}
 
         if not content.strip():
-            return set()
+            return {}
 
         # Split content into manual part and NetBox sections
         lines = content.split("\n")
@@ -296,20 +330,20 @@ class FileWriter(BaseInventoryComponent):
         # Parse the manual part as YAML to extract top-level keys
         manual_content = "\n".join(manual_lines)
         if not manual_content.strip():
-            return set()
+            return {}
 
         try:
             manual_data = yaml.safe_load(manual_content)
             if isinstance(manual_data, dict):
-                return set(manual_data.keys())
+                return manual_data
         except yaml.YAMLError:
             # If parsing fails, try to extract keys by simple pattern matching
             # Look for lines that start with a word followed by colon (top-level keys)
-            keys = set()
+            values = {}
             for line in manual_lines:
                 match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):", line)
                 if match:
-                    keys.add(match.group(1))
-            return keys
+                    values[match.group(1)] = _UNPARSED
+            return values
 
-        return set()
+        return {}
