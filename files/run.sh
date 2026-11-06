@@ -90,7 +90,7 @@ python3 /generate-minified-hosts.py
 # otherwise carry them to /inventory again on every run.
 for vars_dir in host_vars group_vars; do
     if [[ -d /inventory.pre/$vars_dir ]]; then
-        rsync -q -a --delete /inventory.pre/$vars_dir/ /inventory.merge/fast/$vars_dir/ 2>/dev/null || true
+        rsync -q -a --delete /inventory.pre/$vars_dir/ /inventory.merge/fast/$vars_dir/
     else
         rm -rf /inventory.merge/fast/$vars_dir
     fi
