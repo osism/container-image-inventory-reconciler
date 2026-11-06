@@ -85,8 +85,16 @@ python3 /generate-minified-hosts.py
 # Build fast inventory directory with JSON index + separate host_vars/group_vars.
 # Usage: ansible-playbook -i /inventory/fast/ playbook.yml
 # This avoids parsing the monolithic YAML and enables lazy loading of host_vars.
-rsync -q -a /inventory.pre/host_vars/ /inventory.merge/fast/host_vars/ 2>/dev/null || true
-rsync -q -a /inventory.pre/group_vars/ /inventory.merge/fast/group_vars/ 2>/dev/null || true
+# /inventory.merge persists across runs, so --delete is needed to drop files
+# that were removed from the configuration; the publish step below would
+# otherwise carry them to /inventory again on every run.
+for vars_dir in host_vars group_vars; do
+    if [[ -d /inventory.pre/$vars_dir ]]; then
+        rsync -q -a --delete /inventory.pre/$vars_dir/ /inventory.merge/fast/$vars_dir/ 2>/dev/null || true
+    else
+        rm -rf /inventory.merge/fast/$vars_dir
+    fi
+done
 
 rsync -q -a --delete --delay-updates --exclude .git /inventory.merge/ /inventory
 
