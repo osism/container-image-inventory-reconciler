@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261111.0] - 2026-11-11
+
+### Changed
+
+- Update dependency pytest-mock to v3.17.0 (osism/container-image-inventory-reconciler#583)
+- Show the output of the image push task (osism/container-image-inventory-reconciler#585)
+- Update dependency pytest to v9.2.0 (osism/container-image-inventory-reconciler#586)
+- Drop deleted vars files from the fast inventory (osism/container-image-inventory-reconciler#587)
+- Skip NetBox keys already set in host_vars file (osism/container-image-inventory-reconciler#588)
+
 ## [v0.20261019.0] - 2026-10-19
 
 ### Changed
