@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261111.0] - 2026-11-11
+
+### Fixed
+- Drop deleted host_vars/group_vars files from the fast inventory and stop hiding rsync errors there (osism/container-image-inventory-reconciler#587)
+- Show the actual error output when the image push task fails instead of suppressing it (osism/container-image-inventory-reconciler#585)
+- Skip NetBox keys already set in host_vars file so manual values are not overwritten (osism/container-image-inventory-reconciler#588)
+
+### Dependencies
+- pytest-mock 3.16.0 → 3.17.0 (osism/container-image-inventory-reconciler#583)
+- pytest 9.1.1 → 9.2.0 (osism/container-image-inventory-reconciler#586)
+
 ## [v0.20261019.0] - 2026-10-19
 
 ### Changed
