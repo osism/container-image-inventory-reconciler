@@ -73,6 +73,30 @@ class InterfaceFilter:
         return "managed-by-osism" in tag_slugs
 
     @staticmethod
+    def is_managed_lag(interface: Any) -> bool:
+        """Check if interface is a LAG that netplan renders as a bond.
+
+        Mirrors the LAG gates of the netplan extractor: type "lag",
+        managed-by-osism tag, enabled, not mgmt_only and a label or name.
+        Members of such a LAG are enslaved to the bond on the host.
+
+        Args:
+            interface: NetBox interface object
+
+        Returns:
+            True if interface is a managed LAG, False otherwise
+        """
+        iface_type = getattr(interface, "type", None)
+        return (
+            bool(iface_type)
+            and getattr(iface_type, "value", None) == "lag"
+            and InterfaceFilter.has_managed_tag(interface)
+            and getattr(interface, "enabled", True)
+            and not getattr(interface, "mgmt_only", False)
+            and bool(interface.label or interface.name)
+        )
+
+    @staticmethod
     def is_valid_uplink(interface: Any) -> bool:
         """Check if interface is a valid uplink.
 
@@ -326,10 +350,9 @@ class FRRExtractor(BaseExtractor):
     def _get_uplink_interfaces(self, device: Any) -> List[Dict[str, Any]]:
         """Get all interfaces that could be uplinks.
 
-        Returns interfaces that have:
-        - managed-by-osism tag
-        - a label
-        - connected endpoints
+        Returns interfaces that pass InterfaceFilter.is_valid_uplink() and
+        are not a member of a managed LAG. netplan enslaves such members to
+        their bond, so a BGP session on a member cannot be established.
 
         Args:
             device: NetBox device object
@@ -346,9 +369,22 @@ class FRRExtractor(BaseExtractor):
         try:
             # Get interfaces using bulk_loader
             interfaces = self.bulk_loader.get_device_interfaces(device)
+            managed_lag_ids = {
+                interface.id
+                for interface in interfaces
+                if self.interface_filter.is_managed_lag(interface)
+            }
 
             for interface in interfaces:
                 if not self.interface_filter.is_valid_uplink(interface):
+                    continue
+
+                lag = getattr(interface, "lag", None)
+                if lag and lag.id in managed_lag_ids:
+                    logger.debug(
+                        f"Skipping {interface.label} on {device.name} as uplink: "
+                        f"member of LAG {lag.id}"
+                    )
                     continue
 
                 # Get connected device from endpoints

@@ -184,6 +184,44 @@ class TestIsValidUplink:
 
 
 # ---------------------------------------------------------------------------
+# InterfaceFilter.is_managed_lag
+# ---------------------------------------------------------------------------
+
+
+def _managed_lag(**overrides):
+    """A LAG that netplan renders as a bond."""
+    kwargs = dict(
+        id=40,
+        name="bond0",
+        type=make_iface_type("lag"),
+        tags=("managed-by-osism",),
+        enabled=True,
+        mgmt_only=False,
+    )
+    kwargs.update(overrides)
+    return make_interface(**kwargs)
+
+
+class TestIsManagedLag:
+    def test_managed_lag_returns_true(self):
+        assert InterfaceFilter.is_managed_lag(_managed_lag()) is True
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"type": make_iface_type("1000base-t")},
+            {"type": None},
+            {"tags": ()},
+            {"enabled": False},
+            {"mgmt_only": True},
+            {"name": "", "label": None},
+        ],
+    )
+    def test_ineligible_returns_false(self, overrides):
+        assert InterfaceFilter.is_managed_lag(_managed_lag(**overrides)) is False
+
+
+# ---------------------------------------------------------------------------
 # FRRExtractor.__init__
 # ---------------------------------------------------------------------------
 
@@ -535,6 +573,44 @@ class TestGetUplinkInterfaces:
         result = _extractor(api=object(), loader=loader)._get_uplink_interfaces(device)
         assert result == [
             {"interface": "data1", "remote_device": remote, "interface_obj": iface}
+        ]
+
+    def test_member_of_managed_lag_is_skipped(self):
+        device = make_device(1, "d1")
+        remote = make_device(2, "switch1", role=make_tag("leaf"))
+        lag = _managed_lag()
+        member = make_interface(
+            id=30,
+            label="data1",
+            tags=("managed-by-osism",),
+            connected_endpoints=[make_interface(id=99, device=remote)],
+            lag=SimpleNamespace(id=lag.id),
+        )
+        loader = _loader_with(device, [member, lag])
+        assert (
+            _extractor(api=object(), loader=loader)._get_uplink_interfaces(device) == []
+        )
+
+    @pytest.mark.parametrize(
+        "lag_overrides", [{"tags": ()}, {"enabled": False}, {"mgmt_only": True}]
+    )
+    def test_member_of_unmanaged_lag_stays_uplink(self, lag_overrides):
+        # netplan does not render such a LAG, so the member stays a plain
+        # ethernet that can carry its own BGP session.
+        device = make_device(1, "d1")
+        remote = make_device(2, "switch1", role=make_tag("leaf"))
+        lag = _managed_lag(**lag_overrides)
+        member = make_interface(
+            id=30,
+            label="data1",
+            tags=("managed-by-osism",),
+            connected_endpoints=[make_interface(id=99, device=remote)],
+            lag=SimpleNamespace(id=lag.id),
+        )
+        loader = _loader_with(device, [member, lag])
+        result = _extractor(api=object(), loader=loader)._get_uplink_interfaces(device)
+        assert result == [
+            {"interface": "data1", "remote_device": remote, "interface_obj": member}
         ]
 
     def test_endpoint_without_device_is_skipped(self):
