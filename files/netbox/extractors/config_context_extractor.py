@@ -18,12 +18,17 @@ class ConfigContextExtractor(BaseExtractor):
         written to separate files. This avoids duplication because NetBox
         merges local_context_data into config_context automatically.
 
+        Also filters out first_boot: it holds values for the first-boot
+        play that python-osism puts on a node's config drive, not host
+        variables, and must not reach the inventory.
+
         Args:
             device: NetBox device object
             **kwargs: Additional parameters (unused)
 
         Returns:
             Config context dictionary without frr/netplan/ceph parameters
+            and first_boot
         """
         ctx = device.config_context
         if isinstance(ctx, dict):
@@ -31,7 +36,12 @@ class ConfigContextExtractor(BaseExtractor):
                 k: v
                 for k, v in ctx.items()
                 if k
-                not in ("frr_parameters", "netplan_parameters", "ceph_parameters")
+                not in (
+                    "frr_parameters",
+                    "netplan_parameters",
+                    "ceph_parameters",
+                    "first_boot",
+                )
                 and k != ""
             }
         return ctx

@@ -4,7 +4,9 @@
 
 The extractor copies ``device.config_context`` into a new dict, dropping the
 ``frr_parameters`` / ``netplan_parameters`` / ``ceph_parameters`` keys
-(handled by their dedicated extractors) and the empty-string key. Non-dict
+(handled by their dedicated extractors), ``first_boot`` (first-boot-only
+values for python-osism's config-drive play, not host variables) and the
+empty-string key. Non-dict
 values pass straight through.
 """
 
@@ -23,8 +25,9 @@ def _device(ctx):
 
 
 class TestExtract:
-    def test_strips_frr_and_netplan_keeps_rest(self):
+    def test_strips_dedicated_keys_keeps_rest(self):
         ctx = {
+            "first_boot": {"operator_user": "osism"},
             "frr_parameters": {"frr_local_as": 1},
             "netplan_parameters": {"network_ethernets": {}},
             "ceph_parameters": {"ceph_osd_devices": ["/dev/sdb"]},
@@ -51,6 +54,7 @@ class TestExtract:
             "frr_parameters": 1,
             "netplan_parameters": 2,
             "ceph_parameters": 4,
+            "first_boot": 5,
             "": 3,
         }
         assert ConfigContextExtractor().extract(_device(ctx)) == {}
