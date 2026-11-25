@@ -184,6 +184,82 @@ class TestIsValidUplink:
 
 
 # ---------------------------------------------------------------------------
+# InterfaceFilter.is_managed_lag
+# ---------------------------------------------------------------------------
+
+
+def _managed_lag(**overrides):
+    """A LAG that netplan renders as a bond."""
+    kwargs = dict(
+        id=40,
+        name="bond0",
+        type=make_iface_type("lag"),
+        tags=("managed-by-osism",),
+        enabled=True,
+        mgmt_only=False,
+    )
+    kwargs.update(overrides)
+    return make_interface(**kwargs)
+
+
+class TestIsManagedLag:
+    def test_managed_lag_returns_true(self):
+        assert InterfaceFilter.is_managed_lag(_managed_lag()) is True
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"type": make_iface_type("1000base-t")},
+            {"type": None},
+            {"tags": ()},
+            {"enabled": False},
+            {"mgmt_only": True},
+            {"name": "", "label": None},
+        ],
+    )
+    def test_ineligible_returns_false(self, overrides):
+        assert InterfaceFilter.is_managed_lag(_managed_lag(**overrides)) is False
+
+
+# ---------------------------------------------------------------------------
+# InterfaceFilter.is_eligible_bond_member
+# ---------------------------------------------------------------------------
+
+
+def _bond_member(**overrides):
+    kwargs = dict(
+        id=30,
+        label="extern1",
+        tags=("managed-by-osism",),
+        mac_address="52:54:00:00:00:01",
+        enabled=True,
+        mgmt_only=False,
+    )
+    kwargs.update(overrides)
+    return make_interface(**kwargs)
+
+
+class TestIsEligibleBondMember:
+    def test_eligible_member_returns_true(self):
+        assert InterfaceFilter.is_eligible_bond_member(_bond_member()) is True
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"tags": ()},
+            {"mac_address": None},
+            {"label": None},
+            {"enabled": False},
+            {"mgmt_only": True},
+        ],
+    )
+    def test_ineligible_returns_false(self, overrides):
+        assert (
+            InterfaceFilter.is_eligible_bond_member(_bond_member(**overrides)) is False
+        )
+
+
+# ---------------------------------------------------------------------------
 # FRRExtractor.__init__
 # ---------------------------------------------------------------------------
 
@@ -537,6 +613,47 @@ class TestGetUplinkInterfaces:
             {"interface": "data1", "remote_device": remote, "interface_obj": iface}
         ]
 
+    def test_member_of_managed_lag_is_skipped(self):
+        # The member itself is never an uplink; the bond takes its place.
+        device = make_device(1, "d1")
+        remote = make_device(2, "switch1", role=make_tag("leaf"))
+        lag = _managed_lag()
+        member = make_interface(
+            id=30,
+            label="data1",
+            tags=("managed-by-osism",),
+            mac_address="52:54:00:00:00:01",
+            connected_endpoints=[make_interface(id=99, device=remote)],
+            lag=SimpleNamespace(id=lag.id),
+        )
+        loader = _loader_with(device, [member, lag])
+        result = _extractor(api=make_fake_api(), loader=loader)._get_uplink_interfaces(
+            device
+        )
+        assert [uplink["interface"] for uplink in result] == ["bond0"]
+
+    @pytest.mark.parametrize(
+        "lag_overrides", [{"tags": ()}, {"enabled": False}, {"mgmt_only": True}]
+    )
+    def test_member_of_unmanaged_lag_stays_uplink(self, lag_overrides):
+        # netplan does not render such a LAG, so the member stays a plain
+        # ethernet that can carry its own BGP session.
+        device = make_device(1, "d1")
+        remote = make_device(2, "switch1", role=make_tag("leaf"))
+        lag = _managed_lag(**lag_overrides)
+        member = make_interface(
+            id=30,
+            label="data1",
+            tags=("managed-by-osism",),
+            connected_endpoints=[make_interface(id=99, device=remote)],
+            lag=SimpleNamespace(id=lag.id),
+        )
+        loader = _loader_with(device, [member, lag])
+        result = _extractor(api=object(), loader=loader)._get_uplink_interfaces(device)
+        assert result == [
+            {"interface": "data1", "remote_device": remote, "interface_obj": member}
+        ]
+
     def test_endpoint_without_device_is_skipped(self):
         device = make_device(1, "d1")
         endpoint = SimpleNamespace()  # no .device attribute
@@ -567,6 +684,185 @@ class TestGetUplinkInterfaces:
             {"interface": "data1", "remote_device": remote, "interface_obj": good}
         ]
         assert mock_logger.error.called
+
+
+# ---------------------------------------------------------------------------
+# FRRExtractor._get_lag_uplinks (via _get_uplink_interfaces)
+# ---------------------------------------------------------------------------
+
+
+def _bond_setup(
+    member_remotes,
+    *,
+    member_overrides=None,
+    lag_overrides=None,
+    lag_ips=None,
+    remote_lag=None,
+    interfaces_by_id=None,
+):
+    """A managed LAG bond0 (id 40) with one cabled member per remote device.
+
+    ``member_remotes`` lists the remote device of each member (``None`` for an
+    uncabled member). The connected endpoint of member i has id 100 + i and,
+    if ``remote_lag`` is given, points at it via ``.lag``. ``member_overrides``
+    maps a member index to make_interface overrides.
+    """
+    device = make_device(1, "srv1")
+    lag = _managed_lag(**(lag_overrides or {}))
+    members = []
+    for i, remote in enumerate(member_remotes):
+        endpoints = None
+        if remote is not None:
+            endpoints = [
+                make_interface(
+                    id=100 + i,
+                    device=remote,
+                    lag=SimpleNamespace(id=remote_lag.id) if remote_lag else None,
+                )
+            ]
+        kwargs = dict(
+            id=30 + i,
+            label=f"extern{i + 1}",
+            tags=("managed-by-osism",),
+            mac_address=f"52:54:00:00:00:{i:02x}",
+            connected_endpoints=endpoints,
+            lag=SimpleNamespace(id=lag.id),
+        )
+        kwargs.update((member_overrides or {}).get(i, {}))
+        members.append(make_interface(**kwargs))
+    loader = _loader_with(device, members + [lag], {lag.id: lag_ips or []})
+    api = make_fake_api(interfaces_by_id=interfaces_by_id or {})
+    return device, lag, members, _extractor(api=api, loader=loader)
+
+
+class TestGetLagUplinks:
+    def test_all_members_to_same_device_yield_bond_uplink(self):
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, lag, members, ex = _bond_setup([leaf, leaf])
+        result = ex._get_uplink_interfaces(device)
+        assert result == [
+            {
+                "interface": "bond0",
+                "remote_device": leaf,
+                "interface_obj": lag,
+                "local_interfaces": members,
+                "remote_interfaces": [
+                    members[0].connected_endpoints[0],
+                    members[1].connected_endpoints[0],
+                ],
+            }
+        ]
+
+    def test_bond_label_wins_over_name(self):
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup([leaf], lag_overrides={"label": "uplink0"})
+        assert [u["interface"] for u in ex._get_uplink_interfaces(device)] == [
+            "uplink0"
+        ]
+
+    def test_uncabled_member_is_ignored(self):
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup([leaf, None])
+        assert [u["interface"] for u in ex._get_uplink_interfaces(device)] == ["bond0"]
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"enabled": False},
+            {"mgmt_only": True},
+            {"tags": ()},
+            {"mac_address": None},
+        ],
+    )
+    def test_ineligible_member_is_ignored(self, overrides):
+        # netplan drops this member from the bond, so its cable to a second
+        # switch does not block the bond.
+        leaf1 = make_device(2, "leaf1", role=make_tag("leaf"))
+        leaf2 = make_device(3, "leaf2", role=make_tag("leaf"))
+        device, _, members, ex = _bond_setup(
+            [leaf1, leaf2], member_overrides={1: overrides}
+        )
+        (uplink,) = ex._get_uplink_interfaces(device)
+        assert uplink["remote_device"] is leaf1
+        assert uplink["remote_interfaces"] == [members[0].connected_endpoints[0]]
+
+    def test_no_eligible_member_yields_nothing(self):
+        # netplan skips a bond without eligible members.
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup(
+            [leaf], member_overrides={0: {"mac_address": None}}
+        )
+        assert ex._get_uplink_interfaces(device) == []
+
+    def test_no_cabled_member_yields_nothing(self):
+        device, _, _, ex = _bond_setup([None, None])
+        assert ex._get_uplink_interfaces(device) == []
+
+    def test_unmanaged_lag_is_no_uplink(self):
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup([leaf], lag_overrides={"tags": ()})
+        # The member itself stays an uplink (see TestGetUplinkInterfaces).
+        assert [u["interface"] for u in ex._get_uplink_interfaces(device)] == [
+            "extern1"
+        ]
+
+    def test_members_to_different_switches_skip_with_warning(self, mock_logger):
+        leaf1 = make_device(2, "leaf1", role=make_tag("leaf"))
+        leaf2 = make_device(3, "leaf2", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup([leaf1, leaf2])
+        assert ex._get_uplink_interfaces(device) == []
+        message = mock_logger.warning.call_args.args[0]
+        assert "bond0" in message and "leaf1, leaf2" in message
+
+    def test_members_to_different_switches_with_ips_skip_quietly(self, mock_logger):
+        leaf1 = make_device(2, "leaf1", role=make_tag("leaf"))
+        leaf2 = make_device(3, "leaf2", role=make_tag("leaf"))
+        device, _, _, ex = _bond_setup(
+            [leaf1, leaf2], lag_ips=[make_ip("192.0.2.10/24")]
+        )
+        assert ex._get_uplink_interfaces(device) == []
+        assert not mock_logger.warning.called
+        assert any("bond0" in str(c) for c in mock_logger.debug.call_args_list)
+
+    def test_members_to_different_non_switches_skip_quietly(self, mock_logger):
+        srv2 = make_device(2, "srv2", role=make_tag("compute"))
+        srv3 = make_device(3, "srv3", role=make_tag("compute"))
+        device, _, _, ex = _bond_setup([srv2, srv3])
+        assert ex._get_uplink_interfaces(device) == []
+        assert not mock_logger.warning.called
+
+    def test_discovery_reads_only_brief_endpoint_fields(self):
+        # NetBox returns connected endpoints in brief form; reading "lag" or
+        # "custom_fields" would make pynetbox request the full port.
+        class BriefEndpoint(SimpleNamespace):
+            @property
+            def lag(self):
+                raise AssertionError("discovery fetched port details")
+
+            @property
+            def custom_fields(self):
+                raise AssertionError("discovery fetched port details")
+
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, members, ex = _bond_setup([leaf])
+        endpoint = BriefEndpoint(id=100, device=leaf)
+        members[0].connected_endpoints = [endpoint]
+        (uplink,) = ex._get_uplink_interfaces(device)
+        assert uplink["remote_interfaces"] == [endpoint]
+
+    def test_uncabled_member_is_no_local_interface(self):
+        leaf = make_device(2, "leaf1", role=make_tag("leaf"))
+        device, _, members, ex = _bond_setup([leaf, None])
+        (uplink,) = ex._get_uplink_interfaces(device)
+        assert uplink["local_interfaces"] == [members[0]]
+
+    def test_remote_lags_fetched_once(self):
+        remote_lag = make_interface(id=200, name="PortChannel1")
+        ports = [
+            make_interface(id=100 + i, lag=SimpleNamespace(id=200)) for i in range(2)
+        ]
+        ex = _extractor(api=make_fake_api(interfaces_by_id={200: remote_lag}))
+        assert ex._get_remote_lags(ports + [make_interface(id=102)]) == [remote_lag]
 
 
 # ---------------------------------------------------------------------------
@@ -803,6 +1099,108 @@ class TestBuildFrrUplinks:
         ex = _uplink_setup(local_device=local, full_remote=full_remote)
         result = ex._build_frr_uplinks(local, ["leaf"], 4200)
         assert result == [{"interface": "data1", "remote_as": 64600}]
+
+
+class TestBuildFrrUplinksBond:
+    def _setup(
+        self,
+        *,
+        lag_cf=None,
+        member_cfs=(None, None),
+        local_member_cfs=(None, None),
+        remote_lag_cf=None,
+    ):
+        local = make_device(1, "srv1")
+        lag = _managed_lag(custom_fields=lag_cf or {})
+        remote_lag = None
+        if remote_lag_cf is not None:
+            remote_lag = make_interface(
+                id=200, name="PortChannel1", custom_fields=remote_lag_cf
+            )
+        members = []
+        for i, cf in enumerate(member_cfs):
+            endpoint = make_interface(
+                id=100 + i,
+                device=make_device(2, "leaf1", role=make_tag("leaf")),
+                custom_fields=cf or {},
+                lag=SimpleNamespace(id=200) if remote_lag else None,
+            )
+            members.append(
+                make_interface(
+                    id=30 + i,
+                    label=f"extern{i + 1}",
+                    tags=("managed-by-osism",),
+                    mac_address=f"52:54:00:00:00:{i:02x}",
+                    connected_endpoints=[endpoint],
+                    lag=SimpleNamespace(id=lag.id),
+                    custom_fields=local_member_cfs[i] or {},
+                )
+            )
+        loader = _loader_with(local, members + [lag])
+        full_remote = make_device(
+            2, "leaf1", role=make_tag("leaf"), custom_fields={"frr_local_as": 64600}
+        )
+        api = make_fake_api(
+            devices_by_id={2: full_remote},
+            interfaces_by_id={200: remote_lag} if remote_lag else {},
+        )
+        return local, _extractor(api=api, loader=loader)
+
+    def test_bond_uplink_with_remote_as(self):
+        local, ex = self._setup()
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600}
+        ]
+
+    def test_local_pref_from_local_lag(self):
+        local, ex = self._setup(lag_cf={"frr_local_pref": 200})
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600, "local_pref": 200}
+        ]
+
+    def test_local_pref_from_local_member(self):
+        # A value set on a member (from when members were the uplinks) counts.
+        local, ex = self._setup(
+            lag_cf={"frr_local_pref": 120},
+            local_member_cfs=(None, {"frr_local_pref": 180}),
+        )
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600, "local_pref": 180}
+        ]
+
+    def test_local_pref_highest_remote_member_wins(self):
+        local, ex = self._setup(
+            member_cfs=({"frr_local_pref": 120}, {"frr_local_pref": 180})
+        )
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600, "local_pref": 180}
+        ]
+
+    def test_remote_lag_fetch_failure_propagates(self):
+        # Retried per device by main.py rather than written without the
+        # preference.
+        local, ex = self._setup(remote_lag_cf={"frr_local_pref": 300})
+
+        def boom(id):
+            raise RuntimeError("503 Service Unavailable")
+
+        ex.api.dcim.interfaces.get = boom
+        with pytest.raises(RuntimeError):
+            ex._build_frr_uplinks(local, ["leaf"], 4200)
+
+    def test_local_pref_from_remote_lag(self):
+        local, ex = self._setup(remote_lag_cf={"frr_local_pref": 300})
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600, "local_pref": 300}
+        ]
+
+    def test_local_pref_local_and_remote_uses_max(self):
+        local, ex = self._setup(
+            lag_cf={"frr_local_pref": 250}, remote_lag_cf={"frr_local_pref": 300}
+        )
+        assert ex._build_frr_uplinks(local, ["leaf"], 4200) == [
+            {"interface": "bond0", "remote_as": 64600, "local_pref": 300}
+        ]
 
 
 # ---------------------------------------------------------------------------

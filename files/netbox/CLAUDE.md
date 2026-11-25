@@ -204,6 +204,16 @@ The `999-netbox-frr.yml` file contains frr_parameters which can be:
   - **Uplinks**: Interfaces with `managed-by-osism` tag and label connected to switches
     - Switch device roles are configurable via FRR_SWITCH_ROLES
     - Remote AS calculated from connected switch's loopback0 IPv4 or `frr_local_as` field
+    - Members of a managed LAG (one netplan renders as a bond) are never uplinks:
+      they are enslaved to the bond and cannot carry a BGP session
+    - The bond itself is an uplink (`interface: <LAG label or name>`) when all
+      its cabled members that netplan enslaves reach the same switch. Members
+      spread over several devices (active-backup or MLAG across two leaves)
+      skip the bond: a warning, or a debug message if the LAG has IP addresses
+    - The LAG label also decides the `frr_uplinks_<prefix>` group: label a bond
+      `data0`, not `bond0`, where templates read `frr_uplinks_data` (YRZN)
+    - `frr_local_pref` of a bond: the highest value of the local LAG, its
+      cabled members, the remote member ports and their remote LAG
   - **VRF loopbacks**: VRF dummy interfaces provide per-VRF router IDs
     - Uses the same detection criteria as netplan VRF dummy interfaces
     - Only interfaces with an IPv4 address are included (router_id requires IPv4)

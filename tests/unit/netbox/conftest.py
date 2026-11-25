@@ -199,7 +199,13 @@ def make_interface(
     )
 
 
-def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, prefixes=()):
+def make_fake_api(
+    interfaces=(),
+    ips_by_interface=None,
+    devices_by_id=None,
+    prefixes=(),
+    interfaces_by_id=None,
+):
     """Build a pynetbox-shaped API session stub.
 
     Exposes ``dcim.interfaces.filter(device_id=...)`` returning ``interfaces``,
@@ -207,7 +213,10 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, pref
     registered for that interface id in ``ips_by_interface`` (default empty),
     ``dcim.devices.get(id)`` returning the device registered in
     ``devices_by_id`` (default empty) -- the lookup ``frr_extractor`` uses to
-    fetch a remote device's custom fields for cached-AS resolution -- and
+    fetch a remote device's custom fields for cached-AS resolution --,
+    ``dcim.interfaces.get(id)`` returning the interface registered in
+    ``interfaces_by_id`` (default empty) -- used to fetch a remote LAG's custom
+    fields -- and
     ``ipam.prefixes.filter(tag=...)`` returning ``prefixes`` (default empty),
     used by the dnsmasq metalbox DHCP-option collector. The prefixes stub also
     records each ``tag`` argument it is called with in ``prefixes.filter_calls``
@@ -216,6 +225,7 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, pref
     """
     ips_by_interface = ips_by_interface or {}
     devices_by_id = devices_by_id or {}
+    interfaces_by_id = interfaces_by_id or {}
 
     prefixes_ns = SimpleNamespace(filter_calls=[])
 
@@ -229,6 +239,7 @@ def make_fake_api(interfaces=(), ips_by_interface=None, devices_by_id=None, pref
         dcim=SimpleNamespace(
             interfaces=SimpleNamespace(
                 filter=lambda device_id: list(interfaces),
+                get=lambda id: interfaces_by_id.get(id),
             ),
             devices=SimpleNamespace(
                 get=lambda id: devices_by_id.get(id),

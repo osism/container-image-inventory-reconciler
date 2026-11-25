@@ -73,6 +73,52 @@ class InterfaceFilter:
         return "managed-by-osism" in tag_slugs
 
     @staticmethod
+    def is_managed_lag(interface: Any) -> bool:
+        """Check if interface is a LAG that netplan renders as a bond.
+
+        Mirrors the LAG gates of the netplan extractor: type "lag",
+        managed-by-osism tag, enabled, not mgmt_only and a label or name.
+        Members of such a LAG are enslaved to the bond on the host.
+
+        Args:
+            interface: NetBox interface object
+
+        Returns:
+            True if interface is a managed LAG, False otherwise
+        """
+        iface_type = getattr(interface, "type", None)
+        return (
+            bool(iface_type)
+            and getattr(iface_type, "value", None) == "lag"
+            and InterfaceFilter.has_managed_tag(interface)
+            and getattr(interface, "enabled", True)
+            and not getattr(interface, "mgmt_only", False)
+            and bool(interface.label or interface.name)
+        )
+
+    @staticmethod
+    def is_eligible_bond_member(interface: Any) -> bool:
+        """Check if netplan enslaves a LAG member interface to its bond.
+
+        Mirrors the member gates of the netplan extractor: managed-by-osism
+        tag, MAC address, label, enabled and not mgmt_only. netplan drops
+        other members from the bond.
+
+        Args:
+            interface: NetBox interface object
+
+        Returns:
+            True if interface is an eligible bond member, False otherwise
+        """
+        return (
+            InterfaceFilter.has_managed_tag(interface)
+            and bool(getattr(interface, "mac_address", None))
+            and bool(interface.label)
+            and getattr(interface, "enabled", True)
+            and not getattr(interface, "mgmt_only", False)
+        )
+
+    @staticmethod
     def is_valid_uplink(interface: Any) -> bool:
         """Check if interface is a valid uplink.
 
@@ -323,16 +369,21 @@ class FRRExtractor(BaseExtractor):
 
         return result
 
-    def _get_uplink_interfaces(self, device: Any) -> List[Dict[str, Any]]:
+    def _get_uplink_interfaces(
+        self, device: Any, switch_roles: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """Get all interfaces that could be uplinks.
 
-        Returns interfaces that have:
-        - managed-by-osism tag
-        - a label
-        - connected endpoints
+        Returns interfaces that pass InterfaceFilter.is_valid_uplink() and
+        are not a member of a managed LAG. netplan enslaves such members to
+        their bond, so a BGP session on a member cannot be established.
+        Managed LAGs are added by _get_lag_uplinks() instead.
 
         Args:
             device: NetBox device object
+            switch_roles: Switch role slugs, only used to decide how loudly a
+                LAG that cannot be an uplink is logged (default:
+                DEFAULT_FRR_SWITCH_ROLES)
 
         Returns:
             List of interface dictionaries with connection info and interface object
@@ -346,9 +397,22 @@ class FRRExtractor(BaseExtractor):
         try:
             # Get interfaces using bulk_loader
             interfaces = self.bulk_loader.get_device_interfaces(device)
+            managed_lags = {
+                interface.id: interface
+                for interface in interfaces
+                if self.interface_filter.is_managed_lag(interface)
+            }
 
             for interface in interfaces:
                 if not self.interface_filter.is_valid_uplink(interface):
+                    continue
+
+                lag = getattr(interface, "lag", None)
+                if lag and lag.id in managed_lags:
+                    logger.debug(
+                        f"Skipping {interface.label} on {device.name} as uplink: "
+                        f"member of LAG {lag.id}"
+                    )
                     continue
 
                 # Get connected device from endpoints
@@ -362,10 +426,147 @@ class FRRExtractor(BaseExtractor):
                         }
                     )
 
+            uplinks.extend(
+                self._get_lag_uplinks(
+                    device,
+                    interfaces,
+                    managed_lags,
+                    switch_roles or DEFAULT_FRR_SWITCH_ROLES,
+                )
+            )
+
         except Exception as e:
             logger.error(f"Error fetching interfaces for {device.name}: {e}")
 
         return uplinks
+
+    def _get_lag_uplinks(
+        self,
+        device: Any,
+        interfaces: List[Any],
+        managed_lags: Dict[Any, Any],
+        switch_roles: List[str],
+    ) -> List[Dict[str, Any]]:
+        """Get the managed LAGs (bonds) that could be uplinks.
+
+        The cables sit on the LAG members, so a LAG is judged by the remote
+        endpoints of its cabled members, counting only the members netplan
+        enslaves to the bond (InterfaceFilter.is_eligible_bond_member()); a
+        LAG without such a member is not rendered as a bond at all. A LAG is
+        an uplink candidate only if all of them reach the same remote device: BGP unnumbered over the
+        bond peers with whatever router answers on the link, so members
+        spread over several devices (active-backup across two leaves, MLAG)
+        would peer with a different router after a failover, or with two at
+        once. Such a LAG is skipped. The skip is logged as a warning when one
+        of the remote devices is a switch and the LAG has no IP addresses;
+        a LAG with IP addresses is most likely not meant for BGP, so its skip
+        is only logged at debug level.
+
+        Args:
+            device: NetBox device object
+            interfaces: All interfaces of the device
+            managed_lags: Managed LAG interfaces of the device, keyed by id
+            switch_roles: Switch role slugs
+
+        Returns:
+            List of uplink dictionaries like _get_uplink_interfaces(), with
+            additional "local_interfaces" (the cabled bond members) and
+            "remote_interfaces" (their remote ports) lists for the
+            frr_local_pref lookup
+        """
+        uplinks = []
+
+        members_by_lag: Dict[Any, List[Any]] = {}
+        for interface in interfaces:
+            lag = getattr(interface, "lag", None)
+            if (
+                lag
+                and lag.id in managed_lags
+                and self.interface_filter.is_eligible_bond_member(interface)
+            ):
+                members_by_lag.setdefault(lag.id, []).append(interface)
+
+        for lag_id, lag_interface in managed_lags.items():
+            bond_name = lag_interface.label or lag_interface.name
+
+            # Only fields of the brief endpoint form are read here ("device"),
+            # so discovery makes no further NetBox requests.
+            cabled_members = []
+            remote_interfaces = []
+            remote_devices = {}
+            for member in members_by_lag.get(lag_id, []):
+                cabled = False
+                for endpoint in getattr(member, "connected_endpoints", None) or []:
+                    remote_device = getattr(endpoint, "device", None)
+                    if not remote_device:
+                        continue
+                    cabled = True
+                    remote_interfaces.append(endpoint)
+                    remote_devices[remote_device.id] = remote_device
+                if cabled:
+                    cabled_members.append(member)
+
+            if not remote_devices:
+                continue
+
+            if len(remote_devices) > 1:
+                names = ", ".join(sorted(d.name for d in remote_devices.values()))
+                message = (
+                    f"Skipping bond {bond_name} on {device.name} as uplink: "
+                    f"its members reach different devices ({names})"
+                )
+                reaches_switch = any(
+                    self._is_switch_device(d, switch_roles)
+                    for d in remote_devices.values()
+                )
+                if reaches_switch and not self.bulk_loader.get_interface_ip_addresses(
+                    lag_interface
+                ):
+                    logger.warning(message)
+                else:
+                    logger.debug(message)
+                continue
+
+            uplinks.append(
+                {
+                    "interface": bond_name,
+                    "remote_device": next(iter(remote_devices.values())),
+                    "interface_obj": lag_interface,
+                    "local_interfaces": cabled_members,
+                    "remote_interfaces": remote_interfaces,
+                }
+            )
+
+        return uplinks
+
+    def _get_remote_lags(self, remote_interfaces: List[Any]) -> List[Any]:
+        """Fetch the LAGs the given remote interfaces are members of.
+
+        NetBox serializes connected endpoints in brief form without "lag", so
+        reading it makes pynetbox fetch the full remote port; the "lag" it
+        then holds is again a brief reference without custom fields, so the
+        full LAG interface is fetched for the frr_local_pref lookup. A failed
+        request propagates, like a failed custom_fields read of an ethernet
+        uplink's remote port: the device is then retried as a whole instead
+        of being written with a weaker BGP policy.
+
+        Args:
+            remote_interfaces: Remote interface objects
+
+        Returns:
+            List of remote LAG interface objects, each at most once
+        """
+        remote_lags = []
+        seen = set()
+        for remote_interface in remote_interfaces:
+            lag = getattr(remote_interface, "lag", None)
+            if not lag or lag.id in seen:
+                continue
+            seen.add(lag.id)
+            remote_lag = self.api.dcim.interfaces.get(lag.id)
+            if remote_lag:
+                remote_lags.append(remote_lag)
+        return remote_lags
 
     def _get_remote_device(self, interface: Any) -> Optional[Any]:
         """Get the remote device connected to an interface.
@@ -587,7 +788,7 @@ class FRRExtractor(BaseExtractor):
         allow_missing_remote_as = frr_type and frr_type.startswith("yrzn")
 
         # Get all potential uplinks
-        uplinks = self._get_uplink_interfaces(device)
+        uplinks = self._get_uplink_interfaces(device, switch_roles)
 
         # Filter to only switch connections
         switch_uplinks = self._filter_switch_connections(uplinks, switch_roles)
@@ -637,18 +838,46 @@ class FRRExtractor(BaseExtractor):
                 if interface_obj:
                     custom_field_extractor = CustomFieldExtractor()
 
-                    # Check local interface
-                    local_pref_local = custom_field_extractor.extract(
-                        interface_obj, field_name="frr_local_pref"
-                    )
-
-                    # Check remote interface
-                    remote_interface = self._get_remote_interface(interface_obj)
-                    local_pref_remote = None
-                    if remote_interface:
-                        local_pref_remote = custom_field_extractor.extract(
-                            remote_interface, field_name="frr_local_pref"
+                    # Check local interface(s). A bond uplink also carries
+                    # its cabled members, which may still hold a value from
+                    # when they were the uplinks; the highest value counts.
+                    local_prefs = [
+                        pref
+                        for pref in (
+                            custom_field_extractor.extract(
+                                local_interface, field_name="frr_local_pref"
+                            )
+                            for local_interface in [interface_obj]
+                            + uplink.get("local_interfaces", [])
                         )
+                        if pref is not None
+                    ]
+                    local_pref_local = max(local_prefs) if local_prefs else None
+
+                    # Check remote interface(s). A bond uplink carries the
+                    # remote member ports and their remote LAGs; the highest
+                    # value among them counts.
+                    remote_interfaces = uplink.get("remote_interfaces")
+                    if remote_interfaces is not None:
+                        remote_interfaces = remote_interfaces + self._get_remote_lags(
+                            remote_interfaces
+                        )
+                    else:
+                        remote_interface = self._get_remote_interface(interface_obj)
+                        remote_interfaces = (
+                            [remote_interface] if remote_interface else []
+                        )
+                    remote_prefs = [
+                        pref
+                        for pref in (
+                            custom_field_extractor.extract(
+                                remote_interface, field_name="frr_local_pref"
+                            )
+                            for remote_interface in remote_interfaces
+                        )
+                        if pref is not None
+                    ]
+                    local_pref_remote = max(remote_prefs) if remote_prefs else None
 
                     # Conflict resolution: use higher value if both are set
                     local_pref_final = None
